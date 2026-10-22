@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#173f35" />
+    <meta name="description" content="Навчальний проєкт планування маршруту кур'єра на координатній площині." />
+    <title>Планувальник маршруту кур'єра</title>
+    <link rel="icon" href="data:," />
+    <script type="module" src="/main.ts"></script>
+  </head>
+  <body>
+    <main class="page">
+      <header class="brand"><span class="brand-mark" aria-hidden="true">↗</span> Courier Route</header>
+      <section class="intro" aria-labelledby="page-title">
+        <p class="eyebrow">Навчальний проєкт · Блок 1</p>
+        <h1 id="page-title">Планувальник маршруту кур'єра</h1>
+        <p class="description">Застосунок призначений для пошуку короткого маршруту від складу через точки доставки й назад на координатній площині.</p>
+        <div class="status-card" data-state="checking">
+          <span class="status-dot" aria-hidden="true"></span>
+          <div>
+            <h2>Зв'язок із сервером</h2>
+            <p id="server-status" role="status" aria-live="polite">Перевіряємо доступність…</p>
+          </div>
+        </div>
+        <noscript><p class="noscript">Для перевірки доступності сервера увімкніть JavaScript у браузері.</p></noscript>
+        <p class="stage-note">Зараз доступна перевірка зв'язку із сервером. Розрахунок маршруту з'явиться в наступних блоках.</p>
+      </section>
+      <footer>Умовні координати · Евклідова відстань</footer>
+    </main>
+  </body>
+</html>

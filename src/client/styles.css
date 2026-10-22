@@ -1,0 +1,33 @@
+:root {
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #173f35;
+  background: #f5f4ef;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; }
+.page { max-width: 1120px; min-height: 100svh; margin: 0 auto; padding: 40px 48px 24px; display: flex; flex-direction: column; }
+.brand { display: flex; align-items: center; gap: 12px; font-weight: 650; letter-spacing: -.03em; font-size: 20px; }
+.brand-mark { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; color: #fff; background: #173f35; font-size: 25px; }
+.intro { max-width: 760px; padding: clamp(64px, 12vh, 140px) 0 80px; }
+.eyebrow { margin: 0 0 22px; color: #526b60; font-size: 12px; font-weight: 650; letter-spacing: .14em; text-transform: uppercase; }
+h1 { max-width: 750px; margin: 0; font-size: clamp(36px, 5.4vw, 64px); font-weight: 550; line-height: 1.08; letter-spacing: -.045em; overflow-wrap: break-word; }
+.description { max-width: 600px; margin: 28px 0 38px; font-size: 18px; line-height: 1.65; color: #52635b; }
+.status-card { display: flex; align-items: flex-start; gap: 14px; max-width: 600px; border: 1px solid #d9e1d7; border-radius: 16px; padding: 22px 24px; background: #fffefa; }
+.status-dot { flex: 0 0 9px; width: 9px; height: 9px; margin-top: 7px; border-radius: 50%; background: #888b7c; }
+[data-state="ok"] .status-dot { background: #278456; }
+[data-state="error"] .status-dot { background: #b83b29; }
+h2 { font-size: 15px; font-weight: 650; margin: 0 0 7px; line-height: 1.5; }
+#server-status { color: #52635b; margin: 0; font-size: 14px; line-height: 1.6; }
+.stage-note, .noscript { max-width: 580px; margin: 22px 0 0; font-size: 13px; line-height: 1.7; color: #63746a; }
+footer { margin-top: auto; padding-top: 24px; border-top: 1px solid #dce1d6; color: #6c796f; font-size: 12px; letter-spacing: .02em; }
+
+@media (max-width: 600px) {
+  .page { padding: 24px 22px; }
+  .intro { padding: 64px 0; }
+  .description { font-size: 16px; }
+  .status-card { padding: 18px; }
+}

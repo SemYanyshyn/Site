@@ -8,14 +8,26 @@ import type { AppConfig } from './config.js';
 import { isDatabaseReady } from './database.js';
 import { databaseUnavailable, HttpError, sendError } from './auth/errors.js';
 import { createAuthRouter } from './auth/router.js';
+import type { RouteLimits } from '../shared/route.js';
+import { readRouteConfig } from './route/config.js';
+import { readJobsConfig } from './jobs/config.js';
+import type { JobsConfig } from './jobs/config.js';
+import { JobsRepository } from './jobs/repository.js';
+import { createJobsRouter } from './jobs/router.js';
 
 interface AppOptions {
   config: AppConfig;
   pool: Pool;
   instanceId?: string;
+  routeLimits?: RouteLimits;
+  jobsConfig?: JobsConfig;
+  jobsRepository?: JobsRepository;
 }
 
-export function createApp({ config, pool, instanceId = randomUUID() }: AppOptions): express.Express {
+export function createApp({
+  config, pool, instanceId = randomUUID(), routeLimits = readRouteConfig(), jobsConfig = readJobsConfig(),
+  jobsRepository = new JobsRepository(pool),
+}: AppOptions): express.Express {
   const app = express();
   const clientDirectory = fileURLToPath(new URL('../client', import.meta.url));
   app.disable('x-powered-by');
@@ -36,6 +48,7 @@ export function createApp({ config, pool, instanceId = randomUUID() }: AppOption
   });
 
   app.use('/api/auth', createAuthRouter(config, pool));
+  app.use('/api/jobs', createJobsRouter(config, pool, jobsRepository, routeLimits, jobsConfig));
   app.use('/api', (_request, response) => {
     sendError(response, 404, 'NOT_FOUND', 'API-маршрут не знайдено.');
   });
@@ -57,7 +70,8 @@ export function createApp({ config, pool, instanceId = randomUUID() }: AppOption
     if (errorType === 'entity.parse.failed') {
       sendError(response, 400, 'INVALID_JSON', 'Некоректний JSON у тілі запиту.');
     } else if (errorType === 'entity.too.large') {
-      sendError(response, 413, 'BODY_TOO_LARGE', 'Тіло запиту перевищує 16 KiB.');
+      const bodyLimit = response.locals.jsonBodyLimit === '256kb' ? '256 KiB' : '16 KiB';
+      sendError(response, 413, 'BODY_TOO_LARGE', `Тіло запиту перевищує ${bodyLimit}.`);
     } else if (errorType === 'charset.unsupported' || errorType === 'encoding.unsupported') {
       sendError(response, 415, 'UNSUPPORTED_MEDIA_TYPE', 'Непідтримуване кодування JSON-запиту.');
     } else if (errorType === 'request.aborted' || errorType === 'request.size.invalid') {

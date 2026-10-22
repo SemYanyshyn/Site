@@ -20,7 +20,7 @@ export function createDatabasePool(databaseUrl: string): Pool {
 
 export async function isDatabaseReady(pool: Pool): Promise<boolean> {
   try {
-    // Referencing both table shapes catches absent tables even when a migration
+    // Referencing all table shapes catches absent tables even when a migration
     // record has been copied into an otherwise unprepared schema.
     const result = await pool.query<{ version: string }>(`
       WITH user_shape AS (
@@ -28,11 +28,17 @@ export async function isDatabaseReady(pool: Pool): Promise<boolean> {
         FROM users LIMIT 0
       ), session_shape AS (
         SELECT token_hash, user_id, created_at, expires_at FROM sessions LIMIT 0
+      ), job_shape AS (
+        SELECT id, user_id, input, status, progress_stage, completed_iterations, total_iterations, progress_percent,
+          created_at, updated_at, started_at, finished_at, cancel_requested_at, instance_id, claim_token,
+          timeout_ms, lost_after, result, failure_reason, failure_message
+        FROM jobs LIMIT 0
       )
       SELECT version FROM schema_migrations
       WHERE version = ANY($1::text[])
         AND (SELECT COUNT(*) FROM user_shape) = 0
         AND (SELECT COUNT(*) FROM session_shape) = 0
+        AND (SELECT COUNT(*) FROM job_shape) = 0
     `, [REQUIRED_MIGRATIONS]);
     const applied = new Set(result.rows.map((row) => row.version));
     return REQUIRED_MIGRATIONS.every((version) => applied.has(version));

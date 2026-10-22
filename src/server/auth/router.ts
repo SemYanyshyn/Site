@@ -3,12 +3,12 @@ import express from 'express';
 import type { Pool } from 'pg';
 import { validateCredentials } from '../../shared/auth.js';
 import type { AuthResponse } from '../../shared/auth.js';
-import { normalizeOrigin } from '../config.js';
 import type { AppConfig } from '../config.js';
 import { isDatabaseReady } from '../database.js';
 import { databaseUnavailable, HttpError, sendError } from './errors.js';
 import { requireAuth } from './middleware.js';
 import { hashPassword, verifyPassword } from './password.js';
+import { jsonMutationGuard } from '../http/json.js';
 import {
   clearSessionCookie, createSession, hashSessionToken, publicUser, readSessionToken, setSessionCookie,
 } from './sessions.js';
@@ -24,25 +24,7 @@ async function assertDatabaseReady(pool: Pool): Promise<void> {
 
 export function createAuthRouter(config: AppConfig, pool: Pool): express.Router {
   const router = express.Router();
-  router.use((request, response, next) => {
-    response.set('Cache-Control', 'no-store');
-    if (request.method !== 'POST') {
-      next();
-      return;
-    }
-    const origin = request.get('Origin');
-    const normalized = origin ? normalizeOrigin(origin) : null;
-    if (!normalized || !config.appOrigins.has(normalized)) {
-      sendError(response, 403, 'ORIGIN_FORBIDDEN', 'Походження запиту не дозволене.');
-      return;
-    }
-    const contentType = request.get('Content-Type')?.split(';', 1)[0]?.trim().toLowerCase();
-    if (contentType !== 'application/json') {
-      sendError(response, 415, 'UNSUPPORTED_MEDIA_TYPE', 'Для цього запиту потрібен Content-Type: application/json.');
-      return;
-    }
-    express.json({ limit: '16kb', strict: true, type: () => true })(request, response, next);
-  });
+  router.use(jsonMutationGuard(config, '16kb'));
 
   router.post('/register', async (request, response) => {
     const credentials = validateCredentials(request.body);

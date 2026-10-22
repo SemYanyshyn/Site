@@ -12,16 +12,30 @@
     "dev": "concurrently --kill-others --names server,client \"npm:dev:server\" \"npm:dev:client\"",
     "dev:server": "node --env-file-if-exists=.env --watch --import tsx src/server/index.ts",
     "dev:client": "vite",
-    "typecheck": "tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.client.json && tsc -p tsconfig.tools.json",
-    "build": "node scripts/clean.mjs && tsc -p tsconfig.server.json && vite build",
-    "start": "node --env-file-if-exists=.env dist/server/index.js"
+    "typecheck": "tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.client.json && tsc -p tsconfig.tools.json && tsc -p tsconfig.tests.json",
+    "build": "node scripts/clean.mjs && tsc -p tsconfig.server.json && node scripts/copy-migrations.mjs && vite build",
+    "start": "node --env-file-if-exists=.env dist/server/index.js",
+    "db:setup": "node --env-file-if-exists=.env scripts/local-postgres.mjs setup",
+    "db:start": "node --env-file-if-exists=.env scripts/local-postgres.mjs start",
+    "db:stop": "node --env-file-if-exists=.env scripts/local-postgres.mjs stop",
+    "db:status": "node --env-file-if-exists=.env scripts/local-postgres.mjs status",
+    "db:migrate": "node --env-file-if-exists=.env --import tsx src/server/db/migrate.ts",
+    "db:migrate:built": "node --env-file-if-exists=.env dist/server/db/migrate.js",
+    "db:check": "node --env-file-if-exists=.env --import tsx src/server/db/check.ts",
+    "test:unit": "node --env-file-if-exists=.env --import tsx --test tests/password.test.ts tests/database-safety.test.ts tests/config.test.ts",
+    "test:integration": "node --env-file-if-exists=.env --import tsx --test tests/auth.integration.test.ts",
+    "auth:check": "npm run test:integration",
+    "test": "npm run test:unit && npm run test:integration"
   },
   "dependencies": {
-    "express": "5.3.0"
+    "cookie": "2.0.1",
+    "express": "5.3.0",
+    "pg": "8.23.1"
   },
   "devDependencies": {
     "@types/express": "5.0.6",
     "@types/node": "24.19.2",
+    "@types/pg": "8.23.1",
     "concurrently": "10.0.6",
     "tsx": "4.23.15",
     "typescript": "7.0.2",

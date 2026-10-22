@@ -8,3 +8,8 @@ dist/
 .env.*
 !.env.example
 .aws/
+.local/
+*.dump
+*.sql.gz
+cookies*.txt
+*.cookies

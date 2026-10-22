@@ -13,7 +13,7 @@
     <main class="page">
       <header class="brand"><span class="brand-mark" aria-hidden="true">↗</span> Courier Route</header>
       <section class="intro" aria-labelledby="page-title">
-        <p class="eyebrow">Навчальний проєкт · Блок 1</p>
+        <p class="eyebrow">Навчальний проєкт · Блок 2</p>
         <h1 id="page-title">Планувальник маршруту кур'єра</h1>
         <p class="description">Застосунок призначений для пошуку короткого маршруту від складу через точки доставки й назад на координатній площині.</p>
         <div class="status-card" data-state="checking">
@@ -23,8 +23,34 @@
             <p id="server-status" role="status" aria-live="polite">Перевіряємо доступність…</p>
           </div>
         </div>
-        <noscript><p class="noscript">Для перевірки доступності сервера увімкніть JavaScript у браузері.</p></noscript>
-        <p class="stage-note">Зараз доступна перевірка зв'язку із сервером. Розрахунок маршруту з'явиться в наступних блоках.</p>
+        <section class="auth-card" aria-labelledby="auth-title" aria-busy="true">
+          <h2 id="auth-title">Вхід до облікового запису</h2>
+          <p id="auth-message" class="auth-message" role="status" aria-live="polite" aria-atomic="true">Перевіряємо стан входу…</p>
+          <div id="auth-forms" hidden>
+            <div class="auth-modes" role="group" aria-label="Дія з обліковим записом">
+              <button id="login-mode" class="mode-button" type="button" aria-pressed="true">Вхід</button>
+              <button id="register-mode" class="mode-button" type="button" aria-pressed="false">Реєстрація</button>
+            </div>
+            <form id="auth-form" novalidate>
+              <fieldset id="auth-fields" disabled>
+                <legend class="visually-hidden">Логін і пароль</legend>
+                <label for="username">Логін</label>
+                <input id="username" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required aria-describedby="username-help" />
+                <p id="username-help" class="field-help">3–32 символи: латинські літери, цифри, _ та -. Регістр не має значення; крайні пробіли прибираються.</p>
+                <label for="password">Пароль</label>
+                <input id="password" name="password" type="password" autocomplete="current-password" required aria-describedby="password-help" />
+                <p id="password-help" class="field-help">15–128 символів. Можна використовувати Unicode і пробіли. Пробіли та регістр зберігаються.</p>
+                <button id="auth-submit" class="primary-button" type="submit">Увійти</button>
+              </fieldset>
+            </form>
+          </div>
+          <div id="user-state" hidden>
+            <p class="user-summary">Ви увійшли як <strong id="current-username"></strong>.</p>
+            <button id="logout" class="secondary-button" type="button">Вийти</button>
+          </div>
+        </section>
+        <noscript><p class="noscript">Для перевірки доступності сервера та входу увімкніть JavaScript у браузері.</p></noscript>
+        <p class="stage-note">Зараз доступні реєстрація та вхід. Розрахунок маршруту з'явиться в наступних блоках.</p>
       </section>
       <footer>Умовні координати · Евклідова відстань</footer>
     </main>

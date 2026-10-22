@@ -16,7 +16,8 @@ const serverFile = fileURLToPath(new URL('../dist/server/index.js', import.meta.
 const migrationFile = fileURLToPath(new URL('../dist/server/db/migrate.js', import.meta.url));
 const schema = `courier_test_${randomUUID().replaceAll('-', '')}`;
 const fixturePassword = 'Тестовий пароль для кур’єра 😀';
-const viteOrigin = 'http://127.0.0.1:5173';
+let viteOrigin: string;
+let vitePort: number;
 
 interface ManagedProcess {
   child: ChildProcess;
@@ -222,6 +223,8 @@ describe('PostgreSQL authentication across independent HTTP processes', { concur
     pool = new pg.Pool({ connectionString: isolatedDatabaseUrl, max: 2, connectionTimeoutMillis: 3000, query_timeout: 5000 });
     portA = await unusedPort();
     do { portB = await unusedPort(); } while (portB === portA);
+    do { vitePort = await unusedPort(); } while (vitePort === portA || vitePort === portB);
+    viteOrigin = `http://127.0.0.1:${vitePort}`;
     allowedOrigins = [`http://127.0.0.1:${portA}`, `http://127.0.0.1:${portB}`, viteOrigin].join(',');
   });
 
@@ -438,7 +441,7 @@ describe('PostgreSQL authentication across independent HTTP processes', { concur
       await errorFrom(await post(appA.origin, '/api/auth/logout', {}, { origin }), 403);
     }
     await userFrom(await login(), 200);
-    const vite = manage('npm', ['run', 'dev:client', '--', '--host', '127.0.0.1', '--port', '5173', '--strictPort'],
+    const vite = manage('npm', ['run', 'dev:client', '--', '--host', '127.0.0.1', '--port', String(vitePort), '--strictPort'],
       { ...appEnvironment(portA), NODE_ENV: 'development' }, true);
     try {
       const proxyHealth = await waitForHttp(viteOrigin, vite);

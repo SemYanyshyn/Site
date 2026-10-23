@@ -15,7 +15,7 @@ import { assertSafeTestDatabase } from '../tests/database-safety.ts';
 // Chrome, all credentials, the profile and schema belong only to this run.
 const root = fileURLToPath(new URL('../', import.meta.url));
 const chromePath = process.env.COURIER_TEST_CHROME ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-const output = join(root, '.local/browser-block05');
+const output = join(root, '.local/browser-block06');
 const schema = `courier_test_browser_${randomUUID().replaceAll('-', '')}`;
 const username = `browser_${randomBytes(6).toString('hex')}`;
 const password = randomBytes(24).toString('base64url');
@@ -38,6 +38,17 @@ let cdp;
 let sessionId;
 let origin;
 let devOrigin;
+let progressLock;
+
+function heavyCoordinates() {
+  let generator = 42;
+  return Array.from({ length: 500 }, () => {
+    generator = (Math.imul(generator, 1664525) + 1013904223) >>> 0;
+    const x = generator / 0x1_0000_0000 * 2000 - 1000;
+    generator = (Math.imul(generator, 1664525) + 1013904223) >>> 0;
+    return `${x} ${generator / 0x1_0000_0000 * 2000 - 1000}`;
+  }).join('\n');
+}
 
 function diagnosticMessage(value) {
   return String(value ?? '').split('\n')[0].replaceAll(password, '[redacted]')
@@ -246,7 +257,73 @@ try {
   assert.equal(createCount(), beforeInvalid);
   passed('invalid line rejected locally without POST');
 
+  step = 'unknown queue and cold timeout fallback';
+  const heavyDraft = { '#warehouse-x': '0', '#warehouse-y': '0', '#delivery-points': heavyCoordinates(),
+    '#route-iterations': '200000000', '#route-seed': '42' };
+  const coldJob = await create(heavyDraft);
+  await waitFor(`document.querySelector('#job-queue-estimate').textContent.includes('немає доступної оцінки')`, 'paused executor unknown wait');
+  assert.match(await text('#job-queue-explanation'), /Немає доступного виконавця/u);
+  const waitingJob = await create(heavyDraft);
+  await status('queued');
+  await command('Emulation.setDeviceMetricsOverride', { width: 360, height: 900, deviceScaleFactor: 1, mobile: false });
+  await evaluate(`document.querySelector('#job-queue').scrollIntoView({block:'center'})`);
+  await screenshot('mobile-eta-unknown.png');
+  assert.ok(await evaluate(`document.documentElement.scrollWidth <= innerWidth`));
+  passed('paused real executor is excluded and queued UI shows unknown at 360px');
+
+  // A short, real row lock holds the first persisted zero-counter snapshot while
+  // CPU work continues. It tests cold-start fallback without a fake worker or
+  // artificial algorithm delay, and is released before the SQL timeout.
+  progressLock = await pool.connect();
+  await progressLock.query('BEGIN');
+  let locked = false;
+  let lockFailed = false;
+  const onColdClaim = (event) => {
+    if (event.type !== 'claimed' || event.jobId !== coldJob) return;
+    void progressLock.query('SELECT completed_iterations FROM jobs WHERE id=$1 FOR UPDATE', [coldJob])
+      .then((value) => { locked = Number(value.rows[0]?.completed_iterations) === 0; lockFailed = !locked; })
+      .catch(() => { lockFailed = true; });
+  };
+  server.child.on('message', onColdClaim);
+  await ipc('resume');
+  await until(() => locked || lockFailed, 'first cold claim snapshot');
+  server.child.removeListener('message', onColdClaim);
+  assert.equal(lockFailed, false);
+  await click('#jobs-refresh');
+  await waitFor(`document.querySelector('#job-queue-explanation').textContent.includes('Попередня оцінка за серверною межею часу')`, 'cold timeout fallback label');
+  assert.match(await text('#job-queue-estimate'), /Орієнтовно/u);
+  await screenshot('mobile-eta-fallback.png');
+  await progressLock.query('ROLLBACK');
+  progressLock.release();
+  progressLock = undefined;
+  await waitFor(`!document.querySelector('#job-queue-explanation').textContent.includes('Попередня оцінка')
+    && document.querySelector('#job-queue-estimate').textContent.includes('Орієнтовно')`, 'measured running forecast');
+  await screenshot('mobile-eta-measured.png');
+  const beforeQueue503 = await text('#job-queue-estimate');
+  await pool.query('ALTER TABLE jobs RENAME TO jobs_browser_unavailable');
+  renamed = true;
+  await click('#jobs-refresh');
+  await waitFor(`document.querySelector('#job-queue').dataset.stale === 'true'`, 'stale ETA after real SQL failure');
+  assert.equal(await text('#job-queue-estimate'), beforeQueue503);
+  assert.equal(await visible('#job-queue-stale'), true);
+  await screenshot('mobile-eta-stale.png');
+  await pool.query('ALTER TABLE jobs_browser_unavailable RENAME TO jobs');
+  renamed = false;
+  await click('#jobs-refresh');
+  await waitFor(`document.querySelector('#job-queue').dataset.stale !== 'true'
+    && !document.querySelector('#history-message').classList.contains('error')`, 'queue restored after SQL failure');
+  // SQL failure really stops the first worker. The queued job then starts using
+  // the recovered registration; the old estimate must be removed.
+  await status('running');
+  assert.equal(await selectedId(), waitingJob);
+  assert.equal(await visible('#job-queue'), false);
+  await cancelSelected();
+  assert.equal(await visible('#job-queue'), false);
+  passed('cold fallback, measured queue update, real 503 stale warning, recovery and ETA removal on running/terminal');
+
   step = 'saved square result';
+  await command('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+  await ipc('pause');
   await click('#fill-square');
   const squareId = await create();
   await status('queued');
@@ -352,7 +429,7 @@ try {
   passed('three real queued jobs, 429 quota and confirmed queued cancellation');
 
   step = 'paginated real history';
-  while (Number((await pool.query('SELECT count(*) AS count FROM jobs')).rows[0].count) < 21) {
+  while (Number((await pool.query('SELECT count(*) AS count FROM jobs')).rows[0].count) < 23) {
     await create();
     await status('queued');
     await cancelSelected();
@@ -373,7 +450,7 @@ try {
   await screenshot('mobile-square.png');
   await evaluate(`document.querySelector('.route-form-panel').scrollIntoView({block:'start'})`);
   await screenshot('mobile-form.png');
-  passed('21 genuine saved jobs, page two and historical saved result independent of draft');
+  passed('23 genuine saved jobs, page two and historical saved result independent of draft');
 
   step = 'real test database outage and recovery';
   const historyCount = await evaluate(`document.querySelectorAll('#history-jobs li').length`);
@@ -457,7 +534,8 @@ try {
     status: 'pass', browser: 'local Google Chrome headless via native CDP', viewports: ['1280x900', '360x900'],
     checks, realJobs: Number((await pool.query('SELECT count(*) AS count FROM jobs')).rows[0].count),
     consoleErrors: exceptions.length, failedStaticResources: staticFailures.length,
-    screenshots: ['desktop-top.png', 'desktop-result.png', 'mobile-form.png', 'mobile-result.png', 'mobile-square.png', 'mobile-queue.png'].map((name) => join(output, name)),
+    screenshots: ['desktop-top.png', 'desktop-result.png', 'mobile-form.png', 'mobile-result.png', 'mobile-square.png', 'mobile-queue.png',
+      'mobile-eta-unknown.png', 'mobile-eta-fallback.png', 'mobile-eta-measured.png', 'mobile-eta-stale.png'].map((name) => join(output, name)),
     elapsedMs: Math.round(performance.now() - startedAt),
   };
   await writeFile(join(output, 'summary.json'), JSON.stringify(summary, null, 2), { mode: 0o600 });
@@ -476,6 +554,7 @@ try {
   process.exitCode = 1;
 } finally {
   let cleanupFailed = false;
+  try { if (progressLock) { await progressLock.query('ROLLBACK'); progressLock.release(); } } catch { cleanupFailed = true; }
   try { if (renamed) await pool.query('ALTER TABLE jobs_browser_unavailable RENAME TO jobs'); } catch { cleanupFailed = true; }
   try { cdp?.close(); } catch { cleanupFailed = true; }
   try { await stop(chrome); } catch { cleanupFailed = true; }

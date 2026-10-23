@@ -22,7 +22,7 @@
     "db:migrate": "node --env-file-if-exists=.env --import tsx src/server/db/migrate.ts",
     "db:migrate:built": "node --env-file-if-exists=.env dist/server/db/migrate.js",
     "db:check": "node --env-file-if-exists=.env --import tsx src/server/db/check.ts",
-    "test:unit": "node --env-file-if-exists=.env --import tsx --test tests/password.test.ts tests/database-safety.test.ts tests/config.test.ts",
+    "test:unit": "node --env-file-if-exists=.env --import tsx --test tests/password.test.ts tests/database-safety.test.ts tests/config.test.ts tests/bind-http.test.ts tests/deployment-safety.test.ts",
     "test:integration": "node --env-file-if-exists=.env --import tsx --test tests/auth.integration.test.ts",
     "auth:check": "npm run test:integration",
     "test": "npm run test:unit && npm run test:route && npm run test:integration && npm run test:jobs && npm run test:client && npm run test:queue",
@@ -33,7 +33,14 @@
     "test:jobs": "node --env-file-if-exists=.env --import tsx --test --test-concurrency=1 tests/jobs-config.test.ts tests/jobs.integration.test.ts",
     "test:client": "node --import tsx --test tests/client-input.test.ts tests/client-api.test.ts tests/client-response.test.ts tests/client-geometry.test.ts tests/client-controller.test.ts tests/client-queue.test.ts",
     "test:browser": "node --env-file-if-exists=.env --import tsx scripts/check-client-browser.mjs",
-    "test:queue": "node --env-file-if-exists=.env --import tsx --test --test-concurrency=1 tests/queue-config.test.ts tests/queue-estimator.test.ts tests/queue-read.test.ts tests/queue.integration.test.ts"
+    "test:queue": "node --env-file-if-exists=.env --import tsx --test --test-concurrency=1 tests/queue-config.test.ts tests/queue-estimator.test.ts tests/queue-read.test.ts tests/queue.integration.test.ts",
+    "deploy:preflight": "node scripts/deploy-local.mjs preflight",
+    "image:build": "node scripts/deploy-local.mjs image",
+    "deploy:local": "node scripts/deploy-local.mjs up",
+    "deploy:status": "node scripts/deploy-local.mjs status",
+    "deploy:stop": "node scripts/deploy-local.mjs stop",
+    "test:container": "node scripts/check-container.mjs",
+    "test:deployment": "node scripts/check-deployment.mjs"
   },
   "dependencies": {
     "cookie": "2.0.1",

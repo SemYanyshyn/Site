@@ -140,6 +140,7 @@ async function clusterState({ create = false } = {}) {
     assert.ok(state?.ownerId && state.cluster === cluster && state.context === context, 'Existing cluster has no project ownership record; refusing to adopt it.');
     const inspect = JSON.parse(await run('docker', ['inspect', `${cluster}-control-plane`], { env: dockerEnvironment }))[0];
     assert.equal(inspect.Config.Labels['io.x-k8s.kind.cluster'], cluster);
+    assert.equal(inspect.Config.Image, versions.kind.nodeImage, 'The existing cluster must use the pinned kind node image.');
     for (const [containerPort, hostPort] of [['30080/tcp', state.httpPort], ['30443/tcp', state.httpsPort]]) {
       const mapping = inspect.HostConfig.PortBindings[containerPort]?.[0];
       assert.equal(mapping?.HostIp, '127.0.0.1');

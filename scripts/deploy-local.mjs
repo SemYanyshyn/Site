@@ -271,6 +271,48 @@ async function certificates() {
   return { caPath, cert: await readFile(cert, 'utf8'), key: await readFile(key, 'utf8') };
 }
 
+async function closeForwarding(namespace) {
+  const child = forwardings.get(namespace);
+  forwardings.delete(namespace);
+  if (!child || child.exitCode !== null || child.signalCode !== null) return;
+  const closed = new Promise((resolve) => child.once('close', resolve));
+  child.kill('SIGTERM');
+  if (!await Promise.race([closed.then(() => true), delay(3000, false, { ref: false })])) {
+    child.kill('SIGKILL');
+    await closed;
+  }
+}
+
+async function waitForPublicHttps(origin, caPath) {
+  const deadline = Date.now() + 15_000;
+  // The helper command inherits the absolute acceptance deadline and is
+  // actually killed/reaped on timeout. This is a safe GET with normal TLS;
+  // TCP listening alone does not prove Traefik has learned the new endpoints.
+  const source = `import https from 'node:https';import{readFile}from'node:fs/promises';
+    let input='';for await(const chunk of process.stdin)input+=chunk;const{origin,caPath}=JSON.parse(input);
+    const ca=await readFile(caPath);const ready=await new Promise(resolve=>{
+      const request=https.get(new URL('/api/health',origin),{ca,family:4,agent:false},response=>{
+        const id=response.headers['x-instance-id'];const ok=response.statusCode===200&&typeof id==='string'
+          &&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+        response.once('error',()=>resolve(false));response.once('end',()=>resolve(ok));response.resume();
+      });request.once('error',()=>resolve(false));
+    });if(!ready)process.exitCode=1;`;
+  while (Date.now() < deadline) {
+    assertDeploymentDeadline();
+    try {
+      await run(process.execPath, ['--input-type=module', '-e', source], {
+        input: JSON.stringify({ origin, caPath }), timeoutMs: Math.min(3000, Math.max(1, deadline - Date.now())),
+      });
+      return;
+    } catch (error) {
+      if (error?.code === 'DEPLOYMENT_DEADLINE') throw error;
+      assertDeploymentDeadline();
+      await delay(200);
+    }
+  }
+  throw new Error('The owned public HTTPS route did not reach a real app process before its readiness deadline.');
+}
+
 async function stopNamespace(kubectl, namespace, ownerId) {
   const objects = [
     ['namespace', namespace, 'Namespace', undefined],
@@ -287,6 +329,10 @@ async function stopNamespace(kubectl, namespace, ownerId) {
     assertObjectOwner(JSON.parse(hpa), { namespace, ownerId, kind: 'HorizontalPodAutoscaler', name: 'app' });
     await kubectl(['delete', 'hpa', 'app', '--wait=true', '--timeout=30s'], { timeoutMs: 40_000 });
   }
+  // A service port-forward pins one actual Traefik pod. It may keep its local
+  // socket open after that pod disappears, until the next HTTPS request fails.
+  // Explicit stop must reap it before start can create a fresh fixed-port one.
+  await closeForwarding(namespace);
   // Delete only the namespace's owned HPA BEFORE scale-to-zero. Leave the
   // shared Metrics Server and every other namespace's autoscaler untouched.
   await kubectl(['scale', 'deployment/app', 'deployment/traefik', '--replicas=0']);
@@ -444,6 +490,7 @@ async function provision({ state, namespace, ownerId, httpPort, httpsPort, image
       } catch { assert.ok(Date.now() < deadline, 'Traefik port-forward deadline.'); await delay(100); }
     }
   }
+  await waitForPublicHttps(publicOrigin, tls.caPath);
   async function sql(query, params = []) {
     await assertOwned();
     assert.ok(testing && /test/u.test(database), 'Fault SQL is restricted to the disposable test deployment.');
@@ -478,13 +525,7 @@ async function provision({ state, namespace, ownerId, httpPort, httpsPort, image
   }
   async function cleanup() {
     return withoutDeploymentDeadline(async () => {
-      const current = forwardings.get(namespace);
-      if (current && current.exitCode === null) {
-        const closed = new Promise((accept) => current.once('close', accept));
-        current.kill('SIGTERM'); await Promise.race([closed, delay(3000)]);
-        if (current.exitCode === null) current.kill('SIGKILL');
-        forwardings.delete(namespace);
-      }
+      await closeForwarding(namespace);
       if (!testing) return;
       assert.match(namespace, /^courier-route-test-[a-z0-9-]+$/u);
       await assertOwned();
@@ -516,9 +557,7 @@ export async function provisionTestDeployment({ namespace, ownerId, httpPort, ht
   try { return await provision({ state, namespace, ownerId, httpPort, httpsPort, image, testing: true, autoscaling }); }
   catch (error) {
     await withoutDeploymentDeadline(async () => {
-      const forwarding = forwardings.get(namespace);
-      if (forwarding?.exitCode === null) forwarding.kill('SIGTERM');
-      forwardings.delete(namespace);
+      await closeForwarding(namespace);
       const kubectl = kubectlFor(namespace);
       const value = await kubectl(['get', 'namespace', namespace, '--ignore-not-found', '-o', 'json']);
       if (value.trim()) {

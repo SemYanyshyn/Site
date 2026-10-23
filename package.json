@@ -25,12 +25,14 @@
     "test:unit": "node --env-file-if-exists=.env --import tsx --test tests/password.test.ts tests/database-safety.test.ts tests/config.test.ts",
     "test:integration": "node --env-file-if-exists=.env --import tsx --test tests/auth.integration.test.ts",
     "auth:check": "npm run test:integration",
-    "test": "npm run test:unit && npm run test:route && npm run test:integration && npm run test:jobs",
+    "test": "npm run test:unit && npm run test:route && npm run test:integration && npm run test:jobs && npm run test:client",
     "route:demo": "node --env-file-if-exists=.env --import tsx src/server/route/cli.ts",
     "route:demo:built": "node --env-file-if-exists=.env dist/server/route/cli.js",
     "route:bench": "node --env-file-if-exists=.env dist/server/route/bench.js",
     "test:route": "node --env-file-if-exists=.env --import tsx --test --test-concurrency=1 tests/route-algorithm.test.ts tests/route-executor.test.ts tests/route-http.test.ts",
-    "test:jobs": "node --env-file-if-exists=.env --import tsx --test --test-concurrency=1 tests/jobs-config.test.ts tests/jobs.integration.test.ts"
+    "test:jobs": "node --env-file-if-exists=.env --import tsx --test --test-concurrency=1 tests/jobs-config.test.ts tests/jobs.integration.test.ts",
+    "test:client": "node --import tsx --test tests/client-input.test.ts tests/client-api.test.ts tests/client-response.test.ts tests/client-geometry.test.ts tests/client-controller.test.ts",
+    "test:browser": "node --env-file-if-exists=.env --import tsx scripts/check-client-browser.mjs"
   },
   "dependencies": {
     "cookie": "2.0.1",

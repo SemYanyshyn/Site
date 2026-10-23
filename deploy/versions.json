@@ -26,6 +26,20 @@
     "pgdata": "/var/lib/postgresql/18/docker",
     "sources": ["https://hub.docker.com/v2/repositories/library/postgres/tags/18.4-bookworm", "https://github.com/docker-library/docs/blob/master/postgres/README.md"]
   },
+  "metricsServer": {
+    "version": "0.9.0",
+    "image": "registry.k8s.io/metrics-server/metrics-server:v0.9.0@sha256:d9862115e7c7881280d3d75ca26bda8ffc0fc213315979575bf23ce9826205c0",
+    "arm64ManifestDigest": "sha256:d0341e07a1cf2b751e684cba68e2a0c62d3c5d2d23501fd67dc384d517ec65de",
+    "namespace": "courier-route-metrics",
+    "supportedKubernetes": "1.34+",
+    "manifestSource": "https://github.com/kubernetes-sigs/metrics-server/releases/download/v0.9.0/components.yaml",
+    "manifestSha256": "1cec29a5267809306a2c6ec74a3e449abbb705b4a8beed0c8a1963910f72c79b",
+    "sources": [
+      "https://github.com/kubernetes-sigs/metrics-server/blob/v0.9.0/README.md",
+      "https://github.com/kubernetes-sigs/metrics-server/releases/tag/v0.9.0",
+      "https://registry.k8s.io/v2/metrics-server/metrics-server/manifests/v0.9.0"
+    ]
+  },
   "traefik": {
     "version": "3.7.15",
     "image": "traefik:v3.7.15@sha256:0f6150202bc1fed72a7bd2107460eaa510e5b8a905f3fdb5b84f2c8619c33368",

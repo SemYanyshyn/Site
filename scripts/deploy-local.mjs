@@ -7,6 +7,9 @@ import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { appApplyPlan, assertObjectOwner, replicaHandoffPatch } from './deployment-autoscale.mjs';
+import { assertDeploymentDeadline, runDeploymentCommand, withoutDeploymentDeadline } from './deployment-command.mjs';
+export { withDeploymentDeadline, withoutDeploymentDeadline } from './deployment-command.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const local = join(root, '.local/deploy');
@@ -29,29 +32,7 @@ function safe(message) {
 
 /** Input can contain credentials; it is never included in an error or command line. */
 function run(command, args, { input, timeoutMs = 120_000, env = process.env, inherit = false } = {}) {
-  return new Promise((resolveResult, reject) => {
-    const child = spawn(command, args, { cwd: root, env, stdio: ['pipe', 'pipe', 'pipe'] });
-    const output = [];
-    const errors = [];
-    let bytes = 0;
-    let expired = false;
-    const timer = setTimeout(() => { expired = true; child.kill('SIGKILL'); }, timeoutMs);
-    child.stdout.on('data', (chunk) => {
-      bytes += chunk.length;
-      if (bytes > 16 * 1024 * 1024) child.kill('SIGKILL');
-      else output.push(chunk);
-      if (inherit) process.stdout.write(chunk);
-    });
-    child.stderr.on('data', (chunk) => { errors.push(chunk); if (inherit) process.stderr.write(chunk); });
-    child.once('error', (error) => { clearTimeout(timer); reject(new Error(`${command}: ${error.code ?? 'start failed'}`)); });
-    child.once('close', (code) => {
-      clearTimeout(timer);
-      if (code !== 0 || expired) reject(new Error(`${command}: ${expired ? 'deadline' : `exit ${code}`} ${safe(Buffer.concat(errors).toString())}`));
-      else resolveResult(Buffer.concat(output).toString());
-    });
-    child.stdin.on('error', () => {});
-    child.stdin.end(input);
-  });
+  return runDeploymentCommand(command, args, { cwd: root, input, timeoutMs, env, inherit, redact: safe });
 }
 
 async function privateFile(path, value) {
@@ -114,7 +95,19 @@ export async function imageName() {
 export async function buildImage() {
   await preflight();
   const image = await imageName();
-  await run('docker', ['build', '--tag', image, '.'], { env: dockerEnvironment, timeoutMs: 900_000, inherit: true });
+  const fingerprintLabel = 'courier-route.source-fingerprint';
+  const inspect = async () => JSON.parse(await run('docker', ['image', 'inspect', image], { env: dockerEnvironment }))[0];
+  const matches = (value) => value?.Config?.Labels?.[fingerprintLabel] === image
+    && value.Config.User === 'node' && value.Config.Env?.includes(`NODE_VERSION=${versions.node.version}`);
+  let existing;
+  try { existing = await inspect(); } catch { /* A missing local source tag must be built. */ }
+  // A source tag denotes one local artifact, not a request to rebuild layers
+  // with new timestamps. All actual Docker build inputs feed imageName().
+  if (!matches(existing)) {
+    await run('docker', ['build', '--tag', image, '--label', `${fingerprintLabel}=${image}`, '.'],
+      { env: dockerEnvironment, timeoutMs: 900_000, inherit: true });
+    assert.ok(matches(await inspect()), 'The built image must match its source fingerprint, nonroot user and pinned Node runtime.');
+  }
   return image;
 }
 
@@ -168,12 +161,78 @@ async function clusterState({ create = false } = {}) {
 }
 
 function kubectlFor(namespace) {
-  assert.match(namespace, /^courier-route(?:-test-[a-z0-9-]+)?$/u);
+  assert.ok(namespace === 'kube-system' || /^courier-route(?:-metrics|-test-[a-z0-9-]+)?$/u.test(namespace));
   return async (args, { input, timeoutMs = 120_000, json = false } = {}) => {
     const result = await run('kubectl', ['--kubeconfig', kubeconfig, '--context', context, '--namespace', namespace,
       '--request-timeout=30s', ...args], { input, timeoutMs });
     return json ? JSON.parse(result) : result;
   };
+}
+
+async function assertClusterOwnership(state) {
+  assert.equal(state?.cluster, cluster);
+  assert.equal(state?.context, context);
+  assert.match(state?.ownerId, /^[0-9a-f-]{36}$/u);
+  const node = JSON.parse(await run('docker', ['inspect', `${cluster}-control-plane`], { env: dockerEnvironment }))[0];
+  assert.equal(node.Config.Labels['io.x-k8s.kind.cluster'], cluster);
+  assert.equal(node.Config.Image, versions.kind.nodeImage);
+  const nodes = await kubectlFor('courier-route-metrics')(['get', 'nodes', '-o', 'json'], { json: true });
+  assert.equal(nodes.items.length, 1, 'This local add-on requires the exact owned single-node kind cluster.');
+  assert.equal(nodes.items[0].metadata.name, `${cluster}-control-plane`);
+  assert.equal(nodes.items[0].status.nodeInfo.kubeletVersion, `v${versions.kind.kubernetesVersion}`);
+}
+
+/** Shared cluster add-on: check EVERY target before changing ANY target.
+ * Disposable namespace cleanup never removes this installation. Foreign
+ * add-ons are deliberately rejected rather than silently adopted/overwritten. */
+async function ensureMetricsServer(state) {
+  await assertClusterOwnership(state);
+  const namespace = versions.metricsServer.namespace;
+  assert.equal(namespace, 'courier-route-metrics');
+  const manifest = replace(await readJson(join(root, 'deploy/k8s/metrics-server.json')), {
+    __CLUSTER_OWNER_ID__: state.ownerId, __METRICS_SERVER_IMAGE__: versions.metricsServer.image,
+  });
+  const resources = {
+    Namespace: 'namespaces', ServiceAccount: 'serviceaccounts', Service: 'services', Deployment: 'deployments.apps',
+    ClusterRole: 'clusterroles.rbac.authorization.k8s.io', ClusterRoleBinding: 'clusterrolebindings.rbac.authorization.k8s.io',
+    RoleBinding: 'rolebindings.rbac.authorization.k8s.io', APIService: 'apiservices.apiregistration.k8s.io',
+  };
+  assert.equal(manifest.kind, 'List');
+  for (const object of manifest.items) {
+    assert.ok(Object.hasOwn(resources, object.kind), 'Unexpected cluster add-on resource.');
+    const objectNamespace = object.metadata.namespace;
+    assert.ok(objectNamespace === undefined || objectNamespace === namespace
+      || (object.kind === 'RoleBinding' && objectNamespace === 'kube-system'));
+    if (object.kind === 'Namespace') assert.equal(object.metadata.name, namespace);
+    assertObjectOwner(object, { namespace: objectNamespace, ownerId: state.ownerId, kind: object.kind, name: object.metadata.name });
+    const prior = await kubectlFor(objectNamespace ?? namespace)([
+      'get', resources[object.kind], object.metadata.name, '--ignore-not-found', '-o', 'json',
+    ]);
+    if (prior.trim()) assertObjectOwner(JSON.parse(prior), {
+      namespace: objectNamespace, ownerId: state.ownerId, kind: object.kind, name: object.metadata.name,
+    });
+  }
+  const kubectl = kubectlFor(namespace);
+  // kubectl's explicit namespace must match each namespaced object; the
+  // kube-system auth-reader binding cannot share the add-on namespace flag.
+  for (const object of manifest.items) await kubectlFor(object.metadata.namespace ?? namespace)(
+    ['apply', '-f', '-'], { input: JSON.stringify(object) });
+  await kubectl(['rollout', 'status', 'deployment/metrics-server', '--timeout=180s'], { timeoutMs: 190_000 });
+  await kubectl(['wait', '--for=condition=Available', 'apiservice/v1beta1.metrics.k8s.io', '--timeout=90s'], { timeoutMs: 100_000 });
+  const deadline = Date.now() + 90_000;
+  while (true) {
+    try {
+      const metrics = await kubectl(['get', '--raw', '/apis/metrics.k8s.io/v1beta1/nodes'], { json: true });
+      assert.ok(metrics.items.some((item) => item.metadata.name === `${cluster}-control-plane`
+        && typeof item.timestamp === 'string' && typeof item.window === 'string' && item.usage?.cpu && item.usage?.memory));
+      return;
+    } catch (error) {
+      if (error?.code === 'DEPLOYMENT_DEADLINE') throw error;
+      assertDeploymentDeadline();
+      assert.ok(Date.now() < deadline, 'Metrics API has no usable owned-node CPU/RAM samples before its deadline.');
+      await delay(1000);
+    }
+  }
 }
 
 async function certificates() {
@@ -212,7 +271,33 @@ async function certificates() {
   return { caPath, cert: await readFile(cert, 'utf8'), key: await readFile(key, 'utf8') };
 }
 
-async function provision({ state, namespace, ownerId, httpPort, httpsPort, image, testing = false }) {
+async function stopNamespace(kubectl, namespace, ownerId) {
+  const objects = [
+    ['namespace', namespace, 'Namespace', undefined],
+    ['deployment', 'app', 'Deployment', namespace],
+    ['deployment', 'traefik', 'Deployment', namespace],
+    ['statefulset', 'postgres', 'StatefulSet', namespace],
+  ];
+  for (const [resource, name, kind, objectNamespace] of objects) {
+    const object = await kubectl(['get', resource, name, '-o', 'json'], { json: true });
+    assertObjectOwner(object, { namespace: objectNamespace, ownerId, kind, name });
+  }
+  const hpa = await kubectl(['get', 'hpa', 'app', '--ignore-not-found', '-o', 'json']);
+  if (hpa.trim()) {
+    assertObjectOwner(JSON.parse(hpa), { namespace, ownerId, kind: 'HorizontalPodAutoscaler', name: 'app' });
+    await kubectl(['delete', 'hpa', 'app', '--wait=true', '--timeout=30s'], { timeoutMs: 40_000 });
+  }
+  // Delete only the namespace's owned HPA BEFORE scale-to-zero. Leave the
+  // shared Metrics Server and every other namespace's autoscaler untouched.
+  await kubectl(['scale', 'deployment/app', 'deployment/traefik', '--replicas=0']);
+  await kubectl(['wait', '--for=delete', 'pod', '-l', 'app.kubernetes.io/component in (app,ingress)', '--timeout=60s'], { timeoutMs: 70_000 });
+  await kubectl(['scale', 'statefulset/postgres', '--replicas=0']);
+  await kubectl(['wait', '--for=delete', 'pod', '-l', 'app.kubernetes.io/component=database', '--timeout=60s'], { timeoutMs: 70_000 });
+}
+
+async function provision({ state, namespace, ownerId, httpPort, httpsPort, image, testing = false, autoscaling = !testing }) {
+  assert.equal(typeof autoscaling, 'boolean');
+  if (autoscaling) await ensureMetricsServer(state);
   const kubectl = kubectlFor(namespace);
   const publicOrigin = `https://localhost:${httpsPort}`;
   const migrationName = `migrate-${image.split('-').at(-1)}`;
@@ -220,7 +305,7 @@ async function provision({ state, namespace, ownerId, httpPort, httpsPort, image
     __HTTP_PORT__: httpPort, __HTTPS_PORT__: httpsPort, __APP_IMAGE__: image,
     __POSTGRES_IMAGE__: versions.postgres.image, __TRAEFIK_IMAGE__: versions.traefik.image, __MIGRATION_JOB__: migrationName };
   const configData = replace((await readJson(join(root, 'deploy/k8s/config.json'))).data, tokens);
-  if (testing) configData.JOBS_MAX_OUTSTANDING = '4';
+  if (testing && !autoscaling) configData.JOBS_MAX_OUTSTANDING = '4';
   const configChecksum = createHash('sha256').update(JSON.stringify(configData)).digest('hex');
   const labels = { 'app.kubernetes.io/part-of': 'courier-route', 'app.kubernetes.io/managed-by': managedLabel,
     'courier-route.local/owner-id': ownerId };
@@ -233,6 +318,25 @@ async function provision({ state, namespace, ownerId, httpPort, httpsPort, image
   const existing = await kubectl(['get', 'namespace', namespace, '--ignore-not-found', '-o', 'json']);
   if (existing.trim()) await assertOwned();
   async function apply(value) { await kubectl(['apply', '-f', '-'], { input: JSON.stringify(value) }); }
+  async function handoff(live) {
+    const patch = replicaHandoffPatch(live);
+    if (patch) await kubectl(['patch', 'deployment', 'app', '--type=json', '-p', JSON.stringify(patch)]);
+  }
+  async function applyApplication() {
+    await assertOwned();
+    const prior = await kubectl(['get', 'hpa', 'app', '--ignore-not-found', '-o', 'json']);
+    if (prior.trim()) assertObjectOwner(JSON.parse(prior), { namespace, ownerId, kind: 'HorizontalPodAutoscaler', name: 'app' });
+    if (!autoscaling) assert.ok(!prior.trim(), 'The static deployment regression must not have an HPA.');
+    const encoded = await kubectl(['get', 'deployment', 'app', '--ignore-not-found', '-o', 'json']);
+    const live = encoded.trim() ? JSON.parse(encoded) : null;
+    const plan = appApplyPlan(await manifest('app'), live, { autoscaling, namespace, ownerId });
+    if (plan.handoffPatch) await kubectl(['patch', 'deployment', 'app', '--type=json', '-p', JSON.stringify(plan.handoffPatch)]);
+    await apply(plan.manifest);
+    // Bootstrap explicitly writes 2 once, then releases annotation ownership
+    // before HPA creation. Repeats omit replicas without writing current scale.
+    if (autoscaling && plan.bootstrap) await handoff(await kubectl(['get', 'deployment', 'app', '-o', 'json'], { json: true }));
+    if (autoscaling) await apply(await manifest('hpa'));
+  }
   async function manifest(name) {
     const value = replace(await readJson(join(root, `deploy/k8s/${name}.json`)), tokens);
     if (name === 'config') value.data = configData;
@@ -291,7 +395,12 @@ async function provision({ state, namespace, ownerId, httpPort, httpsPort, image
       await kubectl(['exec', 'postgres-0', '-c', 'postgres', '--', 'sh', '-c',
         'test "$(cat /proc/1/comm)" = postgres && psql -U postgres -d postgres -Atqc "SELECT 1"'], { timeoutMs: 10_000 });
       break;
-    } catch { assert.ok(Date.now() < postgresDeadline, 'Final PostgreSQL startup deadline.'); await delay(200); }
+    } catch (error) {
+      if (error?.code === 'DEPLOYMENT_DEADLINE') throw error;
+      assertDeploymentDeadline();
+      assert.ok(Date.now() < postgresDeadline, 'Final PostgreSQL startup deadline.');
+      await delay(200);
+    }
   }
   // Administrative bootstrap stays inside this namespace's PostgreSQL pod. The
   // password travels only through stdin and is never given to the HTTP process.
@@ -308,14 +417,15 @@ async function provision({ state, namespace, ownerId, httpPort, httpsPort, image
     assert.ok(!job.status.failed, 'Previous migration failed; inspect it before a new explicit attempt.');
   } else await apply(await manifest('migrate'));
   await kubectl(['wait', '--for=condition=complete', `job/${migrationName}`, '--timeout=130s'], { timeoutMs: 140_000 });
-  await apply(await manifest('app'));
+  await applyApplication();
   await apply(await manifest('traefik'));
   await apply(await manifest('ingress'));
   await kubectl(['rollout', 'status', 'deployment/app', '--timeout=180s'], { timeoutMs: 190_000 });
   await kubectl(['rollout', 'status', 'deployment/traefik', '--timeout=180s'], { timeoutMs: 190_000 });
 
-  let forwarding;
-  if (testing) {
+  let forwarding = forwardings.get(namespace);
+  if (testing && (!forwarding || forwarding.exitCode !== null || forwarding.signalCode !== null)) {
+    assertDeploymentDeadline();
     const args = ['--kubeconfig', kubeconfig, '--context', context, '--namespace', namespace,
       'port-forward', '--address=127.0.0.1', 'service/traefik', `${httpPort}:80`, `${httpsPort}:443`];
     forwarding = spawn('kubectl', args, { cwd: root, stdio: 'ignore' });
@@ -323,6 +433,7 @@ async function provision({ state, namespace, ownerId, httpPort, httpsPort, image
     forwarding.on('error', () => {});
     const deadline = Date.now() + 15_000;
     while (true) {
+      assertDeploymentDeadline();
       assert.equal(forwarding.exitCode, null, 'Traefik port-forward exited.');
       try {
         const net = await import('node:net');
@@ -366,43 +477,58 @@ async function provision({ state, namespace, ownerId, httpPort, httpsPort, image
       { env: dockerEnvironment, timeoutMs: 10_000 });
   }
   async function cleanup() {
-    if (forwarding && forwarding.exitCode === null) {
-      const closed = new Promise((accept) => forwarding.once('close', accept));
-      forwarding.kill('SIGTERM'); await Promise.race([closed, delay(3000)]);
-      if (forwarding.exitCode === null) forwarding.kill('SIGKILL');
-      forwardings.delete(namespace);
-    }
-    if (!testing) return;
-    assert.match(namespace, /^courier-route-test-[a-z0-9-]+$/u);
-    await assertOwned();
-    await kubectl(['delete', 'namespace', namespace, '--wait=true', '--timeout=120s'], { timeoutMs: 130_000 });
-    await rm(directory, { recursive: true });
+    return withoutDeploymentDeadline(async () => {
+      const current = forwardings.get(namespace);
+      if (current && current.exitCode === null) {
+        const closed = new Promise((accept) => current.once('close', accept));
+        current.kill('SIGTERM'); await Promise.race([closed, delay(3000)]);
+        if (current.exitCode === null) current.kill('SIGKILL');
+        forwardings.delete(namespace);
+      }
+      if (!testing) return;
+      assert.match(namespace, /^courier-route-test-[a-z0-9-]+$/u);
+      await assertOwned();
+      await kubectl(['delete', 'namespace', namespace, '--wait=true', '--timeout=120s'], { timeoutMs: 130_000 });
+      await rm(directory, { recursive: true });
+    });
   }
+  const repeatDeploy = async () => {
+    await assertOwned();
+    return provision({ state, namespace, ownerId, httpPort, httpsPort, image, testing, autoscaling });
+  };
+  const metrics = async () => ({
+    apiService: await kubectl(['get', 'apiservice', 'v1beta1.metrics.k8s.io', '-o', 'json'], { json: true }),
+    nodes: await kubectl(['get', '--raw', '/apis/metrics.k8s.io/v1beta1/nodes'], { json: true }),
+    pods: await kubectl(['get', '--raw', `/apis/metrics.k8s.io/v1beta1/namespaces/${namespace}/pods`], { json: true }),
+  });
   return { kubeconfig, context, namespace, ownerId, httpsOrigin: publicOrigin, httpOrigin: `http://localhost:${httpPort}`,
-    caPath: tls.caPath, image, kubectl, sql, killAppProcess, assertOwned, cleanup };
+    caPath: tls.caPath, image, autoscaling, kubectl, sql, killAppProcess, assertOwned, cleanup,
+    repeatDeploy, stop: () => stopNamespace(kubectl, namespace, ownerId), start: repeatDeploy, metrics };
 }
 
-export async function provisionTestDeployment({ namespace, ownerId, httpPort, httpsPort } = {}) {
+export async function provisionTestDeployment({ namespace, ownerId, httpPort, httpsPort, autoscaling = false } = {}) {
   assert.match(namespace, /^courier-route-test-[a-z0-9-]+$/u);
   assert.match(ownerId, /^[0-9a-f-]{36}$/u);
   const state = await clusterState();
   httpPort ??= await availablePort(); httpsPort ??= await availablePort();
   assert.notEqual(httpPort, httpsPort);
   const image = await imageName();
-  try { return await provision({ state, namespace, ownerId, httpPort, httpsPort, image, testing: true }); }
+  try { return await provision({ state, namespace, ownerId, httpPort, httpsPort, image, testing: true, autoscaling }); }
   catch (error) {
-    const forwarding = forwardings.get(namespace);
-    if (forwarding?.exitCode === null) forwarding.kill('SIGTERM');
-    forwardings.delete(namespace);
-    const kubectl = kubectlFor(namespace);
-    const value = await kubectl(['get', 'namespace', namespace, '--ignore-not-found', '-o', 'json']);
-    if (value.trim()) {
-      const metadata = JSON.parse(value).metadata;
-      assert.equal(metadata.labels['courier-route.local/owner-id'], ownerId, 'Failed provisioning cleanup refuses a foreign namespace.');
-      assert.equal(metadata.labels['app.kubernetes.io/managed-by'], managedLabel);
-      await kubectl(['delete', 'namespace', namespace, '--wait=true', '--timeout=120s'], { timeoutMs: 130_000 });
-      await rm(join(local, namespace), { recursive: true, force: true });
-    }
+    await withoutDeploymentDeadline(async () => {
+      const forwarding = forwardings.get(namespace);
+      if (forwarding?.exitCode === null) forwarding.kill('SIGTERM');
+      forwardings.delete(namespace);
+      const kubectl = kubectlFor(namespace);
+      const value = await kubectl(['get', 'namespace', namespace, '--ignore-not-found', '-o', 'json']);
+      if (value.trim()) {
+        const metadata = JSON.parse(value).metadata;
+        assert.equal(metadata.labels['courier-route.local/owner-id'], ownerId, 'Failed provisioning cleanup refuses a foreign namespace.');
+        assert.equal(metadata.labels['app.kubernetes.io/managed-by'], managedLabel);
+        await kubectl(['delete', 'namespace', namespace, '--wait=true', '--timeout=120s'], { timeoutMs: 130_000 });
+        await rm(join(local, namespace), { recursive: true, force: true });
+      }
+    });
     throw error;
   }
 }
@@ -413,16 +539,14 @@ async function main(command) {
   const state = await clusterState({ create: command === 'up' });
   const kubectl = kubectlFor('courier-route');
   if (command === 'status') {
-    console.log(await kubectl(['get', 'deployment,statefulset,pod,service,ingress,pvc,job', '-o', 'wide'])); return;
+    console.log(await kubectl(['get', 'deployment,statefulset,pod,service,ingress,pvc,job,hpa', '-o', 'wide']));
+    console.log(await kubectl(['get', 'apiservice', 'v1beta1.metrics.k8s.io', '-o', 'wide']));
+    console.log(await kubectl(['top', 'pods', '--containers']));
+    return;
   }
   if (command === 'stop') {
-    const ns = await kubectl(['get', 'namespace', 'courier-route', '-o', 'json'], { json: true });
-    assert.equal(ns.metadata.labels['courier-route.local/owner-id'], state.ownerId);
-    await kubectl(['scale', 'deployment/app', 'deployment/traefik', '--replicas=0']);
-    await kubectl(['wait', '--for=delete', 'pod', '-l', 'app.kubernetes.io/component in (app,ingress)', '--timeout=60s'], { timeoutMs: 70_000 });
-    await kubectl(['scale', 'statefulset/postgres', '--replicas=0']);
-    await kubectl(['wait', '--for=delete', 'pod', '-l', 'app.kubernetes.io/component=database', '--timeout=60s'], { timeoutMs: 70_000 });
-    console.log('Застосунок, Traefik і PostgreSQL зупинено; кластер та PVC збережено.'); return;
+    await stopNamespace(kubectl, 'courier-route', state.ownerId);
+    console.log('HPA призупинено; застосунок, Traefik і PostgreSQL зупинено; кластер, Metrics Server та PVC збережено.'); return;
   }
   assert.equal(command, 'up', 'Commands: preflight, image, up, status, stop');
   const image = await buildImage();

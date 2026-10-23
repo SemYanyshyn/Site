@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const chromePath = process.env.COURIER_TEST_CHROME ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
-class Protocol {
+export class Protocol {
   constructor(socket) {
     this.socket = socket;
     this.sequence = 0;
@@ -43,7 +43,7 @@ class Protocol {
   }
 }
 
-function launchChrome(args, environment) {
+export function launchChrome(args, environment) {
   const child = spawn(chromePath, args, { env: environment, stdio: ['ignore', 'pipe', 'pipe'] });
   child.stdout.resume();
   child.stderr.resume();
@@ -54,7 +54,7 @@ function launchChrome(args, environment) {
   return { child, closed };
 }
 
-async function stopChrome(browser) {
+export async function stopChrome(browser) {
   if (!browser) return;
   if (browser.child.exitCode === null && browser.child.signalCode === null) browser.child.kill('SIGTERM');
   if (!await Promise.race([browser.closed.then(() => true), delay(5_000, false, { ref: false })])) {
@@ -66,10 +66,10 @@ async function stopChrome(browser) {
 
 /** Normal TLS validation is mandatory before granting an isolated leaf-SPKI
  * exception to Chrome. No user trust store or global certificate bypass changes. */
-async function verifiedLeaf(origin, ca) {
+export async function verifiedLeaf(origin, ca, { signal } = {}) {
   const url = new URL('/api/health', origin);
   return new Promise((resolve, reject) => {
-    const request = https.get(url, { ca, servername: 'localhost', family: 4, agent: false, minVersion: 'TLSv1.2', timeout: 10_000 }, (response) => {
+    const request = https.get(url, { ca, servername: 'localhost', family: 4, agent: false, minVersion: 'TLSv1.2', timeout: 10_000, signal }, (response) => {
       response.once('error', () => reject(new Error('TLS response interrupted.')));
       try {
         assert.equal(response.statusCode, 200);

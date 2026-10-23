@@ -99,17 +99,24 @@ export function deploymentOrigin(value, protocol) {
 
 /** A new connection per request makes actual LB handler tracing observable.
  * POST is issued exactly once; retry decisions belong to safe GET observers. */
-export function requestDeployment(origin, ca, { path = '/', method = 'GET', body, cookie, headers = {}, wrongHostname = false } = {}) {
+export function requestDeployment(origin, ca, { path = '/', method = 'GET', body, cookie, headers = {}, wrongHostname = false, timeoutMs = 10_000, signal } = {}) {
+  assert.ok(Number.isSafeInteger(timeoutMs) && timeoutMs >= 1 && timeoutMs <= 10_000, 'A bounded HTTP request deadline is required.');
   if (typeof body?.password === 'string') hidden.add(body.password);
   if (cookie) { hidden.add(cookie); hidden.add(cookie.slice(cookie.indexOf('=') + 1)); }
   return new Promise((resolve, reject) => {
-    const fail = (error) => reject(Object.assign(new Error('Deployment transport request failed.'), { code: error?.code ?? 'TRANSPORT_FAILURE' }));
+    let settled = false;
+    let timer;
+    const settle = (callback, value) => {
+      if (settled) return;
+      settled = true; clearTimeout(timer); callback(value);
+    };
+    const fail = (error) => settle(reject, Object.assign(new Error('Deployment transport request failed.'), { code: error?.code ?? 'TRANSPORT_FAILURE' }));
     const url = new URL(path, origin);
     assert.equal(url.origin, new URL(origin).origin);
     const data = body === undefined ? undefined : JSON.stringify(body);
     const transport = url.protocol === 'https:' ? https : http;
     const request = transport.request(url, {
-      method, agent: false, timeout: 10_000,
+      method, agent: false, timeout: timeoutMs, ...(signal ? { signal } : {}),
       lookup: (_hostname, options, callback) => options.all
         ? callback(null, [{ address: '127.0.0.1', family: 4 }]) : callback(null, '127.0.0.1', 4),
       ...(url.protocol === 'https:' ? { ca, rejectUnauthorized: true,
@@ -134,11 +141,15 @@ export function requestDeployment(origin, ca, { path = '/', method = 'GET', body
         let value;
         try { value = JSON.parse(text); } catch { value = null; }
         const handler = response.headers['x-instance-id'];
-        resolve({ status: response.statusCode, headers: response.headers, value, text,
+        settle(resolve, { status: response.statusCode, headers: response.headers, value, text,
           handler: typeof handler === 'string' && UUID.test(handler) ? handler : null,
           certificate });
       });
     });
+    // Socket inactivity alone does not bound a slowly streaming response.
+    // This timer terminates the actual request rather than abandoning a race.
+    timer = setTimeout(() => request.destroy(Object.assign(new Error('request deadline'), { code: 'ETIMEDOUT' })), timeoutMs);
+    timer.unref();
     request.once('timeout', () => request.destroy(new Error('request deadline')));
     request.once('error', fail);
     request.end(data);
@@ -542,7 +553,7 @@ export async function runDeployment() {
     // Provisioning is deliberately delegated to the same reviewed local helper
     // as deploy:local; it must return a NEW owned test namespace and resources.
     const { provisionTestDeployment } = await import('./deploy-local.mjs');
-    environment = await provisionTestDeployment({ ownerId: randomUUID(), namespace: `courier-route-test-${randomBytes(5).toString('hex')}` });
+    environment = await provisionTestDeployment({ ownerId: randomUUID(), namespace: `courier-route-test-${randomBytes(5).toString('hex')}`, autoscaling: false });
     const result = await verifyDeployment(environment);
     console.info(JSON.stringify({ status: 'progress', phase: 'HTTPS API and container checks passed', checks: result.checks.length }));
     const faults = await verifyDeploymentFaults(environment, result);

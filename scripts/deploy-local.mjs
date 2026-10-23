@@ -542,9 +542,13 @@ async function provision({ state, namespace, ownerId, httpPort, httpsPort, image
     nodes: await kubectl(['get', '--raw', '/apis/metrics.k8s.io/v1beta1/nodes'], { json: true }),
     pods: await kubectl(['get', '--raw', `/apis/metrics.k8s.io/v1beta1/namespaces/${namespace}/pods`], { json: true }),
   });
+  const forwardingInfo = () => {
+    const child = forwardings.get(namespace);
+    return child ? { pid: child.pid ?? null, exitCode: child.exitCode, signalCode: child.signalCode } : null;
+  };
   return { kubeconfig, context, namespace, ownerId, httpsOrigin: publicOrigin, httpOrigin: `http://localhost:${httpPort}`,
     caPath: tls.caPath, image, autoscaling, kubectl, sql, killAppProcess, assertOwned, cleanup,
-    repeatDeploy, stop: () => stopNamespace(kubectl, namespace, ownerId), start: repeatDeploy, metrics };
+    repeatDeploy, stop: () => stopNamespace(kubectl, namespace, ownerId), start: repeatDeploy, metrics, forwardingInfo };
 }
 
 export async function provisionTestDeployment({ namespace, ownerId, httpPort, httpsPort, autoscaling = false } = {}) {

@@ -22,7 +22,7 @@
     "db:migrate": "node --env-file-if-exists=.env --import tsx src/server/db/migrate.ts",
     "db:migrate:built": "node --env-file-if-exists=.env dist/server/db/migrate.js",
     "db:check": "node --env-file-if-exists=.env --import tsx src/server/db/check.ts",
-    "test:unit": "node --env-file-if-exists=.env --import tsx --test tests/password.test.ts tests/database-safety.test.ts tests/config.test.ts tests/bind-http.test.ts tests/deployment-safety.test.ts",
+    "test:unit": "node --env-file-if-exists=.env --import tsx --test tests/password.test.ts tests/database-safety.test.ts tests/config.test.ts tests/bind-http.test.ts tests/deployment-safety.test.ts tests/autoscale-safety.test.ts",
     "test:integration": "node --env-file-if-exists=.env --import tsx --test tests/auth.integration.test.ts",
     "auth:check": "npm run test:integration",
     "test": "npm run test:unit && npm run test:route && npm run test:integration && npm run test:jobs && npm run test:client && npm run test:queue",
@@ -40,7 +40,8 @@
     "deploy:status": "node scripts/deploy-local.mjs status",
     "deploy:stop": "node scripts/deploy-local.mjs stop",
     "test:container": "node scripts/check-container.mjs",
-    "test:deployment": "node scripts/check-deployment.mjs"
+    "test:deployment": "node scripts/check-deployment.mjs",
+    "test:autoscale": "node scripts/check-autoscale.mjs"
   },
   "dependencies": {
     "cookie": "2.0.1",

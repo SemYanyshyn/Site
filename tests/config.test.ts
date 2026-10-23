@@ -3,7 +3,7 @@ import test from 'node:test';
 import { normalizeOrigin, readConfig, readDatabaseUrl } from '../src/server/config.js';
 
 const configurationKeys = [
-  'PORT', 'DATABASE_URL', 'APP_ORIGINS', 'SESSION_TTL_SECONDS', 'COOKIE_SECURE',
+  'HOST', 'PORT', 'DATABASE_URL', 'APP_ORIGINS', 'SESSION_TTL_SECONDS', 'COOKIE_SECURE',
 ] as const;
 const syntheticSecret = 'synthetic-secret-never-log';
 const validDatabaseUrl = `postgresql://courier:${syntheticSecret}@127.0.0.1:55432/courier_route`;
@@ -11,7 +11,7 @@ const validDatabaseUrl = `postgresql://courier:${syntheticSecret}@127.0.0.1:5543
 function withEnvironment(overrides: Partial<Record<typeof configurationKeys[number], string | undefined>>, check: () => void): void {
   const previous = new Map(configurationKeys.map((key) => [key, process.env[key]]));
   const values = {
-    PORT: '3000', DATABASE_URL: validDatabaseUrl,
+    HOST: '127.0.0.1', PORT: '3000', DATABASE_URL: validDatabaseUrl,
     APP_ORIGINS: 'http://127.0.0.1:5173,http://127.0.0.1:3000',
     SESSION_TTL_SECONDS: '28800', COOKIE_SECURE: 'false', ...overrides,
   };
@@ -105,4 +105,17 @@ test('startup bounds ports and session lifetime and accepts only explicit cookie
     assert.equal(config.sessionTtlSeconds, 28800);
     assert.equal(config.cookieSecure, false);
   });
+});
+
+test('the listen host defaults to loopback and exposes all interfaces only by explicit configuration', () => {
+  withEnvironment({ HOST: undefined }, () => assert.equal(readConfig().host, '127.0.0.1'));
+  for (const host of ['127.0.0.1', '0.0.0.0'] as const) {
+    withEnvironment({ HOST: host }, () => assert.equal(readConfig().host, host));
+  }
+});
+
+test('listen configuration rejects arbitrary hostnames, addresses and malformed input without echoing them', () => {
+  for (const host of ['', ' ', 'localhost', '::', '::1', '192.168.1.2', '0.0.0.0:3000', ' 0.0.0.0', syntheticSecret]) {
+    withEnvironment({ HOST: host }, () => rejectsSafely(readConfig, 'HOST'));
+  }
 });

@@ -1,4 +1,5 @@
 export interface AppConfig {
+  host: '127.0.0.1' | '0.0.0.0';
   port: number;
   databaseUrl: string;
   appOrigins: ReadonlySet<string>;
@@ -38,6 +39,10 @@ export function normalizeOrigin(value: string): string | null {
 }
 
 export function readConfig(): AppConfig {
+  const host = process.env.HOST ?? '127.0.0.1';
+  if (host !== '127.0.0.1' && host !== '0.0.0.0') {
+    throw new Error('HOST має бути 127.0.0.1 для локального запуску або 0.0.0.0 для контейнера.');
+  }
   const portInput = process.env.PORT ?? '3000';
   if (!/^\d+$/.test(portInput) || Number(portInput) < 1 || Number(portInput) > 65535) {
     throw new Error('PORT має бути цілим числом від 1 до 65535.');
@@ -60,7 +65,7 @@ export function readConfig(): AppConfig {
     throw new Error('COOKIE_SECURE має бути true або false.');
   }
   return {
-    port: Number(portInput), databaseUrl, appOrigins,
+    host, port: Number(portInput), databaseUrl, appOrigins,
     sessionTtlSeconds: Number(ttlInput), cookieSecure: secureInput === 'true',
   };
 }

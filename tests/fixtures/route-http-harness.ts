@@ -6,6 +6,7 @@ import { routeInput } from './route-input.js';
 // This is a test process, with a real Express app and the shared executor in that
 // SAME process. No HTTP endpoint is added to initiate or control calculations.
 const runtime = startServer({
+  host: '127.0.0.1',
   port: 0,
   // A closed loopback port is sufficient: liveness does not require PostgreSQL.
   // No fake Pool or successful authentication is supplied.

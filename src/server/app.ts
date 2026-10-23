@@ -29,8 +29,17 @@ export function createApp({
   jobsRepository = new JobsRepository(pool),
 }: AppOptions): express.Express {
   const app = express();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(instanceId)) {
+    throw new Error('Ідентифікатор HTTP-процесу має бути UUID.');
+  }
   const clientDirectory = fileURLToPath(new URL('../client', import.meta.url));
   app.disable('x-powered-by');
+  app.use('/api', (_request, response, next) => {
+    // This value belongs to the handler process. Never echo client/forwarded
+    // headers: the response must identify the actual backend chosen by Traefik.
+    response.set('X-Instance-Id', instanceId);
+    next();
+  });
 
   app.get('/api/health', (_request, response) => {
     const health: HealthResponse = { status: 'ok', instanceId };

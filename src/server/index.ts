@@ -66,10 +66,10 @@ export function startServer(config: AppConfig = readConfig(), routeLimits: Route
     return run;
   };
   const app = createApp({ config, pool, instanceId, routeLimits, jobsConfig, jobsRepository });
-  const server = app.listen(config.port, '127.0.0.1', () => {
+  const server = app.listen(config.port, config.host, () => {
     const address = server.address();
     const port = address && typeof address !== 'string' ? address.port : config.port;
-    console.info(`Courier Route: http://127.0.0.1:${port} (instanceId: ${instanceId})`);
+    console.info(`Courier Route: http://${config.host}:${port} (instanceId: ${instanceId})`);
   });
   let shutdownPromise: Promise<void> | undefined;
 

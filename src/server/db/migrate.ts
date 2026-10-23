@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { Pool } from 'pg';
 
-export const REQUIRED_MIGRATIONS = ['001_auth', '002_jobs'] as const;
+export const REQUIRED_MIGRATIONS = ['001_auth', '002_jobs', '003_executor_registry'] as const;
 const migrationDirectory = new URL(
   import.meta.url.endsWith('.ts') ? '../../../migrations/' : '../../migrations/',
   import.meta.url,

@@ -16,10 +16,14 @@ import type { JobsConfig } from './jobs/config.js';
 import { JobsDispatcher } from './jobs/dispatcher.js';
 import type { DispatcherEvent } from './jobs/dispatcher.js';
 import { JobsRepository } from './jobs/repository.js';
+import { readExecutorConfig, validateExecutorConfig } from './jobs/executor-config.js';
+import type { ExecutorConfig } from './jobs/executor-config.js';
+import { ExecutorRegistry } from './jobs/executor-registry.js';
 
 export interface ServerOptions {
   // Internal harness controls are not HTTP parameters or environment backdoors.
   jobsInitiallyPaused?: boolean;
+  executorConfig?: ExecutorConfig;
   onJobEvent?: (event: DispatcherEvent) => void;
   executorOptions?: {
     workerFactory?: (url: URL, options: WorkerOptions) => Worker;
@@ -31,6 +35,7 @@ export interface ServerRuntime {
   server: Server;
   executor: RouteExecutor;
   dispatcher: JobsDispatcher;
+  registry: ExecutorRegistry;
   pool: Pool;
   instanceId: string;
   shutdown: (signal?: string) => Promise<void>;
@@ -40,15 +45,26 @@ export interface ServerRuntime {
 export function startServer(config: AppConfig = readConfig(), routeLimits: RouteLimits = readRouteConfig(),
   jobsConfig: JobsConfig = readJobsConfig(), options: ServerOptions = {}): ServerRuntime {
   validateJobsConfig(jobsConfig);
+  const executorConfig = validateExecutorConfig(options.executorConfig ?? readExecutorConfig());
   const executor = new RouteExecutor(routeLimits, options.executorOptions);
   const pool = createDatabasePool(config.databaseUrl);
   const instanceId = randomUUID();
   const jobsRepository = new JobsRepository(pool);
+  const registry = new ExecutorRegistry(pool, instanceId, executorConfig);
   const dispatcherOptions = {
     ...(options.jobsInitiallyPaused === undefined ? {} : { initiallyPaused: options.jobsInitiallyPaused }),
     ...(options.onJobEvent === undefined ? {} : { onEvent: options.onJobEvent }),
   };
-  const dispatcher = new JobsDispatcher(executor, jobsRepository, instanceId, routeLimits, jobsConfig, dispatcherOptions);
+  const dispatcher = new JobsDispatcher(executor, jobsRepository, instanceId, routeLimits, jobsConfig, registry, dispatcherOptions);
+  // Direct internal route-harness runs share the same slot. Observe transitions
+  // here without adding PostgreSQL to RouteExecutor or the standalone CLI.
+  const startRoute = executor.start.bind(executor);
+  executor.start = (input, onProgress) => {
+    const run = startRoute(input, onProgress);
+    void registry.refresh();
+    void run.result.then(() => { void registry.refresh(); });
+    return run;
+  };
   const app = createApp({ config, pool, instanceId, routeLimits, jobsConfig, jobsRepository });
   const server = app.listen(config.port, '127.0.0.1', () => {
     const address = server.address();
@@ -108,7 +124,7 @@ export function startServer(config: AppConfig = readConfig(), routeLimits: Route
   });
   process.on('SIGINT', onSigint);
   process.on('SIGTERM', onSigterm);
-  return { server, executor, dispatcher, pool, instanceId, shutdown };
+  return { server, executor, dispatcher, registry, pool, instanceId, shutdown };
 }
 
 // Test harnesses import startServer without accidentally opening another server.

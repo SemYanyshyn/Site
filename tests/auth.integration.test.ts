@@ -262,7 +262,7 @@ describe('PostgreSQL authentication across independent HTTP processes', { concur
     const tables = await pool.query<{ table_name: string }>(
       'SELECT table_name FROM information_schema.tables WHERE table_schema = $1', [schema],
     );
-    for (const name of ['users', 'sessions', 'schema_migrations']) {
+    for (const name of ['users', 'sessions', 'jobs', 'executor_registry', 'schema_migrations']) {
       assert.ok(tables.rows.some(({ table_name }) => table_name === name), `Migration must create ${name}.`);
     }
     appA = await startServer(portA);

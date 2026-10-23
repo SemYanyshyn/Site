@@ -1,9 +1,11 @@
 import { randomUUID } from 'node:crypto';
+import { performance } from 'node:perf_hooks';
 import type { Pool, PoolClient } from 'pg';
 import type { JobDetails, JobFailureReason, JobListResponse, JobStatus, JobSummary, JobTerminal } from '../../shared/jobs.js';
 import type { NormalizedRouteInput, RouteProgress, RouteResult } from '../../shared/route.js';
 import { databaseUnavailable, HttpError } from '../auth/errors.js';
 import type { JobsConfig } from './config.js';
+import { queryQueueSnapshot, readQueueSnapshot } from './queue-snapshot.js';
 
 export type { JobTerminal } from '../../shared/jobs.js';
 
@@ -158,6 +160,44 @@ export class JobsRepository {
     }
   }
 
+  /** Ownership, detail, capacity and queue metadata share one short MVCC
+   * snapshot. This read never acquires the admission or claim locks. */
+  async getWithQueue(userId: string, id: string, timeoutMs: number,
+    deadline = performance.now() + 8_000): Promise<JobDetails | null> {
+    let client: PoolClient | undefined;
+    let discard = false;
+    try {
+      if (!Number.isFinite(deadline) || deadline <= performance.now()) throw databaseUnavailable();
+      client = await this.pool.connect();
+      // PostgreSQL 18 is the project's runtime. The transaction-wide limit
+      // complements the 8s monotonic deadline, including the <=2s acquisition,
+      // setup and commit, below the browser's 10-second request timeout.
+      await queryQueueSnapshot(client, deadline, `BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;
+        SET LOCAL statement_timeout = '1000ms';
+        SET LOCAL lock_timeout = '500ms';
+        SET LOCAL idle_in_transaction_session_timeout = '1500ms';
+        SET LOCAL transaction_timeout = '5000ms'`);
+      const result = await queryQueueSnapshot<DetailsRow & { queue_calculated_at: Date }>(client, deadline, `
+        SELECT ${DETAIL_COLUMNS}, clock_timestamp() AS queue_calculated_at
+        FROM jobs WHERE id = $1 AND user_id = $2
+      `, [id, userId]);
+      const row = result.rows[0];
+      if (!row) { await queryQueueSnapshot(client, deadline, 'COMMIT'); return null; }
+      const value = details(row);
+      if (value.status === 'queued') {
+        value.queue = await readQueueSnapshot(client, id, row.queue_calculated_at.toISOString(), timeoutMs, deadline);
+      }
+      await queryQueueSnapshot(client, deadline, 'COMMIT');
+      return value;
+    } catch (error) {
+      // Closing a failed read-only session rolls its transaction back. Do not
+      // start another SQL round trip after an expired response budget.
+      discard = true;
+      if (error instanceof HttpError) throw error;
+      throw databaseUnavailable();
+    } finally { client?.release(discard); }
+  }
+
   async cancel(userId: string, id: string): Promise<JobDetails | null> {
     try {
       // UPDATE locks/rechecks the latest row. Terminal fields are retained,
@@ -229,13 +269,16 @@ export class JobsRepository {
     }
   }
 
-  async finish(claim: JobClaim, terminal: JobTerminal): Promise<boolean> {
+  async finish(claim: JobClaim, terminal: JobTerminal, queryTimeoutMs?: number): Promise<boolean> {
+    if (queryTimeoutMs !== undefined && (!Number.isSafeInteger(queryTimeoutMs) || queryTimeoutMs < 1 || queryTimeoutMs > 1_000)) {
+      throw new RangeError('Некоректний бюджет фінального запису задачі.');
+    }
     const completed = terminal.status === 'completed' ? terminal.result : null;
     const reason = terminal.status === 'failed' ? terminal.reason : null;
     // Never persist raw errors or caller-provided exception text.
     const message = reason ? FAILURE_MESSAGES[reason] : null;
     try {
-      const result = await this.pool.query(`
+      const query = { text: `
         UPDATE jobs SET
           status = CASE WHEN cancel_requested_at IS NOT NULL THEN 'cancelled' ELSE $3 END,
           result = CASE WHEN cancel_requested_at IS NULL AND $3 = 'completed' THEN $4::jsonb ELSE NULL END,
@@ -246,8 +289,21 @@ export class JobsRepository {
           progress_percent = CASE WHEN cancel_requested_at IS NULL AND $3 = 'completed' THEN 100 ELSE progress_percent END,
           finished_at = clock_timestamp(), updated_at = clock_timestamp()
         WHERE id = $1 AND status = 'running' AND claim_token = $2
-      `, [claim.id, claim.claimToken, terminal.status, completed ? JSON.stringify(completed) : null,
-        reason, message, completed?.iterationsCompleted ?? null]);
+      `, values: [claim.id, claim.claimToken, terminal.status, completed ? JSON.stringify(completed) : null,
+        reason, message, completed?.iterationsCompleted ?? null] };
+      const result = queryTimeoutMs === undefined ? await this.pool.query(query) : await (async () => {
+        // Shutdown has a smaller remaining budget. Bound server execution as
+        // well as node-postgres' reply wait; destroy this dedicated connection
+        // so its session setting and any timed-out operation never reenter pool.
+        const client = await this.pool.connect();
+        try {
+          const setting = { text: "SELECT set_config('statement_timeout', $1, false)",
+            values: [`${queryTimeoutMs}ms`], query_timeout: 250 };
+          const bounded = { ...query, query_timeout: queryTimeoutMs };
+          await client.query(setting);
+          return await client.query(bounded);
+        } finally { client.release(true); }
+      })();
       return (result.rowCount ?? 0) > 0;
     } catch {
       throw databaseUnavailable();

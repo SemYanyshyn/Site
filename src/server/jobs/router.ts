@@ -1,4 +1,5 @@
 import express from 'express';
+import { performance } from 'node:perf_hooks';
 import type { PublicUser } from '../../shared/auth.js';
 import type { JobLimitsResponse, JobStatus } from '../../shared/jobs.js';
 import type { RouteLimits } from '../../shared/route.js';
@@ -55,6 +56,12 @@ export function createJobsRouter(
   config: AppConfig, pool: Pool, repository: JobsRepository, routeLimits: RouteLimits, jobsConfig: JobsConfig,
 ): express.Router {
   const router = express.Router();
+  router.use((_request, response, next) => {
+    // The detail's absolute budget includes authentication and its pool wait,
+    // rather than starting a new eight seconds after the session lookup.
+    response.locals.queueReadDeadline = performance.now() + 8_000;
+    next();
+  });
   router.use(jsonMutationGuard(config, '256kb'));
   router.use(requireAuth(pool));
 
@@ -85,7 +92,7 @@ export function createJobsRouter(
   router.get('/:id', async (request, response) => {
     const id = jobId(request.params.id);
     const user = response.locals.user as PublicUser;
-    const job = await repository.get(user.id, id);
+    const job = await repository.getWithQueue(user.id, id, routeLimits.timeoutMs, Number(response.locals.queueReadDeadline));
     if (!job) throw notFound();
     response.json(job);
   });

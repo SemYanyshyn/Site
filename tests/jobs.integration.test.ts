@@ -282,7 +282,7 @@ describe('Durable PostgreSQL jobs across independent production HTTP processes',
     await stop(appA);
     await Promise.all([migrate(), migrate()]);
     const applied = await pool.query<{ version: string; checksum: string }>('SELECT version,checksum FROM schema_migrations ORDER BY version');
-    assert.deepEqual(applied.rows.map((row) => row.version), ['001_auth', '002_jobs']);
+    assert.deepEqual(applied.rows.map((row) => row.version), ['001_auth', '002_jobs', '003_executor_registry']);
     assert.equal(applied.rows[0]?.checksum, checksum);
     const builtSql = await readFile(new URL('../dist/migrations/002_jobs.sql', import.meta.url), 'utf8');
     assert.equal(builtSql, await readFile(new URL('../migrations/002_jobs.sql', import.meta.url), 'utf8'));

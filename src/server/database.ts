@@ -33,12 +33,16 @@ export async function isDatabaseReady(pool: Pool): Promise<boolean> {
           created_at, updated_at, started_at, finished_at, cancel_requested_at, instance_id, claim_token,
           timeout_ms, lost_after, result, failure_reason, failure_message
         FROM jobs LIMIT 0
+      ), executor_shape AS (
+        SELECT instance_id, started_at, last_seen_at, expires_at, accepting_claims, busy, current_job_id
+        FROM executor_registry LIMIT 0
       )
       SELECT version FROM schema_migrations
       WHERE version = ANY($1::text[])
         AND (SELECT COUNT(*) FROM user_shape) = 0
         AND (SELECT COUNT(*) FROM session_shape) = 0
         AND (SELECT COUNT(*) FROM job_shape) = 0
+        AND (SELECT COUNT(*) FROM executor_shape) = 0
     `, [REQUIRED_MIGRATIONS]);
     const applied = new Set(result.rows.map((row) => row.version));
     return REQUIRED_MIGRATIONS.every((version) => applied.has(version));

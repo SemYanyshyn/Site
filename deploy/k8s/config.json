@@ -1,0 +1,30 @@
+{
+  "apiVersion": "v1",
+  "kind": "ConfigMap",
+  "metadata": {
+    "name": "app-config",
+    "namespace": "__NAMESPACE__",
+    "labels": {
+      "app.kubernetes.io/part-of": "courier-route",
+      "app.kubernetes.io/managed-by": "courier-route-local",
+      "courier-route.local/owner-id": "__OWNER_ID__"
+    }
+  },
+  "data": {
+    "NODE_ENV": "production",
+    "HOST": "0.0.0.0",
+    "PORT": "3000",
+    "APP_ORIGINS": "__PUBLIC_ORIGIN__",
+    "COOKIE_SECURE": "true",
+    "SESSION_TTL_SECONDS": "28800",
+    "ROUTE_MAX_POINTS": "500",
+    "ROUTE_MAX_ITERATIONS": "200000000",
+    "ROUTE_TIMEOUT_MS": "30000",
+    "JOBS_MAX_ACTIVE_PER_USER": "3",
+    "JOBS_MAX_OUTSTANDING": "100",
+    "JOBS_POLL_INTERVAL_MS": "250",
+    "JOBS_WORKER_LOST_GRACE_MS": "5000",
+    "EXECUTOR_HEARTBEAT_INTERVAL_MS": "1000",
+    "EXECUTOR_LEASE_TTL_MS": "15000"
+  }
+}

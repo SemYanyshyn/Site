@@ -1,0 +1,311 @@
+{
+  "apiVersion": "v1",
+  "kind": "List",
+  "items": [
+    {
+      "apiVersion": "v1",
+      "kind": "ServiceAccount",
+      "metadata": {
+        "name": "traefik",
+        "namespace": "__NAMESPACE__",
+        "labels": {
+          "app.kubernetes.io/part-of": "courier-route",
+          "app.kubernetes.io/managed-by": "courier-route-local",
+          "courier-route.local/owner-id": "__OWNER_ID__",
+          "app.kubernetes.io/name": "courier-route-traefik",
+          "app.kubernetes.io/component": "ingress"
+        }
+      },
+      "automountServiceAccountToken": true
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "Role",
+      "metadata": {
+        "name": "traefik",
+        "namespace": "__NAMESPACE__",
+        "labels": {
+          "app.kubernetes.io/part-of": "courier-route",
+          "app.kubernetes.io/managed-by": "courier-route-local",
+          "courier-route.local/owner-id": "__OWNER_ID__",
+          "app.kubernetes.io/name": "courier-route-traefik",
+          "app.kubernetes.io/component": "ingress"
+        }
+      },
+      "rules": [
+        {
+          "apiGroups": [
+            ""
+          ],
+          "resources": [
+            "services",
+            "secrets"
+          ],
+          "verbs": [
+            "get",
+            "list",
+            "watch"
+          ]
+        },
+        {
+          "apiGroups": [
+            "discovery.k8s.io"
+          ],
+          "resources": [
+            "endpointslices"
+          ],
+          "verbs": [
+            "get",
+            "list",
+            "watch"
+          ]
+        },
+        {
+          "apiGroups": [
+            "networking.k8s.io"
+          ],
+          "resources": [
+            "ingresses"
+          ],
+          "verbs": [
+            "get",
+            "list",
+            "watch"
+          ]
+        },
+        {
+          "apiGroups": [
+            "networking.k8s.io"
+          ],
+          "resources": [
+            "ingresses/status"
+          ],
+          "verbs": [
+            "update"
+          ]
+        }
+      ]
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "RoleBinding",
+      "metadata": {
+        "name": "traefik",
+        "namespace": "__NAMESPACE__",
+        "labels": {
+          "app.kubernetes.io/part-of": "courier-route",
+          "app.kubernetes.io/managed-by": "courier-route-local",
+          "courier-route.local/owner-id": "__OWNER_ID__",
+          "app.kubernetes.io/name": "courier-route-traefik",
+          "app.kubernetes.io/component": "ingress"
+        }
+      },
+      "roleRef": {
+        "apiGroup": "rbac.authorization.k8s.io",
+        "kind": "Role",
+        "name": "traefik"
+      },
+      "subjects": [
+        {
+          "kind": "ServiceAccount",
+          "name": "traefik",
+          "namespace": "__NAMESPACE__"
+        }
+      ]
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "name": "traefik",
+        "namespace": "__NAMESPACE__",
+        "labels": {
+          "app.kubernetes.io/part-of": "courier-route",
+          "app.kubernetes.io/managed-by": "courier-route-local",
+          "courier-route.local/owner-id": "__OWNER_ID__",
+          "app.kubernetes.io/name": "courier-route-traefik",
+          "app.kubernetes.io/component": "ingress"
+        }
+      },
+      "spec": {
+        "type": "NodePort",
+        "sessionAffinity": "None",
+        "selector": {
+          "app.kubernetes.io/name": "courier-route-traefik"
+        },
+        "ports": [
+          {
+            "name": "web",
+            "port": 80,
+            "targetPort": "web",
+            "nodePort": 30080
+          },
+          {
+            "name": "websecure",
+            "port": 443,
+            "targetPort": "websecure",
+            "nodePort": 30443
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "name": "traefik",
+        "namespace": "__NAMESPACE__",
+        "labels": {
+          "app.kubernetes.io/part-of": "courier-route",
+          "app.kubernetes.io/managed-by": "courier-route-local",
+          "courier-route.local/owner-id": "__OWNER_ID__",
+          "app.kubernetes.io/name": "courier-route-traefik",
+          "app.kubernetes.io/component": "ingress"
+        }
+      },
+      "spec": {
+        "replicas": 1,
+        "revisionHistoryLimit": 2,
+        "progressDeadlineSeconds": 180,
+        "selector": {
+          "matchLabels": {
+            "app.kubernetes.io/name": "courier-route-traefik"
+          }
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "app.kubernetes.io/part-of": "courier-route",
+              "app.kubernetes.io/managed-by": "courier-route-local",
+              "courier-route.local/owner-id": "__OWNER_ID__",
+              "app.kubernetes.io/name": "courier-route-traefik",
+              "app.kubernetes.io/component": "ingress"
+            }
+          },
+          "spec": {
+            "serviceAccountName": "traefik",
+            "automountServiceAccountToken": true,
+            "terminationGracePeriodSeconds": 10,
+            "securityContext": {
+              "runAsNonRoot": true,
+              "runAsUser": 65532,
+              "runAsGroup": 65532,
+              "seccompProfile": {
+                "type": "RuntimeDefault"
+              }
+            },
+            "containers": [
+              {
+                "name": "traefik",
+                "image": "__TRAEFIK_IMAGE__",
+                "imagePullPolicy": "IfNotPresent",
+                "args": [
+                  "--global.checknewversion=false",
+                  "--global.sendanonymoususage=false",
+                  "--api=false",
+                  "--api.dashboard=false",
+                  "--api.insecure=false",
+                  "--log.level=WARN",
+                  "--accesslog=false",
+                  "--providers.kubernetesingress=true",
+                  "--providers.kubernetesingress.namespaces=__NAMESPACE__",
+                  "--providers.kubernetesingress.ingressclass=courier-route",
+                  "--providers.kubernetesingress.disableclusterscoperesources=true",
+                  "--providers.kubernetesingress.nativelbbydefault=false",
+                  "--providers.kubernetesingress.allowemptyservices=true",
+                  "--entrypoints.web.address=:8000",
+                  "--entrypoints.web.forwardedheaders.insecure=false",
+                  "--entrypoints.web.http.redirections.entrypoint.to=:__HTTPS_PORT__",
+                  "--entrypoints.web.http.redirections.entrypoint.scheme=https",
+                  "--entrypoints.web.http.redirections.entrypoint.permanent=true",
+                  "--entrypoints.websecure.address=:8443",
+                  "--entrypoints.websecure.forwardedheaders.insecure=false",
+                  "--entrypoints.health.address=:9000",
+                  "--ping=true",
+                  "--ping.entrypoint=health",
+                  "--entrypoints.web.transport.lifecycle.gracetimeout=5s",
+                  "--entrypoints.websecure.transport.lifecycle.gracetimeout=5s",
+                  "--entrypoints.health.transport.lifecycle.gracetimeout=5s"
+                ],
+                "ports": [
+                  {
+                    "name": "web",
+                    "containerPort": 8000
+                  },
+                  {
+                    "name": "websecure",
+                    "containerPort": 8443
+                  },
+                  {
+                    "name": "health",
+                    "containerPort": 9000
+                  }
+                ],
+                "resources": {
+                  "requests": {
+                    "cpu": "50m",
+                    "memory": "64Mi"
+                  },
+                  "limits": {
+                    "cpu": "500m",
+                    "memory": "192Mi"
+                  }
+                },
+                "securityContext": {
+                  "allowPrivilegeEscalation": false,
+                  "readOnlyRootFilesystem": true,
+                  "capabilities": {
+                    "drop": [
+                      "ALL"
+                    ]
+                  }
+                },
+                "startupProbe": {
+                  "httpGet": {
+                    "path": "/ping",
+                    "port": "health"
+                  },
+                  "periodSeconds": 2,
+                  "timeoutSeconds": 3,
+                  "failureThreshold": 30
+                },
+                "livenessProbe": {
+                  "httpGet": {
+                    "path": "/ping",
+                    "port": "health"
+                  },
+                  "periodSeconds": 5,
+                  "timeoutSeconds": 3,
+                  "failureThreshold": 3
+                },
+                "readinessProbe": {
+                  "httpGet": {
+                    "path": "/ping",
+                    "port": "health"
+                  },
+                  "periodSeconds": 3,
+                  "timeoutSeconds": 3,
+                  "failureThreshold": 2
+                },
+                "volumeMounts": [
+                  {
+                    "name": "tmp",
+                    "mountPath": "/tmp"
+                  }
+                ]
+              }
+            ],
+            "volumes": [
+              {
+                "name": "tmp",
+                "emptyDir": {
+                  "sizeLimit": "16Mi"
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

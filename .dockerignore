@@ -1,0 +1,26 @@
+# Build inputs are an allowlist. Local databases, .env, Git history, TLS keys,
+# kubeconfig, profiles and screenshots never enter the build context.
+**
+!Dockerfile
+!.dockerignore
+!package.json
+!package-lock.json
+!tsconfig*.json
+!vite.config.ts
+!src/
+!src/**
+!migrations/
+!migrations/*.sql
+!examples/
+!examples/*.json
+!scripts/
+!scripts/clean.mjs
+!scripts/copy-migrations.mjs
+!scripts/copy-route-examples.mjs
+**/.env*
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/*.cookies
+**/cookies*.txt

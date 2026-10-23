@@ -1,0 +1,12 @@
+{
+  "apiVersion": "v1",
+  "kind": "Namespace",
+  "metadata": {
+    "name": "__NAMESPACE__",
+    "labels": {
+      "app.kubernetes.io/part-of": "courier-route",
+      "app.kubernetes.io/managed-by": "courier-route-local",
+      "courier-route.local/owner-id": "__OWNER_ID__"
+    }
+  }
+}

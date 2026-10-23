@@ -1,0 +1,49 @@
+{
+  "apiVersion": "networking.k8s.io/v1",
+  "kind": "Ingress",
+  "metadata": {
+    "name": "app",
+    "namespace": "__NAMESPACE__",
+    "labels": {
+      "app.kubernetes.io/part-of": "courier-route",
+      "app.kubernetes.io/managed-by": "courier-route-local",
+      "courier-route.local/owner-id": "__OWNER_ID__"
+    },
+    "annotations": {
+      "kubernetes.io/ingress.class": "courier-route",
+      "traefik.ingress.kubernetes.io/router.entrypoints": "websecure",
+      "traefik.ingress.kubernetes.io/router.tls": "true"
+    }
+  },
+  "spec": {
+    "tls": [
+      {
+        "hosts": [
+          "localhost"
+        ],
+        "secretName": "courier-route-tls"
+      }
+    ],
+    "rules": [
+      {
+        "host": "localhost",
+        "http": {
+          "paths": [
+            {
+              "path": "/",
+              "pathType": "Prefix",
+              "backend": {
+                "service": {
+                  "name": "app",
+                  "port": {
+                    "name": "http"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

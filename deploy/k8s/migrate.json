@@ -1,0 +1,98 @@
+{
+  "apiVersion": "batch/v1",
+  "kind": "Job",
+  "metadata": {
+    "name": "__MIGRATION_JOB__",
+    "namespace": "__NAMESPACE__",
+    "labels": {
+      "app.kubernetes.io/part-of": "courier-route",
+      "app.kubernetes.io/managed-by": "courier-route-local",
+      "courier-route.local/owner-id": "__OWNER_ID__",
+      "app.kubernetes.io/name": "courier-route-migrate",
+      "app.kubernetes.io/component": "migration"
+    }
+  },
+  "spec": {
+    "backoffLimit": 0,
+    "activeDeadlineSeconds": 120,
+    "template": {
+      "metadata": {
+        "labels": {
+          "app.kubernetes.io/part-of": "courier-route",
+          "app.kubernetes.io/managed-by": "courier-route-local",
+          "courier-route.local/owner-id": "__OWNER_ID__",
+          "app.kubernetes.io/name": "courier-route-migrate",
+          "app.kubernetes.io/component": "migration"
+        }
+      },
+      "spec": {
+        "restartPolicy": "Never",
+        "automountServiceAccountToken": false,
+        "terminationGracePeriodSeconds": 10,
+        "securityContext": {
+          "runAsNonRoot": true,
+          "runAsUser": 1000,
+          "runAsGroup": 1000,
+          "seccompProfile": {
+            "type": "RuntimeDefault"
+          }
+        },
+        "containers": [
+          {
+            "name": "migrate",
+            "image": "__APP_IMAGE__",
+            "imagePullPolicy": "Never",
+            "command": [
+              "node",
+              "/app/dist/server/db/migrate.js"
+            ],
+            "env": [
+              {
+                "name": "DATABASE_URL",
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "name": "courier-route-database",
+                    "key": "DATABASE_URL"
+                  }
+                }
+              }
+            ],
+            "resources": {
+              "requests": {
+                "cpu": "100m",
+                "memory": "64Mi"
+              },
+              "limits": {
+                "cpu": "500m",
+                "memory": "192Mi"
+              }
+            },
+            "securityContext": {
+              "allowPrivilegeEscalation": false,
+              "readOnlyRootFilesystem": true,
+              "capabilities": {
+                "drop": [
+                  "ALL"
+                ]
+              }
+            },
+            "volumeMounts": [
+              {
+                "name": "tmp",
+                "mountPath": "/tmp"
+              }
+            ]
+          }
+        ],
+        "volumes": [
+          {
+            "name": "tmp",
+            "emptyDir": {
+              "sizeLimit": "16Mi"
+            }
+          }
+        ]
+      }
+    }
+  }
+}

@@ -450,10 +450,15 @@ describe('PostgreSQL authentication across independent HTTP processes', { concur
       const html = await fetch(viteOrigin);
       assert.equal(html.status, 200);
       assert.match(await html.text(), /lang="uk"/);
-      for (const resource of ['/main.ts', '/styles.css']) {
+      for (const resource of ['/main.ts', '/styles.css', '/api.ts']) {
         const response = await fetch(`${viteOrigin}${resource}`);
         assert.equal(response.status, 200);
-        assert.ok((await response.text()).length > 0);
+        const source = await response.text();
+        assert.ok(source.length > 0);
+        if (resource === '/api.ts') {
+          assert.match(response.headers.get('content-type') ?? '', /javascript/);
+          assert.match(source, /class ApiClient/);
+        }
       }
       const response = await post(viteOrigin, '/api/auth/login', {
         username: 'block_user', password: fixturePassword,

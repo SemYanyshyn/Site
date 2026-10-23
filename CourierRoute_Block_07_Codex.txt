@@ -1,0 +1,206 @@
+ВИКОНАЙ БЛОК 7 ПРОЄКТУ COURIER ROUTE
+
+Продовжуй наявний проєкт у відкритій папці VS Code. Реалізуй тільки блок 7: production Docker-образ, базове локальне розгортання Kubernetes, два однакові незалежні серверні екземпляри, справжнє HTTP-балансування Traefik і HTTPS. Потрібні працюючий запуск, перевірки, інструкції, звіт, змістовні Git-коміти та ZIP фінального HEAD.
+
+Це явне нове доручення дозволяє перейти до блоку 7. Старі межі «перед блоком 7» у документації описували попередню зупинку й не блокують це завдання. Після виконання зупинись перед блоком 8.
+
+ПРИЙМАННЯ БЛОКУ 6
+
+Керівник перевірив ZIP із 111 файлами та коментарем f6c528f5b4b1602a201027bf015f83fd9e53a238, код реєстру/dispatcher/snapshot/estimator/UI, тести й звіт. Суттєвих проблем не виявлено; блок 6 прийнято.
+
+Незалежно пройшли npm ci, typecheck, build та 107 тестів без БД: 11 unit + 36 route/executor/HTTP + 3 jobs config + 43 client + 14 queue config/estimator/read-budget. Помилок і пропусків немає. Пройшли TS/built CLI (квадрат, length=4, seed=0), production HTML/JS/CSS, стабільний health instanceId, ready=503 без БД, API-404, Vite TS/CSS/health proxy та /api.ts як JavaScript. Тимчасові сервери зупинені. Побайтово звірено 25 захищених файлів відносно блоку 5, включно з assignment, звітами 1–5, SQL 001/002, lock і route-кодом; доручення блоку 6 збігається з оригіналом. CRC архіву коректний.
+
+49 PostgreSQL-сценаріїв (13 auth + 24 jobs + 12 queue), 16 груп Chrome та огляд desktop/360 px підтверджені звітом ВИКОНАВЦЯ. Керівник переглянув їхній код, але НЕ перезапускав їх через відсутність PostgreSQL/TEST_DATABASE_URL і Chrome у своєму середовищі. Локальні PNG виконавця до ZIP не входять, керівник їх не оглядав. Не приписуй йому виконання всіх 156 тестів, browser pass чи візуальний огляд. Історичні звіти 1–6 не переписуй.
+
+ДЖЕРЕЛА, МЕЖІ ТА ПЕРШИЙ КРОК
+
+Спочатку прочитай AGENTS.md і вкладені інструкції, docs/assignment.txt, PROJECT_PLAN.md, README.md, docs/block-06-report.md, актуальні server/config/index/app/auth/jobs/worker та тести. Звір фактичний Git-корінь, гілку, status, історію й інструменти. Не роби висновок про стан лише з цього промпту.
+
+Стек незмінний: strict TypeScript, Node.js 24.x LTS/npm 11.x, Express, HTML/CSS/TypeScript/Vite, PostgreSQL 18/pg, worker_threads; Traefik, Docker і Kubernetes. Один npm-проєкт. UI, алгоритм, PostgreSQL-черга й сесії вже працюють; переписувати їх не потрібно. Усі пункти 1–8 та HTTPS входять у загальний обсяг, але цей блок реалізує саме інфраструктуру пункту 5 й HTTPS пункту 4.
+
+Не додавай HPA/Metrics Server/автомасштабування (блок 8), адмінпанель/CPU-RAM dashboard (блок 9), публічний хостинг, платні ресурси, registry push, OAuth, Redis/BullMQ/ORM, інший балансувальник, UI-фреймворк чи нові продуктові функції. Заміна втраченої replica контролером Deployment не є реалізацією HPA. Два pod на одному ноутбуці доводять незалежність серверних процесів, але не відмовостійкість фізичних машин.
+
+ПОСТІЙНІ ДЕВ'ЯТЬ GIT-ПРАВИЛ
+
+1. Працюй у наявному локальному Git-репозиторії з main; останній відомий HEAD — f6c528f docs: record block 6 verification results. Перевір фактичний стан. Не переініціалізовуй Git і не створюй випадково вкладений репозиторій.
+2. Використовуй справжні налаштовані user.name/user.email, не вигадуй ідентичність і не змінюй глобальні параметри. За відсутності ідентичності виконай незалежну частину й точно повідом, яких даних бракує для комітів. Remote/GitHub/push без окремого доручення не налаштовуй.
+3. Коміть регулярно після завершених логічних частин. Не після кожної дрібної правки й не всі блоки одним комітом. Взаємозалежний код/маніфести мають утворювати працездатний набір.
+4. Перед комітом переглядай status, diff і staged diff та виконуй доречні перевірки. Для коду — typecheck/build і тести поведінки; для інфраструктури — build/run реального образу, перевірка конфігурації й доступний реальний Kubernetes/HTTPS-сценарій. Не коміть відомі невиправлені помилки. Блокування середовищем явно позначай, не називай pass. Окремий docs-коміт не вимагає повтору незмінного коду.
+5. Назви англійською: type(scope): description, scope необов'язковий, орієнтир до 72 символів; feat/fix/refactor/test/docs/chore/build/ci. Приклади: build(container): package the compiled application; feat(deploy): run two replicas behind Traefik TLS; test(deploy): verify shared jobs through HTTPS; docs: record block 7 deployment verification. Це приклади, а не задана кількість комітів. Не використовуй update/done/final/fix stuff.
+6. Додавай файли вибірково. Не коміть node_modules/dist/.env, cookie, локальні БД, kubeconfig, приватні TLS/CA-ключі, секрети Kubernetes навіть у base64, generated Secret YAML, browser profiles, внутрішні PNG, логи й дампи. Dockerfile/.dockerignore, безпечні шаблони, маніфести, scripts, lock і документацію відстежуй. Зберігай сторонні зміни.
+7. Не переписуй готові коміти й не відкидай чужі зміни заради чистого status. Знайдену після коміту помилку виправляй новим перевіреним fix-комітом.
+8. Наприкінці наведи створені за це завдання коміти з хешами/назвами, активну гілку й остаточний git status --short. Власні завершені зміни закомічені; сторонні залишені зміни поясни. Хеш самого фінального звіту повідом у чаті після його коміту, без циклічного записування в цей звіт.
+9. Збережи ці дев'ять правил у AGENTS.md, процес — у PROJECT_PLAN.md, короткий опис — у README. Після фінального коміту створи ZIP точного HEAD за інструкцією наприкінці.
+
+1. ЛОКАЛЬНЕ СЕРЕДОВИЩЕ ТА ВІДТВОРЮВАНИЙ ЗАПУСК
+
+Перевір macOS/arm64, Node/npm, Docker CLI й доступність daemon, kubectl, kind, Helm за обраного Helm-встановлення Traefik, OpenSSL та наявний Chrome. Версії/архітектуру фіксуй за фактом. Не вважай наявність docker CLI доказом працюючого daemon. Використовуй наявний Docker Desktop/Colima, якщо він придатний; не встановлюй другу платформу без потреби й не змінюй чужі кластери.
+
+Базовий відтворюваний варіант — окремий kind-кластер courier-route з власним kubeconfig в ігнорованій .local. Для kubectl/helm завжди явно вказуй цей kubeconfig/context і namespace. Не перенаправляй команди на випадковий поточний cluster/context. Якщо вже існує наш кластер, перевір його походження/конфігурацію й використовуй повторно; не видаляй його заради повторного запуску. Не потрібні кілька фізичних машин або кілька Kubernetes worker nodes для двох app pod.
+
+Пропонований локальний URL — https://localhost:8443; HTTP — http://localhost:8080 з переходом на правильний HTTPS-порт. Bind зовнішніх локальних портів лише loopback. Порти конфігуровані та перевіряються до створення кластера; зайнятий порт не є дозволом зупинити чужий процес. Узгодь kind extraPortMappings із фактичними NodePort Traefik: containerPort kind має відповідати nodePort. Не покладайся на LoadBalancer EXTERNAL-IP без реально налаштованої підтримки. Не потрібні sudo-порти 80/443 чи зміна /etc/hosts.
+
+Підготуй невеликий зрозумілий набір scripts/npm-команд, наприклад preflight, image:build, deploy:local, deploy:status, test:deployment, deploy:stop. Назви можеш уточнити, але README має містити точний перевірений порядок. Звичайний stop не видаляє дані/PVC. Повторний deploy не генерує інші паролі/CA поверх чинного PVC, не дублює інфраструктуру й не знищує користувачів. Усі очікування мають deadline та зрозумілий діагностичний результат без секретів.
+
+Перевірені сумісні версії kind/node image, Kubernetes, Traefik image/chart, Node і PostgreSQL image закріпи точними тегами/версіями; де доступно — digest. Не використовуй latest чи неприкріплені віддалені YAML. Перед вибором перевір офіційні джерела. Врахуй сумісність arm64 та версій chart/CRD/контролера. Не замінюй вже погоджені версії npm-пакетів лише для цього блоку.
+
+Якщо немає Docker runtime, мережевого доступу для образів чи прав на потрібну установку, спочатку заверши код, Dockerfile, маніфести, scripts, документацію та незалежні перевірки. Запусти все, що реально доступне. Тоді назви конкретний блокер і мінімальну ручну дію. Не видавай dry-run за реальний кластер і не оголошуй блок повністю завершеним без ключового HTTPS/LB-сценарію. Не запитуй загальне підтвердження перед уже дорученою локальною роботою.
+
+2. PRODUCTION DOCKER-ОБРАЗ І ДОСТУПНІСТЬ ПРОЦЕСУ
+
+Додай multi-stage Dockerfile і .dockerignore. Build із package-lock через npm ci, компіляція server/worker, Vite client, SQL migrations та route examples. У runtime потрібні compiled dist і production-залежності; TypeScript/tsx/Vite/dev node_modules та вихідні .ts для запуску не потрібні. Образ не потребує bind mount робочої папки й працює з іншого cwd. Зберігай коректні відносні URL worker/static/migrations.
+
+Запускай runtime від непривілейованого користувача; exec-form CMD з Node, який отримує SIGTERM як головний процес. Не ховай його за shell/npm, що не передає сигнал. DATABASE_URL та інші секрети надходять тільки під час запуску: не ARG/ENV з реальними значеннями, не image layer, не клієнтський VITE_* bundle, не build context.
+
+Нині src/server/index.ts слухає тільки 127.0.0.1. Це треба змінити для контейнера: додай валідовану bind-конфігурацію, наприклад HOST з default 127.0.0.1 для старого локального запуску й явним HOST=0.0.0.0 у контейнері. Не покладайся на EXPOSE: він сам не змінює listen. Узгодь AppConfig, fixtures, README/.env.example та змістовні тести. Клієнт завжди звертається за відносними /api, без pod IP/портів і секретів.
+
+Збережи Node 24/npm 11 та старі npm dev/build/start/CLI-потоки. Збережи worker env:{}/execArgv:[], один executor/worker на HTTP-процес, bounded вхід, справжній прогрес, фізичне cancel/timeout, claim-резервацію до terminal, DB-бюджети й п'ятисекундне завершення. Зміни інфраструктури не є причиною переписати алгоритм або збільшити його timeout.
+
+Перевір реальний image build, production UI/assets/API з опублікованого container port, worker у compiled runtime, TS-незалежний CLI, відсутність secrets/dev tools у runtime та SIGTERM під час обчислення. Не вимагай від production-образу запуску unit-тестів, для яких потрібні dev-залежності.
+
+3. KUBERNETES: ДВІ REPLICAS, СПІЛЬНА БД І ЯВНІ МІГРАЦІЇ
+
+Додай компактну структуру deploy/k8s (або рівнозначну) з декларативними маніфестами та обмеженими scripts. Потрібні наш namespace, ConfigMap, посилання на створювані локально Secret, app Deployment із replicas:2, ClusterIP Service, PostgreSQL Service/StatefulSet/PVC, окремий migration Job та routing/TLS Traefik. Не створюй власний Kubernetes operator, Terraform або надмірну Helm-платформу для застосунку.
+
+Обидва app pod запускають ТОЙ САМИЙ immutable/tagged образ з однаковими route/jobs/session/heartbeat/TTL-налаштуваннями та спільною БД. Кожен має власний реальний instanceId й один важкий worker-слот. Не задавай фіктивні instanceId у manifests, не зберігай jobs/sessions в пам'яті pod і не додавай локальну чергу.
+
+Звичайний стан Deployment — дві Ready replicas. Resource requests/limits для CPU/RAM підбери під реальне середовище та виміряний процес, задокументуй їх; requests CPU знадобляться HPA в блоці 8. Не задавай жорстку pod anti-affinity, яка залишить одну replica Pending у локальному single-node kind. App Service не публікується назовні окремо від Traefik; ніяких sticky sessions/sessionAffinity ClientIP. У звіті розрізняй два pod, Node worker_threads, Kubernetes nodes і фізичні машини.
+
+PostgreSQL у цьому локальному розгортанні — окремий екземпляр з PVC, не наявний host-кластер Postgres.app на 127.0.0.1:55432. Не змінюй його pg_hba/listen_addresses і не перенось робочі дані/паролі без потреби. У pod 127.0.0.1 не означає Mac або інший pod: використовуй внутрішній DNS Service. PostgreSQL не відкривається через Ingress/host port.
+
+Для офіційного image PostgreSQL 18 врахуй зміну volume/PGDATA: volume монтується в /var/lib/postgresql, стандартний PGDATA — /var/lib/postgresql/18/docker. Перевір це для фактично закріпленого image. PVC переживає заміну app pod і restart PostgreSQL pod; видалення kind-кластера не є backup, це прямо опиши.
+
+Створи роль застосунку й окрему тестову БД без superuser-прав, не використовуй PostgreSQL bootstrap superuser для HTTP чи міграцій. Bootstrap-облікові дані відокремлені від app Secret; HTTP-pod не отримує admin-пароль БД. Генерація/початкове provision мають коректно екранувати SQL/URI і не виводити credentials у shell/логи. Застосунку достатньо своєї БД/схеми; не давай йому cluster-admin/RBAC-доступ або service account token без потреби.
+
+Міграції 001/002/003 незмінні. Запускай наявний compiled runner окремим явним Kubernetes Job з того самого образу після готовності PostgreSQL; дочекайся успіху перед rollout app. Не запускай migrations у кожній replica/initContainer HTTP. Збережи advisory lock/checksum/транзакції, перевір repeat/concurrent runner і збереження даних. Повторний deploy коректно обробляє вже завершений Job та незмінність його spec. Міграційні помилки мають зупинити deploy, а не приховуватися ready-петлею.
+
+Liveness/startup спираються на /api/health; readiness — /api/ready. Відсутність БД не повинна викликати нескінченні liveness-restart. Зайнятий worker не робить pod NotReady. Probe timeout/періоди узгодь з фактичним DB-бюджетом ready, а terminationGracePeriodSeconds — з чинним bounded shutdown. Не додавай довгий preStop sleep, що залишає dispatcher приймати jobs. Після SIGTERM нові claim припиняються, worker зупиняється, доступний terminal узгоджується до Pool.end. Restart має новий instanceId, історія зберігається.
+
+4. СПРАВЖНІЙ TRAEFIK LOAD BALANCER
+
+Встанови Traefik підтримуваної закріпленої версії офіційним Helm chart із tracked values або компактними перевіреними manifests/RBAC. Обери ОДИН основний відтворюваний спосіб і задокументуй його. Не виставляй dashboard/API Traefik без авторизації; їхня публікація для цього блоку не потрібна. Обмежуй controller/provider нашим cluster/namespace та необхідними дозволами наскільки дозволяє обраний спосіб.
+
+Весь UI та /api надходять через один зовнішній HTTPS origin Traefik. Traefik має бачити готові pod endpoints і реально розподіляти HTTP-запити між двома app pod. Для Kubernetes Ingress явно залиш nativeLB=false (Service annotation service.nativelb=false або рівнозначна настройка для обраного provider), щоб Traefik балансував pod endpoints, а не мав один ClusterIP як backend. Узгодь IngressClass/provider/версії. Sticky cookie не потрібна: сесії спільні в PostgreSQL.
+
+Додай малий діагностичний response header X-Instance-Id для API, сформований тільки з реального UUID цього процесу, вже видимого в /api/health. Це дозволяє підтвердити, який pod обробив login/me/cancel/logout; не вводь для цього endpoint вибору сервера або довіру до клієнтського заголовка. Header і health.instanceId мають збігатися. Не повертай claim token, hostname, credentials чи чужі дані.
+
+Розрізняй два механізми: Traefik розподіляє HTTP-запити; PostgreSQL dispatcher атомарно розподіляє важкі jobs. POST може обробити A, а job виконати B — це коректно. Не прив'язуй задачу до HTTP-процесу, який прийняв її. Не вимагай строго A/B/A/B при паралельному browser polling: доведи участь обох за серією реальних відповідей й trace.
+
+Не додавай автоматичний retry middleware, який може повторити неідемпотентний POST jobs/register/login/cancel після невизначеного результату. Наявне правило клієнта «POST міг бути прийнятий → спочатку історія» збережи. Відмова pod не дає права непомітно повторно обчислити його running job. TTL лише прибирає executor із ETA; worker_lost визначається збереженим lost_after, без повторного запуску.
+
+Після вилучення/NotReady pod Traefik має перестати надсилати йому нові запити після узгодження EndpointSlice/provider. Виміряй фактичний перехід; не обіцяй нуль помилок у момент аварії. Busy pod залишається маршрутизованим і відповідає на HTTP. Якщо обидва pod NotReady через БД, публічний Traefik може повернути 503; це не суперечить локальному /api/health=200 у живому pod. Тести й звіт мають розрізняти ці рівні.
+
+5. HTTPS, COOKIE, ORIGIN ТА ДОВІРА ДО СЕРТИФІКАТА
+
+TLS завершується на Traefik, до app Service у локальному кластері можна використовувати HTTP. Це захищає browser→Traefik; не заявляй про TLS app→DB чи повне шифрування всіх внутрішніх з'єднань. HTTPS вимагає справжнього TLS handshake, а не просто redirect/заголовка.
+
+Для локального localhost підготуй проектну CA та server certificate з правильним SAN і обмеженим строком; ключі/сертифікати й generated TLS Secret зберігай тільки в ігнорованій .local з належними правами. CA private key не завантажується до Kubernetes; Traefik отримує лише потрібний server key/chain через kubernetes.io/tls Secret у належному namespace. Повторний deploy повторно використовує придатні credentials/CA, а не змінює довіру без потреби. Секрети не потрапляють у Git/ZIP/image, kubectl output чи звіт.
+
+Не потрібні ACME/Let's Encrypt для локального hostname, платний домен, публічний DNS або автоматична зміна системного Keychain. Відтворювані HTTPS API-перевірки виконуються з явною довірою до нашої CA (наприклад curl --cacert / Node https ca), зі звичайною перевіркою hostname/строку/ланцюга. Перевір негативно неправильну CA/hostname. curl -k, NODE_TLS_REJECT_UNAUTHORIZED=0, rejectUnauthorized:false і глобальний --ignore-certificate-errors не є доказом перевіреної довіри й не повинні бути штатним способом запуску.
+
+Для реального Chrome використовуй свіжий тестовий профіль із доступним способом довіри до локальної CA; якщо platform trust автоматизувати неможливо, допускається тільки ізольований test-process із SPKI allowlist конкретного попередньо перевіреного сертифіката. Окремо перевір chain/hostname звичайним TLS-клієнтом та явно опиши межу browser-доказу: SPKI-виняток не означає довіри CA у звичайному профілі користувача. Не змінюй його реальний Chrome/Keychain. У README коротко поясни локальну CA й ручне налаштування довіри для звичайного браузера, якщо воно потрібне; не називай таку відсутню довіру відмовою шифрування.
+
+У Kubernetes APP_ORIGINS містить точний зовнішній HTTPS origin, включно з портом; COOKIE_SECURE=true. HttpOnly, SameSite=Lax, Path=/, host-only і правильне видалення cookie збережені. За публічним HTTP немає обробки auth/jobs — тільки коректний redirect на HTTPS з потрібним портом. Mutation guard продовжує перевіряти Origin, JSON/size; немає wildcard або заміни Origin довіреним X-Forwarded-Host. Старий локальний HTTP dev з COOKIE_SECURE=false та Vite має продовжувати працювати у своєму окремому конфігураційному режимі.
+
+Не додавай app.set('trust proxy',true) навмання. Наявна Secure-cookie задається явною конфігурацією, тому trust proxy не потрібен лише заради її прапорця. Якщо нова поведінка використовує req.secure/protocol/ip, обґрунтуй межу довіри до реального proxy та очищення/перезапис X-Forwarded-* у Traefik; підставлений клієнтом заголовок не повинен змінювати origin/auth/TLS-рішення. Не додавай HSTS preload або глобальну браузерну політику для localhost заради цього блоку.
+
+6. ОБОВ'ЯЗКОВІ ПЕРЕВІРКИ
+
+Зберігай assertions старих тестів, а не послаблюй їх під нові manifests. Тестові URL/паролі/cookie/CA-ключі не друкуються. Використовуй наявний guard TEST_DATABASE_URL: окрема тестова БД з тестовим ім'ям, перевірка фактичних host/port/database, роль без superuser, випадкова схема. Не очищуй робочу БД.
+
+Інфраструктурні destructive/fault перевірки роби лише у власному тестовому namespace/кластері й окремій БД, створених цим сценарієм. Основний host PostgreSQL та чужі namespace/pod/процеси не чіпай. За тестового hostname/порту узгодь Ingress/SAN/APP_ORIGINS і локальне resolver-рішення в самому тесті, без змін /etc/hosts. Scripts мають перевіряти context/namespace/ownership до видалення будь-якого власного pod. Після тестів прибери тільки власні тимчасові ресурси; демонстраційні дані/PVC збережи.
+
+Не послаблюй наявний DB guard заради port-forward: адреса/порт SQL-сервера за тунелем можуть відрізнятися від адреси клієнтського URL. Стару PG-регресію можна повторити на наявній окремій host test-БД. Для SQL-спостереження у deployment-сценарії використовуй перевірений доступ усередині нашого namespace/тестового контейнера або явно перевірену відповідність тунелю конкретному PostgreSQL Service/pod/БД. localhost за тунелем сам по собі не доводить ідентичність БД. Паролі не передавай у CLI-аргументах.
+
+Регресія: npm ci, typecheck, build, повний npm test (до змін 156 = 107 non-DB + 49 PG), TS/built CLI; production/dev HTML/JS/CSS, Vite ^/api(?:/|$) та /api.ts. Нові змістовні тести додай зверху; кількість не є самоціллю. Великий benchmark без зміни алгоритму не повторюй. Повтори наявні 16 Chrome-груп для старого локального сценарію, якщо відповідний код змінено, і додай реальний HTTPS/LB browser-сценарій для контейнерного розгортання.
+
+Реальний наскрізний сценарій через ОДИН HTTPS URL, без звернення клієнта до портів A/B:
+1) Підтвердь два Ready app pod з одним image/source, два endpoint, два різні фактичні instanceId. Серія HTTPS /api/health отримує обидва; API header збігається з UUID процесу. Не використовуй два app-об'єкти одного процесу або фіктивні відповіді.
+2) Реєстрація/вхід через Traefik. Одну й ту саму Secure-cookie використовуй для /me, які реально обслуговують A і B. За header trace доведи спільну сесію, а не два незалежні входи.
+3) Через балансувальник створи дві справжні важкі jobs у межах лімітів. Одночасно спостерігай два running з різними executedBy, що відповідають A/B; кожен pod має один зайнятий слот. HTTP залишається доступним під час actual search. Жодних sleep у алгоритмі.
+4) Третя допустима job приймається 202, чекає queued у PostgreSQL та має числову ETA при двох зайнятих слотах. Читай progress/history/detail через обидва фактичні handler instanceId з тим самим сеансом. Не запускай третій worker в зайнятому процесі, не повертай executor_busy замість спільної черги.
+5) Запит cancel важкої job має реально пройти через handler з іншим instanceId, ніж її executedBy. Якщо початковий безпечний cancel потрапив до власного pod, за наступним перевіреним сценарієм отримай потрібний cross-process trace; не додавай «route to server B» endpoint. Доведи фізичну зупинку/terminal і звільнення слота; queued стартує один раз, ETA зникає. Наявні claim/token-прогрес інваріанти збережені.
+6) Completed результат/історія/SVG доступні після reload та з іншого handler. Другий користувач не читає і не скасовує чужу job (404); квоти залишаються спільними й атомарними для паралельних запитів через Traefik.
+7) Logout, реально оброблений іншим handler, відкликає ту саму сесію: наступні /me/jobs через A і B отримують 401. Cookie Secure/HttpOnly/SameSite/Path та її видалення перевірені без друку токена.
+
+Відмови й збереження стану:
+- Graceful SIGTERM одного власного busy app pod: його worker фізично завершується, запис за доступної БД — failed/server_shutdown, registry перестає приймати claim. Інший pod обслуговує запити; Deployment замінює втрачений pod, новий має інший instanceId, а історія/сеанси не зникають. Не видавай цю заміну за HPA.
+- Окрема аварійна втрата власного busy pod/process: після TTL він не дає ETA-потужності, його running не перевиконується і після збереженого lost_after стає failed/worker_lost. Заміна Kubernetes не є дозволом повторити цю job. Врахуй справжній grace, не прискорюй тест зміною production-інваріанта.
+- Власний тестовий PostgreSQL restart з тим самим PVC: користувачі/сесії/готові jobs/results збережені, ready тимчасово неуспішний, liveness живого HTTP не залежить від БД. Після відновлення ймовірні infrastructure-failed jobs мають чесний стан, нові jobs працюють. Окремо зафіксуй публічний 503 Traefik, коли немає Ready endpoints.
+- Неправильний Origin/TLS CA/hostname, HTTPS-cookie й HTTP→HTTPS redirect перевірені негативними випадками. Немає повторного POST або витоку секретів через логи/заголовки/assets.
+- Busy pod не виключається readiness; два реально зайняті worker не роблять UI/API недоступними. Точні затримки й convergence запиши за фактом, без недоведених гарантій.
+
+Chrome: реальні HTTPS auth/create/progress/cancel/history/result/reload/logout через Traefik; viewport desktop і 360 px, фактичний огляд PNG, немає overflow/console/resource errors/mixed content. Перевір форму з клавіатури, читабельність queue ETA/помилок і збереження input після API-відмов. Browser test не замінюй curl, HTTP не називай візуальним прийманням. Скриншоти залишаються тільки внутрішніми ігнорованими доказами.
+
+Ключовий сценарій запускається відтворюваною командою (наприклад npm run test:deployment), завершується pass/fail, має bounded timeout, збирає безпечний trace instanceId/jobId/status, прибирає свої тестові ресурси й не скидає користувацькі дані. Schema validation/client dry-run/render Helm — корисні додаткові перевірки, але не доказ запущених replicas/TLS/LB. При реальному блокері заверши незалежне, наведи точний blocked сценарій і не позначай пропуск успіхом.
+
+7. ДОКУМЕНТАЦІЯ, ЗВІТ, ZIP І ЗУПИНКА
+
+README: точний перевірений шлях від чистого checkout до HTTPS URL, prerequisites, конфігурація/секрети/CA, build/load image в kind, provision БД, явні migrations, Traefik, rollout/status/test/stop, повторний запуск без втрати PVC, зміна портів і troubleshooting. Локальний npm dev/Postgres.app залишається окремим доступним сценарієм. Новачок має бачити коротку послідовність команд, а деталі — нижче. Знищення namespace/PVC/кластера не повинно бути звичайною командою зупинки; явно опиши його втрату даних, не виконуй над існуючими даними.
+
+PROJECT_PLAN.md/AGENTS.md: запиши приймання блоку 6 з точними межами незалежних перевірок; фактичний стан 7 та матрицю пунктів 4/5 тільки за реальними TLS/LB-доказами. Пункти 7/8 та HPA/admin ще не завершені. Відрізняй локальні replicas від різних фізичних серверів, deployment replacement від автомасштабування, HTTPS до Traefik від внутрішнього TLS. Збережи дев'ять Git-правил. Історичні звіти/доручення, assignment та застосовані SQL 001–003 незмінні.
+
+Створи docs/block-07-report.md з:
+- Статусом готово/частково/заблоковано та точними неперевіреними сценаріями.
+- Фактичними OS/CPU/runtime/CLI/image/chart/Kubernetes версіями, context/namespace, локальними URL/портами та pinned image/source без секретів.
+- Новими/зміненими файлами, обґрунтуванням залежностей; Docker build/runtime/nonroot/SIGTERM та bind.
+- Схемою browser→Traefik HTTPS→два app pod→спільний PostgreSQL, storage/roles/явними migrations/probes/resources.
+- CA/SAN/довірою TLS, cookie/Origin/forwarded headers та конкретним способом Chrome TLS-перевірки й його обмеженнями.
+- Таблицею реальних запитів: дія, handler instanceId, job executedBy за потреби, статус; доказом обох backends/спільної сесії/двох actual worker/queued ETA/cross-process cancel/logout. Без паролів, cookie, claim token, повного auth body.
+- Відмовами/restart/PVC/TTL/lost_after/відсутністю повторного виконання; фактичними часами й перехідними помилками.
+- Результатами typecheck/build/unit/PG/HTTP/container/Kubernetes/HTTPS/browser окремо: pass/fail/skipped, що виконано, що blocked. Скриншоти desktop/360 px реально оглянуті чи ні.
+- Командами відтворення, створеними комітами, гілкою/status, cleanup і станом локального host PostgreSQL та нового deployment/PVC. Залишені власні демонстраційні ресурси явно назви та дай безпечну команду зупинки. Чужі ресурси збережені.
+- Межами наступного блоку 8 та ZIP фінального HEAD.
+
+Після перевірок переглянь status/diff/staged diff, секрети та результати. Закоміть власні завершені зміни й звіт. З кореня наявного репозиторію створи:
+
+git archive --format=zip --output=../CourierRoute-block-07.zip HEAD
+
+Перевір CRC, commit у ZIP-коментарі, точний набір та побайтовий вміст tracked файлів HEAD. .git/.env/node_modules/dist/.local/БД/kubeconfig/Secret YAML/TLS-ключів/browser profiles/внутрішніх PNG/логів і сторонніх untracked там немає. Якщо commit заблокований, не називай старий ZIP актуальним. Архів автоматично нікуди не публікуй.
+
+У фінальній відповіді: короткий результат/локальний HTTPS URL, фактичні перевірки та блокери, звіт, коміти, гілка/status, стан залишених ресурсів і безпечна зупинка, абсолютний шлях до ZIP та Finder-команда. Для очікуваного /Users/a860/Documents/Site це:
+open -R /Users/a860/Documents/CourierRoute-block-07.zip
+Перевір фактичний шлях перед відповіддю. Після завершення зупинись перед блоком 8.
+
+ОФІЦІЙНІ ДЖЕРЕЛА ДЛЯ РЕАЛІЗАЦІЇ
+
+Це технічна довідка, не нові продуктові вимоги. Перевір відповідність фактично закріпленим версіям.
+- Docker multi-stage: https://docs.docker.com/build/building/multi-stage/
+- kind quick start/image load: https://kind.sigs.k8s.io/docs/user/quick-start/
+- kind конфігурація/port mappings: https://kind.sigs.k8s.io/docs/user/configuration/
+- Traefik Kubernetes: https://doc.traefik.io/traefik/getting-started/kubernetes/
+- Traefik Ingress/TLS/Service nativeLB: https://doc.traefik.io/traefik/reference/routing-configuration/kubernetes/ingress/
+- Traefik entrypoints/redirect/forwarded headers: https://doc.traefik.io/traefik/reference/install-configuration/entrypoints/
+- Kubernetes probes: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
+- Kubernetes StatefulSet/PVC: https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/
+- Офіційний PostgreSQL image, PGDATA/ініціалізація: https://github.com/docker-library/docs/blob/master/postgres/README.md
+- Express за proxy: https://expressjs.com/en/guide/behind-proxies/
+
+ОРИГІНАЛЬНІ ВИМОГИ ВИКЛАДАЧА ДЛЯ ЗВІРКИ
+
+docs/assignment.txt має залишитися незмінним. Маркери нижче не є частиною оригіналу.
+
+<<<BEGIN_ASSIGNMENT>>>
+Створити веб застосування, backend якого здатний коректно обслуговувати трудомісткі запити користувачів.
+
+Прикладами таких запитів можуть бути задачі: розв"язування системи рівнянь, метод скінченних елементів, розпізнавання образів, обробка зображень та інші, на вибір студента. 
+
+Особливості:
+1) Повинна бути обмежена максимальна трудомісткість одної задачі (кількість невідомих, час обчислення).У разі перевищення - помилка або відмова у виконанні. (Перевірку вхідних даних задачі можна виконати ще на клієнті (frontend)).
+2) Оскільки запити трудомісткі, клієнт повинен інформуватись про хід виконання задачі (відсоток/етап виконання).
+3) Клієнт повинен мати доступ до історії результатів виконання задач, переглядати стан поточної задачі (див. пункт 1.), скасувати виконання задачі, запустити виконання нової задачі. (максимальна кількість задач повинна бути обмежена, необхідні дані зберігатись в базі даних)
+4) Авторизація клієнта (з використанням https (+бали))
+
+---------------------------------------- Найважливіша частина завдання ---------------------------------------------
+5) Веб застосування повинне забезпечувати т.з. балансування навантаження як мінімум для 2-ох серверів. 
+(для цього повинен бути застосований так званий load balancer, в його ролі може виступати і сам веб сервер, а задачі виконуватись на кількох серверах застосувань (application server)).
+---------------------------------------------------------------------------------------------------------------------------------
+
+
+----------------------------------------- Додаткові бали --------------------------------------------------------------------------
+6) (+бали) Якщо всі ресурси системи вичерпані, клієнт повинен бути повідомлений про те, що його запит поставлено у чергу та інформуватись про приблизний час очікування.
+7) (+бали) Горизонтальне розширення за рахунок автоматичного запуску нових серверів (віртуальні машини, контейнери), максимальна кількість повинна бути обмежена.
+8) (+бали) Панель адміністратора для моніторингу всіх запущених процесів та навантаження на систему серверів.
+----------------------------------------------------------------------------------------------------------------------------------------
+
+<<<END_ASSIGNMENT>>>

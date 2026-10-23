@@ -1,4 +1,5 @@
 import type { JobDetails, JobLimitsResponse, JobListResponse, JobSummary } from '../shared/jobs.js';
+import { QUEUE_LIMITS } from '../shared/jobs.js';
 import type { Coordinate, NormalizedRouteInput, RouteProgress, RouteResult } from '../shared/route.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -95,12 +96,26 @@ function result(value: unknown, savedInput: NormalizedRouteInput): value is Rout
   return value.terminationReason === 'zero_length' ? value.length === 0 : savedInput.points.length <= 2;
 }
 
-export function parseJobDetails(value: unknown): JobDetails {
+export function parseJobDetails(value: unknown, requireQueue = false): JobDetails {
   if (!isJobSummary(value) || !isRecord(value) || !input(value.input)
     || value.progress.totalIterations !== value.input.iterations) throw new InvalidResponseError();
   if (value.status === 'completed') {
     if (!result(value.result, value.input) || value.progress.completedIterations !== value.result.iterationsCompleted) throw new InvalidResponseError();
   } else if (value.result !== undefined) throw new InvalidResponseError();
+  if (value.status !== 'queued') {
+    if (value.queue !== undefined) throw new InvalidResponseError();
+  } else if (value.queue === undefined) {
+    if (requireQueue) throw new InvalidResponseError();
+  } else {
+    const queue = value.queue;
+    if (!isRecord(queue) || !date(queue.calculatedAt)
+      || !safeInteger(queue.queuedAhead, 0, QUEUE_LIMITS.maxQueuedAhead)
+      || !safeInteger(queue.executorCount, 0, QUEUE_LIMITS.maxExecutors)
+      || typeof queue.basis !== 'string' || !['measured', 'mixed', 'timeout', 'unavailable'].includes(queue.basis)
+      || !(queue.estimatedWaitMs === null || safeInteger(queue.estimatedWaitMs, 0, QUEUE_LIMITS.maxWaitMs))
+      || (queue.basis === 'unavailable') !== (queue.estimatedWaitMs === null)
+      || (queue.executorCount === 0 && queue.estimatedWaitMs !== null)) throw new InvalidResponseError();
+  }
   return value as unknown as JobDetails;
 }
 

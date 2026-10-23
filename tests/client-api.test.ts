@@ -15,7 +15,10 @@ test('client API uses relative endpoints, same-origin cookies, no-store and fini
     calls.push({ path, init });
     if (path.endsWith('/limits')) return json(clientLimits);
     if (path.includes('?')) return json({ jobs: [clientSummary()], limit: 20, offset: 0 });
-    return json(clientJob());
+    const job = clientJob();
+    return json(init.method === 'GET' ? { ...job, queue: {
+      estimatedWaitMs: null, calculatedAt: job.createdAt, queuedAhead: 0, executorCount: 0, basis: 'unavailable',
+    } } : job);
   };
   const api = new ApiClient(fetcher);
   await api.limits();

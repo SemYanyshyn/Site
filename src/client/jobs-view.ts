@@ -2,6 +2,7 @@ import type { JobDetails, JobStatus, JobSummary } from '../shared/jobs.js';
 import type { JobsState } from './jobs-controller.js';
 import type { RouteDraft } from './route-input.js';
 import { formatProgress, projectRoute } from './route-geometry.js';
+import { queueDisplay } from './queue-display.js';
 
 export interface JobsViewActions {
   submit(draft: RouteDraft): void;
@@ -86,6 +87,8 @@ export function createJobsView(actions: JobsViewActions): JobsView {
   const detailPanel = requireElement<HTMLElement>('.detail-panel');
   const detailStatus = requireElement<HTMLElement>('#job-detail-status');
   const detailStage = requireElement<HTMLElement>('#job-detail-stage');
+  const queueBox = requireElement<HTMLElement>('#job-queue');
+  const queueStale = requireElement<HTMLElement>('#job-queue-stale');
   const detailProgress = requireElement<HTMLProgressElement>('#job-detail-progress');
   const detailIterations = requireElement<HTMLElement>('#job-detail-iterations');
   const detailCancel = requireElement<HTMLButtonElement>('#job-detail-cancel');
@@ -108,6 +111,12 @@ export function createJobsView(actions: JobsViewActions): JobsView {
   let resultFingerprint = '';
 
   const text = (id: string, value: string): void => { setText(requireElement<HTMLElement>(`#${id}`), value); };
+  const clearQueue = (): void => {
+    queueBox.hidden = true;
+    queueBox.removeAttribute('data-stale');
+    queueStale.hidden = true;
+    for (const id of ['job-queue-estimate', 'job-queue-explanation', 'job-queue-context']) text(id, '');
+  };
   const clearDraftError = (): void => {
     draftError.textContent = '';
     draftError.hidden = true;
@@ -291,6 +300,7 @@ export function createJobsView(actions: JobsViewActions): JobsView {
     detailRetry.hidden = !state.detailError || state.detailLoading;
     detailMessage.classList.toggle('error', Boolean(state.detailError));
     if (!state.selectedId || !job) {
+      clearQueue();
       detailContent.hidden = true;
       detailMessage.hidden = false;
       setText(detailMessage, state.detailError || (state.detailLoading ? 'Завантажуємо збережену задачу…' : 'Виберіть задачу зі списку або запустіть новий маршрут.'));
@@ -307,6 +317,15 @@ export function createJobsView(actions: JobsViewActions): JobsView {
       : job.status === 'running' ? stageLabels[job.progress.stage]
         : job.status === 'completed' ? 'Пошук завершено, результат збережено.'
           : job.status === 'cancelled' ? 'Виконання зупинено. Можна запустити нову задачу.' : 'Обчислення завершилося без результату.');
+    if (job.status === 'queued') {
+      const display = queueDisplay(job.queue);
+      queueBox.hidden = false;
+      queueBox.dataset.stale = String(Boolean(state.detailError));
+      queueStale.hidden = !state.detailError;
+      text('job-queue-estimate', display.estimate);
+      text('job-queue-explanation', display.explanation);
+      text('job-queue-context', display.context);
+    } else clearQueue();
     const percent = Number.isFinite(job.progress.percent) ? Math.max(0, Math.min(job.progress.percent, job.status === 'completed' ? 100 : 99.9)) : 0;
     detailProgress.value = percent;
     detailProgress.setAttribute('aria-valuetext', formatProgress(job.progress.percent, job.status));
@@ -352,6 +371,7 @@ export function createJobsView(actions: JobsViewActions): JobsView {
     fields.seed.value = '';
     clearDraftError();
     clearResult();
+    clearQueue();
     detailContent.hidden = true;
     detailMessage.textContent = 'Виберіть задачу зі списку або запустіть новий маршрут.';
     detailMessage.hidden = false;

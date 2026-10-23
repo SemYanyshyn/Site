@@ -79,7 +79,7 @@ export class ApiClient implements JobsApi {
   }
   detail(id: string, signal?: AbortSignal): Promise<JobDetails> {
     return this.request(`/api/jobs/${encodeURIComponent(id)}`, 'GET', (payload) => {
-      const value = parseJobDetails(payload);
+      const value = parseJobDetails(payload, true);
       if (value.id !== id) throw new InvalidResponseError();
       return value;
     }, undefined, signal);

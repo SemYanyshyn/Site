@@ -94,6 +94,12 @@
             <div id="job-detail-content" hidden>
               <div class="detail-status-row"><strong id="job-detail-status" class="status-badge"></strong><button id="job-detail-cancel" class="danger-button" type="button">Скасувати задачу</button></div>
               <p id="job-detail-stage" class="detail-stage"></p>
+              <div id="job-queue" class="notice queue-notice" role="status" aria-live="polite" hidden>
+                <p id="job-queue-estimate"></p>
+                <p id="job-queue-explanation"></p>
+                <p id="job-queue-context" class="quiet-note"></p>
+                <p id="job-queue-stale" class="error" hidden>Оцінку не вдалося оновити. Показано попередню оцінку, яка могла змінитися.</p>
+              </div>
               <progress id="job-detail-progress" max="100" value="0" aria-label="Прогрес обчислення"></progress>
               <p id="job-detail-iterations" class="progress-caption"></p>
               <p id="job-detail-cancel-note" class="notice" hidden>Скасування запитано. Очікуємо підтвердження зупинки.</p>
@@ -126,7 +132,7 @@
         <div class="lists-grid">
           <section class="panel" aria-labelledby="active-title">
             <div class="panel-heading"><span class="section-number" aria-hidden="true">03</span><h3 id="active-title">Активні задачі</h3><span id="active-count" class="count-label"></span></div>
-            <p class="panel-description">У черзі або обчислюються. Час очікування поки не оцінюється.</p>
+            <p class="panel-description">У черзі або обчислюються. Орієнтовний час до початку дивіться в деталях задачі.</p>
             <p id="active-message" class="list-message" role="status" aria-live="polite"></p>
             <ul id="active-jobs" class="job-list"></ul>
           </section>

@@ -1,0 +1,209 @@
+ВИКОНАЙ БЛОК 8 ПРОЄКТУ COURIER ROUTE
+
+Продовжуй наявний проєкт у відкритій папці VS Code. Реалізуй тільки блок 8: Metrics Server і Kubernetes HorizontalPodAutoscaler, який під справжнім обчислювальним навантаженням автоматично збільшує app Deployment від 2 до 4 екземплярів, а після зниження навантаження повертає до 2. Нові екземпляри мають реально виконувати jobs зі спільної PostgreSQL-черги через наявний worker_threads executor.
+
+Це явне нове доручення дозволяє блок 8. Старі межі «перед блоком 8» описували попередню зупинку й не блокують це завдання. Потрібні працююча реалізація, відтворюваний load/HPA-сценарій, перевірки, звіт, змістовні коміти та ZIP фінального HEAD. Після завершення зупинись перед блоком 9.
+
+ПРИЙМАННЯ БЛОКУ 7
+
+Керівник перевірив архів із 130 файлами та ZIP-коментарем 261856ec7f70839fa4dbf722cb151f226f11c804, Dockerfile/allowlist, Kubernetes/Traefik/PG/TLS-конфігурацію, provision/stop, drivers, server-зміни, тести й звіт. Суттєвих проблем не виявлено; блок 7 прийнято.
+
+Незалежно пройшли npm ci, typecheck/build та 119 тестів без БД: 23 unit/config/bind/deployment-safety + 36 route/executor/HTTP + 3 jobs config + 43 client + 14 queue config/estimator/read-budget. Помилок і пропусків немає. Пройшли TS/built CLI (квадрат, length=4, seed=0), production HTML/JS/CSS, стабільний health/реальні X-Instance-Id, ready=503 без БД, API-404, Vite TS/CSS/health proxy та /api.ts як JavaScript. Тимчасові HTTP/Vite-процеси зупинені. 28 захищених файлів і оригінал доручення блоку 7 звірено побайтово; CRC ZIP коректний. Deployment JSON успішно розбираються, але це не runtime Kubernetes-перевірка.
+
+49 PostgreSQL-сценаріїв, 8 container-груп, 10 deployment/fault + 9 HTTPS Chrome-груп, 16 попередніх Chrome-груп і огляд 7 PNG підтверджені звітом ВИКОНАВЦЯ. Керівник переглянув їхній код, але НЕ повторював ці сценарії: у його середовищі немає Docker/Colima/kind/kubectl, PostgreSQL/TEST_DATABASE_URL та Chrome. PNG до ZIP не входять, керівник їх не оглядав. Не приписуй йому повний npm test 168, реальний Kubernetes/TLS/browser pass чи візуальний огляд. Історичний docs/block-07-report.md не переписуй.
+
+ДЖЕРЕЛА ТА МЕЖІ
+
+Спочатку прочитай AGENTS.md і вкладені інструкції, docs/assignment.txt, PROJECT_PLAN.md, README.md, docs/block-07-report.md, фактичні deploy/versions.json, scripts/deploy-local.mjs, scripts/check-deployment.mjs, manifests app/config/Traefik/PG, jobs dispatcher/registry/ETA/executor та тести. Перевір реальні Git-корінь/гілку/status/історію, Docker daemon, наш kind-кластер, поточні pod/ресурси/метрики й обсяг вільних ресурсів.
+
+Стек незмінний: strict TypeScript, Node.js 24.x/npm 11.x, Express, HTML/CSS/TypeScript/Vite, PostgreSQL 18/pg, worker_threads, Docker/kind/Kubernetes і Traefik. Один npm-проєкт; клієнт, алгоритм, jobs, сесії, HTTPS і реєстр уже працюють. Доповни наявне розгортання, не створюй альтернативну інфраструктуру.
+
+Цей блок закриває пункт 7 завдання викладача й готує джерело ресурсних метрик. Мінімум 2/максимум 4 — наше погоджене рішення, не числа викладача. Тут масштабується кількість app pod/незалежних серверних процесів, не Node worker_threads на процес і не фізичні машини/VM. Один app pod продовжує мати рівно один важкий слот. Заміна зламаного pod Deployment-контролером не є доказом HPA.
+
+Не реалізовуй адмінпанель/публічний monitoring API/нові ролі (блок 9), повне приймання всього проєкту (блок 10), Prometheus/Grafana/KEDA/custom metrics adapter, новий scheduler/Redis/BullMQ, autoscaling БД/Traefik/nodes/Colima VM, публічний hosting, cloud costs, зміни UI-фреймворка чи алгоритму. Адмінпанелі не потрібно для спостереження HPA через kubectl та контрольований test driver.
+
+ПОСТІЙНІ ДЕВ'ЯТЬ GIT-ПРАВИЛ
+
+1. Працюй у наявному Git-репозиторії з main, не переініціалізовуй його й не створюй вкладений. Останній відомий HEAD — 261856e docs: record block 7 deployment verification; фактичний стан має пріоритет.
+2. Використовуй справжні налаштовані user.name/user.email. Не вигадуй ідентичність і не змінюй глобальний Git. За блокування комітів виконай незалежну роботу й точно повідом причину. Remote/GitHub/push без окремого доручення не налаштовуй.
+3. Коміть регулярно після завершених логічних частин. Не після кожної дрібної правки й не всі наступні блоки одним комітом. Взаємозалежні зміни мають утворювати працездатний набір.
+4. Перед комітом переглянь status, diff/staged diff; виконай доречні typecheck/build/тести. Тут потрібен реальний Metrics API/HPA/load-сценарій, а не лише schema validation. Не коміть відомі невиправлені помилки; блокування середовищем явно зазначай, не видавай за pass. Docs-коміт не потребує повтору незмінного коду.
+5. Назви англійською: type(scope): description, scope необов'язковий, орієнтир до 72 символів; feat/fix/refactor/test/docs/chore/build/ci. Приклади: feat(deploy): add resource metrics and bounded autoscaling; fix(deploy): preserve HPA ownership during repeat deployment; test(autoscale): verify new replicas execute queued work; docs: record block 8 autoscaling evidence. Це приклади, не задана кількість комітів. Не використовуй update/done/final/fix stuff.
+6. Додавай файли вибірково, зберігай сторонні зміни. Не коміть .env/.local/node_modules/dist, credentials/cookie, БД/PVC, kubeconfig, Secret YAML/base64, private TLS/CA keys, browser profiles/внутрішні PNG, logs/summary. Маніфести/scripts/безпечні шаблони/lock/документація відстежуються. Оригінал assignment та застосовані SQL не форматуй.
+7. Не переписуй готову історію й не відкидай чужі зміни заради чистого status. Помилку після коміту виправляй окремим перевіреним fix-комітом.
+8. На завершення наведи створені за це завдання коміти з хешами/назвами, активну гілку й остаточний git status --short. Власні завершені зміни закомічені; сторонні залишені зміни поясни. Хеш самого фінального звіту повідом у чаті після commit, без циклу записування у цей звіт.
+9. Збережи всі дев'ять правил в AGENTS.md, процес — у PROJECT_PLAN.md, короткий опис — у README. Після фінального коміту створи ZIP точного HEAD за інструкцією наприкінці.
+
+1. ЗБЕРЕЖИ ПРАЦЮЮЧУ ІНФРАСТРУКТУРУ ТА ІНВАРІАНТИ
+
+Поточний перевірений варіант: власний Colima profile courier-route, 6 CPU/8 GiB VM; kind 0.32.0/Kubernetes 1.36.1/kubectl 1.36.3, власний kubeconfig .local/deploy/kubeconfig, context kind-courier-route, demo namespace courier-route. Docker socket задає COURIER_DOCKER_HOST. Node/PG/Traefik/kind image закріплені в deploy/versions.json; фактичний image content-tag визначає imageName(). Не оновлюй стек лише заради новизни й не замінюй справний кластер.
+
+Збережи перевірки cluster/owner/namespace/pod/image перед мутаціями й cleanup, правильний Docker daemon без зміни глобального context, loopback 8080/8443, нормальну довіру CA/hostname, Secure HttpOnly cookie/Origin, відносні API, реальні X-Instance-Id, відсутність affinity/retry POST. Не змінюй Keychain/реальний профіль Chrome. SPKI-виняток лишається тільки в тимчасовому browser process після звичайної TLS-перевірки.
+
+PostgreSQL є спільним джерелом сесій/історії/черги/progress/cancel. Збережи advisory admission lock, квоти, FOR UPDATE SKIP LOCKED, worker після commit, один worker на процес, claim token для progress/terminal, пріоритет прийнятого cancel, фізичний exit перед звільненням слота. Не змінюй timeout алгоритму, recovery grace max(configured,2×poll+21000), lost_after або TTL для пришвидшення HPA-тесту. Lost running не запускається повторно. Міграції 001–003, історичні звіти/доручення, assignment, алгоритм/CLI незмінні, крім доведено необхідного окремого виправлення.
+
+Наявні app requests/limits — 250m CPU/128Mi, limit 1 CPU/384Mi; два process workers і HTTP перевірено у блоці 7. Чотири app replicas мають поміститися в реальну VM разом із Kubernetes/PG/Traefik/Metrics Server. Перевір allocatable, requests та реальну пам'ять; Pending/OOMKilled/CPU throttling не видавай за успішне розширення. Не змінюй параметри чужої VM або загальні системні ліміти. За потреби конкретно обґрунтуй зміну власних resource requests/limits.
+
+2. РЕАЛЬНИЙ METRICS SERVER
+
+Додай один Metrics Server сумісної стабільної версії для нашого Kubernetes 1.36.1/arm64. Перевір офіційний compatibility matrix і release, закріпи точні image/version/digest та вихідну версію manifests у deploy/versions.json і tracked файлах. Не завантажуй releases/latest при кожному запуску. Використовуй наявний JSON/native-script підхід або мінімальний сумісний спосіб без другої deployment-платформи.
+
+Потрібні справжні Metrics Server Deployment/Service/ServiceAccount/RBAC/APIService й доступ до kubelet; не досить контейнера Running. Перевір APIService v1beta1.metrics.k8s.io Available, /apis/metrics.k8s.io/v1beta1/nodes і namespaced pod metrics, kubectl top pods. Для реальних app containers мають надходити CPU/RAM, timestamp та window; дані оновлюються. Не підставляй константи, process uptime, кількість jobs чи вигадані CPU-відсотки замість вимірів.
+
+Metrics Server — cluster add-on з необхідними cluster-scoped RBAC/APIService, на відміну від app/HPA. Перед установкою перевір точний наш kubeconfig/context/owner. Не перезаписуй чужий APIService/add-on з тим самим ім'ям і не видаляй kube-system/чужі ClusterRole. Нові ресурси познач власником; повторна установка ідентичної версії безпечна. Сумісний уже наявний сторонній add-on можна використовувати read-only, явно записавши походження, без привласнення його cleanup. HTTP-pod продовжує не отримувати service account token/прав Kubernetes.
+
+Для локального kind спочатку з'ясуй фактичний TLS/адресний доступ до kubelet. Якщо потрібен --kubelet-insecure-tls через локальний kubelet certificate, допускається вузьке документоване виключення ТІЛЬКИ для нашого kind add-on, а не глобальне вимкнення TLS чи зміна зовнішнього HTTPS застосунку. Опиши також фактичну перевірку TLS aggregation API→Metrics Server за обраним офіційним manifest: не заявляй про перевірку сертифіката там, де її вимкнено. Поясни, що для зовнішнього production-кластера потрібні належні CA/сертифікати. Не послаблюй authn/authz Kubernetes та не використовуй kubeconfig insecure-skip-tls-verify для обходу налаштування.
+
+Один Metrics Server достатній для single-node kind. HA install з вимогою кількох nodes, Prometheus, історична БД метрик та новий metrics endpoint застосунку тут не потрібні. Метрики — періодичні знімки для autoscaling, а не точний профайлер чи архів продуктивності. Установлення й очікування даних мають bounded deadlines і безпечну діагностику причин FailedDiscovery/FailedScrape/403/TLS, без секретів.
+
+3. HPA AUTOSCALING/V2 ТІЛЬКИ ДЛЯ APP
+
+Створи tracked HPA для Deployment app у нашому namespace:
+- apiVersion autoscaling/v2; scaleTargetRef apps/v1 Deployment app.
+- minReplicas=2, maxReplicas=4. Ці межі не змінюються заради проходження тесту.
+- Реальна CPU utilization metric для app pod/container; для поточного одного app container достатньо Resource cpu. Позитивні CPU requests обов'язкові. Не використовуй фіктивний external metric або CPU іншого stress-pod.
+- Явні scaleUp/scaleDown behavior з обмеженою швидкістю й стабілізацією. Не потрібні alpha/неперевірені feature gates або поля, які доступні лише в новішому Kubernetes.
+
+Розумний початковий набір: target CPU averageUtilization=70%, scaleUp stabilization=0 та максимум +2 pod за 30 с, scaleDown stabilization=180 с та максимум -1 pod за 30 с. Можеш обґрунтовано уточнити ці параметри за фактичними вимірами; кінцеві значення мають бути однаковими в коді/manifests/README/тестах, не приховано зменшеними тільки в acceptance run. min/max 2/4 збережи.
+
+Utilization — відношення використання CPU до requests, не до ліміту й не до всього Mac. За requests=250m ціль 70% означає приблизно 175m на app pod; насичений один worker близько 1 CPU може давати utilization понад 100%. У CPU входять потоки цього контейнера. Зафіксуй, що саме збирається і як читати одиниці. Не перенось benchmark іншої машини у метрики.
+
+Контролер працює періодично, використовує часові знімки та консервативно поводиться з missing/unready metrics. Не обіцяй миттєвий scale-up чи точну секунду scale-down. Спостерігай HPA conditions/currentMetrics/currentReplicas/desiredReplicas/events, справжні pod/UID/Ready та EndpointSlices. Pending pod і desiredReplicas=4 не є чотирма готовими виконавцями.
+
+Межа 4 стосується app Deployment цього namespace, не PG/Traefik/Metrics Server чи ізольованого паралельного тестового namespace. Під звичайним HPA-навантаженням фактичних app replicas/доступних слотів не більше 4. Окремо узгодь rollout: чинний maxSurge=1 може створити п'ятий pod при desired=4. Для дотримання межі під час оновлення обери maxSurge=0 з придатним maxUnavailable або інше доведене рішення; не обіцяй нуль недоступності, якщо його немає. Terminating pod рахуй окремо до фізичного виходу, а не приховуй. Саме maxReplicas не доводить жорстку межу всіх живих процесів під час rollout, це точно поясни у звіті.
+
+Збережи обробку SIGTERM: нові claim припиняються, worker зупиняється, доступний terminal стає failed/server_shutdown, registry більше не додає доступну потужність; при аварії — звичайні TTL/lost_after. Scale-down не повинен непомітно губити running або перетворювати їх на добровільний cancel/completed. Основний acceptance: після припинення нових POST дай прийнятим jobs нормально завершитися, а потім дочекайся автоматичного 4→2. Стабілізація має прибирати дергання від коротких провалів CPU. Вона не є гарантованим drain протоколом; не заявляй, що HPA сам знає про зайняті jobs, і не додавай окремий контролер/довгий shutdown для такого твердження.
+
+4. REPLICAS, ПОВТОРНИЙ DEPLOY, STOP І START
+
+Нині provision щоразу застосовує app.json з replicas:2. Під HPA це може скидати фактичне розширення. Передай керування полем spec.replicas контролеру HPA: у повторному HPA-managed apply його не потрібно задавати. Початковий bootstrap/явний restart з нуля може встановити базові 2 до передачі керування. Перехід із попереднього client-side apply/last-applied виконай без випадкового скидання до default 1; врахуй офіційний порядок передачі поля. Не підміняй це циклом читання поточного числа й постійного kubectl scale.
+
+HPA — єдиний автоматичний writer бажаної кількості app. Повторний deploy під навантаженням не видаляє HPA, не масштабує 4→2/1 й не втрачає дані. Не міняй ConfigMap/checksum без фактичної зміни, щоб простий repeat не перезапускав busy pod. Явне оновлення образу/конфігурації може робити rollout із задокументованою поведінкою jobs.
+
+Інтегруй Metrics Server/HPA в наявний deploy:local та deploy:status. Новий чистий локальний запуск має діставати працездатне HPA-середовище, а не вимагати непомітної ручної команди після «успішного deploy». Відрізняй додаткову діагностику від обов'язкового кроку. deploy:status показує HPA/metrics availability і реальні replicas, не друкує Secrets.
+
+deploy:stop має стійко залишати app/Traefik/PG зупиненими зі збереженими PVC/credentials/CA, а HPA не повинен боротися зі зупинкою. Обери й перевір явну паузу/видалення тільки власного HPA перед scale-to-zero або документований maintenance mode сумісної версії; наступний deploy:local коректно відновлює дві базові replicas й autoscaling. Це навмисний stop, не порушення активного minReplicas=2. Cluster add-on не видаляй при звичайній зупинці namespace; не чіпай паралельні тестові HPA/чужі ресурси.
+
+Базова регресія блоку 7 навмисно перевіряє рівно два pod. Збережи її окремим явно статичним тестовим режимом provision з HPA disabled, не послаблюючи assertions до «будь-яка кількість». Новий autoscaling-тест має окремий HPA-enabled namespace із повним реальним циклом. Це приватна можливість deployment harness, не новий публічний endpoint керування сервером. Production demo після блоку 8 має HPA enabled за основним documented шляхом.
+
+5. СПРАВЖНЄ ОБМЕЖЕНЕ НАВАНТАЖЕННЯ
+
+Додай відтворюваний driver/команду, наприклад npm run test:autoscale. Він створює власний випадковий namespace/test-БД із перевіреними owner/context, використовує той самий compiled image/TLS/Traefik і конфігурацію HPA, що й demo, починає з двох Ready pod, проходить 2→4→2 та прибирає свої тимчасові ресурси. Розширюй наявні helpers; не копіюй весь provision у другу незалежну реалізацію.
+
+Масштабування виконує тільки HPA. У вимірюваній фазі заборонено вручну/скриптом ставити replicas=3/4, повторювати kubectl scale як autoscaler, підставляти HPA metrics/status, запускати сторонній CPU burner або збільшувати worker_slots. Дозволені початковий bootstrap 2 і явний cleanup/stop після завершення proof; вони не є доказом autoscaling.
+
+Навантаження — справжні валідні route jobs через один HTTPS API origin, нормальна авторизація/cookie, реальні ітерації й збережений прогрес. Жодних sleep/artificial CPU loops у production-алгоритмі. Одна коротка job може закінчитися раніше наступного metric scrape, тому підтримуй обмежений потік задач довше циклів scrape/HPA/readiness. Не збільшуй ROUTE_TIMEOUT_MS, max iterations чи квоти спеціально для тесту; поточні container-ліміти 500/200 млн/30 с достатні для повторюваних справжніх задач.
+
+Врахуй персональний active-limit=3: один власник не заповнить чотири worker. Використовуй кілька створених лише цим тестом звичайних користувачів, наприклад 3 власники/до 9 одночасно прийнятих незавершених jobs. Зберігай global outstanding=100. 429/503 не обходяться, тисячі необмежених POST не потрібні. Логіни/паролі/cookie тільки в пам'яті/приватному тимчасовому профілі, не trace.
+
+Driver має явні скінченні межі: число користувачів, загальне число accepted jobs, одночасні jobs/HTTP, тривалість подачі та загальний deadline. Орієнтир для подачі — до 120–180 с, до 200 accepted і до 9 незавершених; підбери перевірені межі під реальну машину та запиши їх. Вони не є вимогою викладача. Якщо метрики/нові replicas не з'явилися в межах дедлайну, fail із діагностикою, а не нескінченне навантаження.
+
+Термінальні результати зчитуються, slots backfill робиться тільки в межах лімітів. Не повторюй невизначений POST після transport failure: спочатку історія/узгодження, як у чинному клієнті. Не створюй дублікати задля проходження throughput. Локальні паузи між запитами в test driver допустимі як обмеження частоти, але не підробляють тривалість алгоритму.
+
+Збирай часовий trace з фактичними timestamp/window метрик і окремим часом спостереження: app CPU/RAM у коректних одиницях, HPA current/desired/conditions, deployment replicas/ready/terminating, pod UID/instanceId, кількість queued/running/terminal і executedBy власних test jobs. Достатньо bounded polling раз на кілька секунд, не високочастотний monitoring сервіс. Вивід — whitelist без credentials/повних входів/result/claim token.
+
+Нормальні jobs мають завершитися коректно. Не зараховуй систематичні OOM/timeout/worker_lost/server_shutdown під звичайним навантаженням як успішне масштабування. Якщо це сталося, знайди причину й повтори після виправлення; окремі навмисні fault-сценарії мають власні очікувані terminal. Після подачі навантаження дочекайся terminal всіх прийнятих задач, стабілізаційного вікна й фактичного повернення до двох без ручного scale. Остаточний deadline враховує цей реальний час, а не скорочує його підміною годинника.
+
+6. ДОКАЗИ ПУНКТУ 7 ТА ПОВ'ЯЗАНІ ПЕРЕВІРКИ
+
+Обов'язковий успішний наскрізний цикл:
+1) Дві базові Ready replicas, той самий реальний app image, два різні UID/instanceId, два ready endpoint; HPA min/max=2/4, Metrics API працює, CPU samples свіжі, ScalingActive/AbleToScale мають придатний стан.
+2) Реальні важкі jobs зайняли обидва worker; наявна спільна черга приймає наступні допустимі задачі, HTTPS health/me/jobs відповідають, ETA чесна. CPU зростає саме в app containers із цими worker.
+3) HPA сам змінює desired replicas понад 2 і досягає 4; Kubernetes створює додаткові pod. Не вимагай обов'язкового проміжного 3, якщо контролер перейшов 2→4 за один крок. Зафіксуй conditions/events/час, Ready/EndpointSlices і нові реальні UUID.
+4) КОЖЕН із двох додаткових процесів реально отримує й виконує хоча б одну route job. Доведи running з додатним прогресом та completed/коректний результат за executedBy, а не лише Ready/health. Одночасно спостерігай роботу чотирьох окремих слотів під сталим навантаженням; на кожен процес максимум один running. Наявні атомарні claim/token інваріанти збережені.
+5) HTTP-балансування додає нові ready endpoints: відповіді через один HTTPS origin надходять від усіх чотирьох фактичних instanceId, сесія працює без повторного входу. Немає sticky session або endpoint вибору pod. Для достатнього trace використовуй bounded безпечні GET, не POST-retry.
+6) Поки чотири слоти зайняті, queued detail відображає реальні свіжі executorCount=4 та приблизну ETA з PostgreSQL. HPA desiredReplicas/новий Pending pod не додаються в ETA наперед. У перехідному snapshot допустимий чесний unknown; дочекайся узгоджених даних, а не підробляй їх. Після виходу процесів registry виключає їх за stopping/TTL, executorCount зрештою відповідає двом живим, lost_after не скорочується.
+7) Під тривалим навантаженням HPA й фактичні нормальні app replicas не перевищують 4, а мінімум у стабільному активному стані — 2. Тестовий driver не керує scale. Підрахунок не включає PG/Traefik/Metrics Server; окремо показуй terminating і rollout, якщо вони траплялися.
+8) Після припинення нових POST всі прийняті звичайні jobs завершуються, CPU падає; після реального stabilization HPA сам повертає app до 2. Дочекайся фізичної зупинки зайвих процесів, двох Ready endpoints і узгодженого реєстру; history/results/session/SVG збережені, наступна small job працює.
+
+Додаткові перевірки:
+- Повторний звичайний deploy/config apply при HPA=4 не скидає replicas до 2/1 і не створює непотрібного rollout. Перевір передачу spec.replicas/last-applied, а не лише відсутність поля у файлі. Якщо повторний deploy очікує rollout, він має підтримувати поточний autoscaled desired, а не hardcoded 2.
+- Stop із увімкненим HPA реально залишає app/Traefik/PG зупиненими; start відновлює app/HPA/HTTPS без зміни PVC/credentials/CA/історії. Не тестуй це руйнуванням робочих користувацьких даних; використовуй власний тестовий namespace та helpers. Для demo повторюваність перевіряй без скидання БД.
+- Недоступні/відсутні придатні CPU metrics не трактуються як 0% і не призводять до вигаданого успішного scaling/scale-to-zero. Перевір реальний negative case в окремому тестовому оточенні, не вимикаючи спільний add-on під чужим/demo HPA. Можна вузько перевірити missing-metric/misconfiguration path власного тестового HPA та відновлення; тоді назви саме цей випадок, а не повну відмову Metrics Server. Покажи condition/reason та відновлення після повернення правильних даних.
+- Не готовий pod/відсутні metrics, Pending через нестачу ресурсів або порушення owner/context дають чесний fail/diagnostic. Ніякого fallback на manual replicas чи чужий cluster. Pure tests конфігурації/парсингу/guards не видаються за доказ роботи контролера.
+- Спільні auth/ownership/cancel/квоти/історія не залежать від 2/3/4 процесів. Перевір хоча б cross-handler читання/cancel та відмову чужого доступу під autoscaling; прийнятий cancel справді завершив worker. Test-only audit може підтверджувати один committed claim, не додавай для цього production-таблицю або публічний debug endpoint.
+- Під normal downscale не втрачається acknowledged job; при окремій навмисній інфраструктурній втраті збережені причини/TTL/lost_after/відсутність повторного запуску. Не називай продовження обчислення там, де чинний сервер його зупинив як server_shutdown.
+
+Регресія: typecheck/build, повний npm test (до цього блоку 168 = 119 non-DB + 49 PG), TS/built CLI. Збережи meaningful assertions та DB safety guard. Повтори test:deployment у явно статичному ізольованому режимі (10 deployment/fault + 9 HTTPS Chrome-груп) для зміненого provision/stop. Container/browser-набори повторюй відповідно до змінених image/runtime/client частин; незмінний старий UI не потребує нового великого benchmark. Наявні 16 локальних Chrome-груп повтори, якщо змінено відповідний client/auth/dev код. Чесно наведи, які старі набори реально перезапущено.
+
+Коротка реальна HTTPS Chrome-перевірка під HPA: залогінений користувач читає свою queued job/ETA і поточний прогрес, серверні UUID/кількість виконавців змінюються без нового входу, history/result/reload залишаються коректними, після повернення до 2 працює нова job. Desktop/360 px без console/resource/mixed-content/overflow помилок; PNG справді оглянь. Якщо весь scale-cycle займає хвилини, browser observer можна поєднати з одним реальним API load run; другий повний стрес-тест лише заради скриншота не потрібний. Не додавай в UI деталі HPA, Kubernetes, pod чи CPU diagnostics замість майбутньої адмінпанелі.
+
+7. ІЗОЛЯЦІЯ, ЧАС ТЕСТУВАННЯ ТА БЛОКЕРИ
+
+Мережа/метрики/ролі/кластер/worker мають бути справжніми. Mock/unit потрібні тільки для доречної перевірки bounded config/парсингу/guards, не замінюють сценарій 2→4→2. Не підміняй control-plane clock, Metrics API або справжній алгоритм тестовими константами. Не вмикай HPA для старих статичних тестів приховано й не послаблюй їх до тривіальних assertions.
+
+Зберігай точні context/owner перевірки та явний namespace для kubectl. Для cluster-scoped ресурсів окремо перевір власність кластера й конкретного object. Тести не зупиняють host PostgreSQL, demo чи чужі workloads і не скидають global metrics для всіх namespace. Наявний TEST_DATABASE_URL guard залишається; SQL через deployment helpers використовує власну test-БД/роль без superuser. Cleanup видаляє тільки власний test namespace/PVC/HPA/profile/forwarding і не видаляє спільний Metrics Server, потрібний demo.
+
+Тривалий тест веди автономно до завершення з короткими зрозумілими повідомленнями: що виміряно, чи з'явилися нові екземпляри, чи виконують jobs, що залишилося до cooldown. Не роби один мовчазний blocking wait на кілька хвилин: використовуй bounded polling/збереження прогресу. Загальні deadlines та ліміти навантаження обов'язкові, продовження за межами бюджету не допускається.
+
+Якщо Docker/мережа/Metrics API/право встановлення add-on справді недоступні, заверши незалежні код/manifests/scripts/документацію та доступні перевірки, потім назви точний blocker і мінімальну ручну дію. Не зупиняйся на пропозиції плану, якщо робота вже доручена й доступна. Не називай HPA реалізованим/перевіреним лише через наявність YAML або kubectl top, і не позначай blocked як pass/skipped success.
+
+8. ДОКУМЕНТАЦІЯ, ЗВІТ, ZIP ТА ЗУПИНКА
+
+README: основний відтворюваний шлях встановлення Metrics Server/HPA через deploy:local, чинні pins/compatibility й локальні TLS-винятки метрик, точні min/max/CPU target/behavior/requests/limits, status/top/HPA-команди з нашим kubeconfig/context/namespace, load command з межами й очікуваним часом, repeat/stop/start без втрати даних, troubleshooting unknown metrics/Pending/відсутності scale-down. Поясни CPU utilization простими словами й що нові app pod на тому самому ноутбуці не створюють нові фізичні CPU. Не обіцяй лінійне прискорення або миттєве/ідеальне drain.
+
+PROJECT_PLAN.md/AGENTS.md: запиши приймання блоку 7 з 119 незалежними non-DB та точними runtime-обмеженнями; фактичний стан блоку 8 й матрицю пункту 7 лише за пройденим циклом. Автозапуск/верхня межа підтверджуються новими реальними Ready executors, виконаними ними jobs і 2→4→2, не просто описом архітектури. CPU/RAM для HPA — дані є, адмінпанель пункту 8 ще не реалізована. Збережи дев'ять Git-правил; історичні звіти/доручення/assignment/SQL незмінні.
+
+Створи docs/block-08-report.md:
+1. Статус готово/частково/заблоковано, точні межі незалежної перевірки керівника й фактичних перевірок виконавця.
+2. Нові/змінені файли, image/add-on version/digest/compatibility, фактичні VM/Kubernetes ресурси, context/namespace й TLS/rbac-рішення без секретів.
+3. Metrics API availability, реальні CPU/RAM timestamp/window і джерело; min/max/CPU target/behavior/requests/limits із причиною вибору.
+4. Передача replicas HPA, початковий bootstrap, repeat deploy при 4, rollout/surge/terminating, stop/start і збережені PVC/credentials/CA.
+5. Точна команда й кінцеві межі load driver: власники, accepted/одночасні jobs, час подачі, deadline, без POST-retry й artificial search delays.
+6. Таблиця часової лінії: час спостереження й timestamp/window metrics, CPU utilization/usage, HPA current/desired, Ready/terminating/endpoint/executorCount, queued/running/completed. Достатньо ключових реальних точок, не сторінок кожного polling.
+7. Початкові A/B і нові C/D: справжні pod UID/instanceId та по конкретній job з додатним прогресом/terminal/executedBy кожного нового процесу. Шифровані сесії/HTTP через нові handlers, один слот на процес, відсутність подвійного claim.
+8. Доказ upper cap=4 під тривалим load та автоматичного повернення до 2 після terminal/cooldown; фактичні часи scale-up/down, відхилення/обмеження без вигаданих гарантій. Різниця desired/Ready/registry і rollout transient явно описана.
+9. Таблиця unit/PG/container/static deployment/HPA/HTTPS/browser pass/fail/skipped; negative missing-metric case і відновлення; проміжні fail та виправлення не видаються за pass. PNG реально оглянуті чи ні.
+10. Створені коміти, гілка/status, cleanup власних test jobs/users/schema/namespace/HPA/browser/forwardings, стан demo/Metrics Server/host PostgreSQL/Colima й перевірені безпечні stop/start команди. Після нормального HPA-тесту demo бажано лишити в idle на 2, без прихованого фонового генератора навантаження.
+11. Що залишилося блоку 9 (адмінпанель) і 10 (повне приймання), фінальний ZIP та ручні дії тільки за реального блокера.
+
+Переглянь status/diff/staged diff, результати й секрети; закоміть власні завершені зміни й звіт. Після фінального коміту з кореня наявного репозиторію:
+
+git archive --format=zip --output=../CourierRoute-block-08.zip HEAD
+
+Перевір CRC, commit-коментар, точний набір і побайтовий збіг tracked файлів фінального HEAD. Не включай .git/.env/node_modules/dist/.local/БД/PVC/kubeconfig/Secret/приватні ключі/browser profiles/внутрішні PNG/logs/summary та сторонні untracked. Якщо commit заблокований, не називай старий ZIP актуальним. Архів автоматично нікуди не публікуй.
+
+Фінальна відповідь: короткий результат 2→4→2/нові фактичні виконавці, URL demo, фактичні перевірки/блокери, звіт, коміти/гілка/status, стан залишених ресурсів і безпечна зупинка, ZIP та Finder-команда. Для очікуваного /Users/a860/Documents/Site:
+open -R /Users/a860/Documents/CourierRoute-block-08.zip
+Перевір фактичний шлях. Після виконання зупинись перед блоком 9.
+
+ОФІЦІЙНІ ТЕХНІЧНІ ДЖЕРЕЛА
+
+Технічна довідка, не нові продуктові вимоги. Звір параметри саме з Kubernetes 1.36.1 та фактично обраним Metrics Server; поточна загальна документація може описувати новіші функції.
+- HPA, алгоритм/поведінка/maintenance/передача replicas: https://kubernetes.io/docs/concepts/workloads/autoscaling/horizontal-pod-autoscale/
+- API autoscaling/v2: https://kubernetes.io/docs/reference/kubernetes-api/autoscaling/horizontal-pod-autoscaler-v2/
+- HPA walkthrough і реальний load/cooldown: https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale-walkthrough/
+- Metrics Server requirements/compatibility: https://github.com/kubernetes-sigs/metrics-server
+- Закріплені releases: https://github.com/kubernetes-sigs/metrics-server/releases
+- Джерело resource metrics/CPU-memory: https://kubernetes.io/docs/tasks/debug/debug-cluster/resource-metrics-pipeline/
+- Declarative apply та replicas: https://kubernetes.io/docs/tasks/manage-kubernetes-objects/declarative-config/
+- Deployment rollout/surge/terminating: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+
+ОРИГІНАЛЬНІ ВИМОГИ ВИКЛАДАЧА ДЛЯ ЗВІРКИ
+
+docs/assignment.txt має залишитися незмінним. Маркери нижче не є частиною оригіналу.
+
+<<<BEGIN_ASSIGNMENT>>>
+Створити веб застосування, backend якого здатний коректно обслуговувати трудомісткі запити користувачів.
+
+Прикладами таких запитів можуть бути задачі: розв"язування системи рівнянь, метод скінченних елементів, розпізнавання образів, обробка зображень та інші, на вибір студента. 
+
+Особливості:
+1) Повинна бути обмежена максимальна трудомісткість одної задачі (кількість невідомих, час обчислення).У разі перевищення - помилка або відмова у виконанні. (Перевірку вхідних даних задачі можна виконати ще на клієнті (frontend)).
+2) Оскільки запити трудомісткі, клієнт повинен інформуватись про хід виконання задачі (відсоток/етап виконання).
+3) Клієнт повинен мати доступ до історії результатів виконання задач, переглядати стан поточної задачі (див. пункт 1.), скасувати виконання задачі, запустити виконання нової задачі. (максимальна кількість задач повинна бути обмежена, необхідні дані зберігатись в базі даних)
+4) Авторизація клієнта (з використанням https (+бали))
+
+---------------------------------------- Найважливіша частина завдання ---------------------------------------------
+5) Веб застосування повинне забезпечувати т.з. балансування навантаження як мінімум для 2-ох серверів. 
+(для цього повинен бути застосований так званий load balancer, в його ролі може виступати і сам веб сервер, а задачі виконуватись на кількох серверах застосувань (application server)).
+---------------------------------------------------------------------------------------------------------------------------------
+
+
+----------------------------------------- Додаткові бали --------------------------------------------------------------------------
+6) (+бали) Якщо всі ресурси системи вичерпані, клієнт повинен бути повідомлений про те, що його запит поставлено у чергу та інформуватись про приблизний час очікування.
+7) (+бали) Горизонтальне розширення за рахунок автоматичного запуску нових серверів (віртуальні машини, контейнери), максимальна кількість повинна бути обмежена.
+8) (+бали) Панель адміністратора для моніторингу всіх запущених процесів та навантаження на систему серверів.
+----------------------------------------------------------------------------------------------------------------------------------------
+
+<<<END_ASSIGNMENT>>>

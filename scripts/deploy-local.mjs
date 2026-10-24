@@ -182,6 +182,20 @@ async function assertClusterOwnership(state) {
   assert.equal(nodes.items[0].status.nodeInfo.kubeletVersion, `v${versions.kind.kubernetesVersion}`);
 }
 
+async function loadOwnedImage(state, image) {
+  // Docker's local image store and kind's containerd store are independent.
+  // Fail before creating a namespace if the exact built artifact is absent,
+  // then load it through only this project's already verified runtime.
+  await assertClusterOwnership(state);
+  const metadata = JSON.parse(await run('docker', ['image', 'inspect', image], { env: dockerEnvironment }))[0];
+  assert.equal(metadata?.Config?.Labels?.['courier-route.source-fingerprint'], image,
+    'Build the exact current source image with npm run image:build before deployment checks.');
+  assert.equal(metadata.Config.User, 'node');
+  assert.ok(metadata.Config.Env?.includes(`NODE_VERSION=${versions.node.version}`));
+  await run('kind', ['load', 'docker-image', image, '--name', cluster],
+    { env: dockerEnvironment, timeoutMs: 180_000, inherit: true });
+}
+
 /** Shared cluster add-on: check EVERY target before changing ANY target.
  * Disposable namespace cleanup never removes this installation. Foreign
  * add-ons are deliberately rejected rather than silently adopted/overwritten. */
@@ -566,6 +580,7 @@ export async function provisionTestDeployment({ namespace, ownerId, httpPort, ht
   httpPort ??= await availablePort(); httpsPort ??= await availablePort();
   assert.notEqual(httpPort, httpsPort);
   const image = await imageName();
+  await loadOwnedImage(state, image);
   try { return await provision({ state, namespace, ownerId, httpPort, httpsPort, image, testing: true, autoscaling }); }
   catch (error) {
     await withoutDeploymentDeadline(async () => {
@@ -650,7 +665,7 @@ async function main(command) {
   }
   assert.equal(command, 'up', 'Commands: preflight, image, up, status, stop, role');
   const image = await buildImage();
-  await run('kind', ['load', 'docker-image', image, '--name', cluster], { env: dockerEnvironment, timeoutMs: 180_000, inherit: true });
+  await loadOwnedImage(state, image);
   const deployment = await provision({ state, namespace: 'courier-route', ownerId: state.ownerId,
     httpPort: state.httpPort, httpsPort: state.httpsPort, image });
   console.log(JSON.stringify({ origin: deployment.httpsOrigin, redirect: deployment.httpOrigin,

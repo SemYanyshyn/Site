@@ -183,6 +183,7 @@ async function runAutoscaleWithinBudget(budget, deadlineEpochMs, withoutDeployme
   const summary = { ownerId, namespace, budget, deadlineEpochMs, checks: [], traces: [], timeline: [], phaseTimes: {}, cleanupCompleted: false };
   let deployment;
   let observer;
+  let adminObserver;
   let failure;
   const checkDeadline = () => assert.ok(performance.now() < deadline, 'The finite overall autoscaling deadline expired.');
   const pause = async (milliseconds) => {
@@ -198,7 +199,7 @@ async function runAutoscaleWithinBudget(budget, deadlineEpochMs, withoutDeployme
   let lastPrinted = 0;
   const save = () => writeFile(new URL('summary.json', directory), JSON.stringify(summary, null, 2), { mode: 0o600 });
   try {
-    const { provisionTestDeployment } = await import('./deploy-local.mjs');
+    const { provisionTestDeployment, assignDeploymentRole } = await import('./deploy-local.mjs');
     deployment = await provisionTestDeployment({ namespace, ownerId, autoscaling: true });
     assert.equal(deployment.autoscaling, true, 'A static regression namespace cannot prove HPA.');
     Object.assign(summary, { context: deployment.context, image: deployment.image, httpsOrigin: deployment.httpsOrigin });
@@ -356,6 +357,16 @@ async function runAutoscaleWithinBudget(budget, deadlineEpochMs, withoutDeployme
     }
     const { startAutoscaleBrowser } = await import('./check-autoscale-browser.mjs');
     observer = await startAutoscaleBrowser({ deployment, credentials: { username: users[0].username, password: users[0].password }, deadlineEpochMs });
+    // A distinct fourth account only reads monitoring. The three ordinary
+    // owners, admission quotas and accepted-job/work budgets stay unchanged.
+    const adminCredentials = { username: `hpa_admin_${randomBytes(6).toString('hex')}`, password: randomBytes(24).toString('base64url') };
+    privateValues.add(adminCredentials.username); privateValues.add(adminCredentials.password);
+    assert.equal((await invoke('register monitoring observer', '/api/auth/register', { method: 'POST', body: adminCredentials,
+      headers: { Origin: origin.origin } })).status, 201);
+    await assignDeploymentRole({ namespace, ownerId, username: adminCredentials.username, role: 'admin' });
+    const { startAdminBrowser } = await import('./check-admin-browser.mjs');
+    adminObserver = await startAdminBrowser({ deployment, credentials: adminCredentials, deadlineEpochMs });
+    summary.adminObservations = [await adminObserver.observe({ phase: 'baseline', expectedInstanceIds: initial.pods.map((pod) => pod.instanceId) })];
     const limits = await invoke('unchanged production limits', '/api/jobs/limits', { cookie: users[0].cookie });
     assert.equal(limits.status, 200); assert.equal(limits.value.maxActivePerUser, 3);
     assert.equal(limits.value.route.maxPoints, 500); assert.equal(limits.value.route.maxIterations, 200_000_000); assert.equal(limits.value.route.timeoutMs, 30_000);
@@ -440,6 +451,10 @@ async function runAutoscaleWithinBudget(budget, deadlineEpochMs, withoutDeployme
               summary.phaseTimes.fourReadyBusyMs = value.elapsedMs;
               (summary.browserObservations ??= []).push(await observer.observe({ phase: 'expanded', queuedJobId: pair.queued.id, runningJobId: pair.running.id,
                 expectedExecutorCount: 4, expectedInstanceIds: value.pods.map((pod) => pod.instanceId) }));
+              const adminExpanded = await adminObserver.observe({ phase: 'expanded', expectedInstanceIds: value.pods.map((pod) => pod.instanceId) });
+              assert.ok(adminExpanded.owners.length >= 2, 'The admin must observe jobs belonging to multiple real load owners.');
+              assert.equal(adminExpanded.summary.pods, 4);
+              summary.adminObservations.push(adminExpanded);
               expandedObserved = true;
             }
             await observeHandlers(value.pods.map((pod) => pod.instanceId));
@@ -570,6 +585,11 @@ async function runAutoscaleWithinBudget(budget, deadlineEpochMs, withoutDeployme
     assert.ok(summary.timeline.some((item) => item.hpa.desired > 2));
     assert.ok(summary.timeline.every((item) => item.hpa.desired <= 4 && item.pods.filter((pod) => !pod.terminating).length <= 4));
     summary.checks.push('finite feed stopped; all normal jobs completed before automatic four→two with two physical pods/endpoints/executors');
+    summary.adminObservations.push(await adminObserver.observe({ phase: 'returned', expectedInstanceIds: down.pods.map((pod) => pod.instanceId) }));
+    summary.adminPagination = await adminObserver.pagination();
+    summary.adminBrowser = await adminObserver.finish();
+    await adminObserver.cleanup(); adminObserver = undefined;
+    summary.checks.push('one unchanged admin session observed actual A/B→C/D→two, current CPU/RAM, all-owner jobs and pagination without submitting load');
     const resultJobId = normal.findLast((job) => accepted.get(job.id).owner === 0)?.id;
     assert.ok(resultJobId);
     summary.browser = await observer.finish({ resultJobId, expectedInstanceIds: down.pods.map((pod) => pod.instanceId) });
@@ -660,6 +680,8 @@ async function runAutoscaleWithinBudget(budget, deadlineEpochMs, withoutDeployme
     await withoutDeploymentDeadline(async () => {
       try { if (observer) await observer.cleanup(); }
       catch (error) { failure ??= error; summary.browserCleanupFailure = safeFailure(error); }
+      try { if (adminObserver) await adminObserver.cleanup(); }
+      catch (error) { failure ??= error; summary.adminBrowserCleanupFailure = safeFailure(error); }
       try {
         if (deployment) { await deployment.assertOwned(); await deployment.cleanup(); summary.cleanupCompleted = true; }
         else summary.provisionCleanupManagedByHelper = true;

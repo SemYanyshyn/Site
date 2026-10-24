@@ -12,7 +12,9 @@
 
 Блок 6 розширює спільну чергу реєстром живих виконавців та приблизним часом до початку queued-задачі в API й наявному UI. Реальні результати, метод моделі й обмеження — у [звіті блоку 6](docs/block-06-report.md), матриця — у [PROJECT_PLAN.md](PROJECT_PLAN.md). Блок 7 із production Docker, двома незалежними app replicas за Traefik та локальним HTTPS прийнято. Керівник повторив 119 non-DB, typecheck/build/CLI/HTTP, але не 49 PG, container/Kubernetes/Chrome-сценарії та огляд PNG; їхні результати підтверджені виконавцем у [звіті блоку 7](docs/block-07-report.md).
 
-Блок 8 реалізує Metrics Server і CPU HPA з межами **2–4 app pod**. Виконавець перевірив реальний **2→4→3→2**, completed задачі додаткових C/D, repeat deploy і stop/start; **183 тести**, 8 container, 19 static HTTPS груп і 9 HPA груп + 4 Chrome-спостереження пройшли. Фактичні виміри, проміжні збої та межі перевірок — у [звіті блоку 8](docs/block-08-report.md). Адмінпанель і повне приймання всього проєкту належать блокам 9–10.
+Блок 8 реалізує Metrics Server і CPU HPA з межами **2–4 app pod**. Виконавець перевірив реальний **2→4→3→2**, completed задачі додаткових C/D, repeat deploy і stop/start; **183 тести**, 8 container, 19 static HTTPS груп і 9 HPA груп + 4 Chrome-спостереження пройшли. Фактичні виміри, проміжні збої та межі перевірок — у [звіті блоку 8](docs/block-08-report.md). Блок 8 прийнято керівником із незалежними 134 non-DB/typecheck/build/CLI/HTTP; PG/runtime/Chrome/PNG він не повторював.
+
+Блок 9 додає read-only панель адміністратора з PostgreSQL role gate, реальними pod/process/job CPU/RAM, partial/stale та операторським CLI. Виконавець пройшов 227 тестів (60 PG), container/static HTTPS, повторні 16 local Chrome, 7 admin груп і один HPA 2→4→3→2 з admin observer. Факти й обмеження — у [звіті 9](docs/block-09-report.md); повне приймання всієї системи лишається блоку 10.
 
 ## Локальний HTTPS у Kubernetes
 
@@ -94,11 +96,52 @@ Container driver приймає тег **позиційним аргументо
 
 `test:deployment` створює власний випадковий тестовий namespace із окремими PostgreSQL/PVC у **явно статичному режимі без HPA**, перевіряє HTTPS через Traefik, рівно дві replicas, спільні сесії/задачі, відмови й справжній Chrome. Його **10 deployment/fault + 9 HTTPS Chrome груп** залишаються окремою регресією. Наприкінці видаляються лише його тестові ресурси, профіль і credentials; демонстраційний namespace/PVC та спільний Metrics Server зберігаються. Це окрема перевірка від `test:autoscale` і локальних `npm test`/`test:browser`; фактичні результати — у відповідних звітах блоків 7–8.
 
+## Адміністрування та походження даних
+
+Зареєструйте свій логін звичайною формою. Нова реєстрація завжди має роль `user`; автоматичного адміністратора немає. Оператор явно надає роль **наявному** обліковому запису, після чого користувач входить знову й відкриває «Адміністрування». `YOUR_LOGIN` замініть власним логіном, пароль у CLI не передається:
+
+```sh
+# Host dev, застосункова роль PostgreSQL із локального .env
+npm run db:migrate
+npm run admin:role -- --username YOUR_LOGIN --role admin
+npm run admin:role:built -- --username YOUR_LOGIN --role user
+# Demo: власний .local/deploy/kubeconfig, kind-courier-route, namespace courier-route
+npm run deploy:local
+npm run admin:role:deployment -- --username YOUR_LOGIN --role admin
+# Зняти роль тим самим перевіреним операторським helper-ом
+npm run admin:role:deployment -- --username YOUR_LOGIN --role user
+```
+
+Helper перевіряє власний cluster/namespace/Deployment/Ready pod/image та ланцюжок ReplicaSet→Deployment UID перед запуском зібраного CLI. SQL параметризований; роль БД має бути без superuser/createdb/createrole. Невідомий логін завершується ненульовим кодом і не створюється; повторне призначення ідемпотентне. При знятті ролі наступний запит панелі повертає 403 навіть зі старою cookie й прогрітим кешем іншого процесу. Сеанс звичайного користувача та його маршрути залишаються доступними. Logout/expiry дають 401 й очищують приватний стан; DB-відмова дає 503.
+
+Два API лише читають: `GET /api/admin/overview` та `GET /api/admin/jobs`. Кожен `/api/admin/*` спочатку заново читає чинну сесію й поточну роль із PostgreSQL; відповіді, включно з помилками, мають `Cache-Control: no-store`. Кеш інфраструктури не містить рішення про доступ. Адмін не отримує чужі координати/результати через список моніторингу та не отримує права скасувати чужу задачу. Jobs мають whitelist полів, owner UUID/login, стан, фактичні ітерації/відсоток, час, executedBy та причину помилки. Немає claim token, хешів паролів, session token, raw env чи Kubernetes credentials.
+
+Пагінація: `limit=20` за замовчуванням, 1–50; `offset=0`, максимум 1000000. Доступні `status=active|queued|running|completed|cancelled|failed` та `executedBy=UUID`; невідомі/повторені/масивні параметри відхиляються. Порядок `created_at DESC,id DESC`, total і сторінка — один read-only REPEATABLE READ snapshot. Зведення рахує всі п'ять станів; читання не бере admission advisory lock. SQL має обмежені statement/lock/transaction timeouts, включно з очікуванням пулу.
+
+Панель показує поточні фізичні app pod (Pending, NotReady, Ready, terminating), process UUID та один worker-слот на процес, busy/idle за БД, усіх власників задач, Deployment і фактичні HPA min/max/current/desired/conditions. Ready, бажаний pod і вільний слот мають різний зміст. Mapping потребує namespace+name+pod UID і відповідного часу запуску контейнера/процесу. Після рестарту процес має новий UUID; старий lease не додає ще одного live сервера. Недоступні/попередні записи винесені окремо: останні 60 с, до 100 записів із явною ознакою обрізання. Metadata міграції **004** nullable: старий host-процес/heartbeat допустимий. Міграція additive, запускається явно до rollout; SQL 001–003 не змінені, readiness вимагає 004 і реальні колонки.
+
+CPU/RAM читаються сервером безпосередньо з namespaced Metrics API для контейнера **app разом із його worker threads**, а не всього Mac чи окремого потоку. CPU — ядра за `timestamp/window`, 1000 мCPU = 1 ядро; RAM — working set, MiB = 1048576 байтів. CPU/request може перевищувати 100%. У кожного sample є первісний timestamp, window й stale; старіший за запуск поточного контейнера/процесу sample не прив'язується до нього. DB snapshot time, час джерела та cache age відображаються окремо. Суми мають покриття придатних samples; `unknown/null` не підміняється нулем. [Семантика Kubernetes resource metrics](https://v1-36.docs.kubernetes.io/docs/tasks/debug/debug-cluster/resource-metrics-pipeline/).
+
+`courier-route-monitor` має лише get/list pods і pod metrics у своєму namespace та get іменованих `Deployment/app` і `HPA/app`. Немає Secrets/logs/exec/scale/delete/nodes/чужого namespace. RBAC обмежує namespace; додатковий server-owned label selector та owner validation обмежують дані застосунку (RBAC не фільтрує pod за labels). Downward API задає pod UID/name/namespace. Projected bound token з TTL3600 с та cluster CA змонтовані read-only тільки app; token і CA перечитуються при refresh, API hostname фіксований `kubernetes.default.svc`, CA/hostname перевіряються. Міграційний Job має automount=false. Worker отримує порожні env/execArgv, але thread має спільну файлову систему з app — це не окрема межа файлової ізоляції. [Projected ServiceAccount token](https://v1-36.docs.kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/), [RBAC](https://v1-36.docs.kubernetes.io/docs/reference/access-authn-authz/rbac/).
+
+У host dev `ADMIN_KUBERNETES_ENABLED=false`: DB-списки працюють, фізичні pod/CPU/RAM/HPA невідомі; локальний kubeconfig не вгадується. При source403/timeout показуються partial/unknown або останні дані як stale з їхнім первісним часом. Це не людський logout/403. Одна single-flight refresh на процес, кеш5с, кожне джерело ≤2с/2MiB, загальний HTTP budget8с від початку перед auth. Abort/shutdown зупиняють активні HTTP/SQL; немає фонового refresh після close. Панель опитує раз на5с лише відкрита й видима; покоління сеансу/панелі/сторінки та abort відсікають запізнілі відповіді. При503 останні дані позначаються неактуальними. «Мої маршрути» повертає особистий UI; жодних адміністративних мутацій у панелі немає.
+
+```sh
+npm run test:admin
+npm run test:admin:deployment
+npm run test:autoscale # той самий bounded 2→4→2, додано read-only admin observer
+npm run deploy:status
+npm run deploy:stop   # свої app/Traefik/PG/HPA, PVC й CA зберігаються
+npm run deploy:local  # явне відновлення demo
+npm run db:status    # host PostgreSQL керується окремо
+npm run db:stop
+```
+
 ## Метрики та автоматичне розширення 2–4
 
 Metrics Server `0.9.0` узято з [офіційного стабільного release](https://github.com/kubernetes-sigs/metrics-server/releases/tag/v0.9.0); [матриця цієї версії](https://github.com/kubernetes-sigs/metrics-server/blob/v0.9.0/README.md#compatibility-matrix) підтримує Kubernetes `1.34+`. У [versions.json](deploy/versions.json) зафіксовано image index digest, окремий arm64 digest та SHA256 вихідного `components.yaml`; deploy застосовує tracked JSON і не завантажує `releases/latest`. Один Metrics Server достатній для single-node kind.
 
-Власні Namespace/Deployment/Service/ServiceAccount лежать у `courier-route-metrics`. Потрібні ClusterRole/ClusterRoleBinding і `APIService v1beta1.metrics.k8s.io` мають перевірювані owner labels; окремий наш RoleBinding у `kube-system` лише надає читання стандартної `extension-apiserver-authentication` конфігурації. Скрипт не привласнює й не перезаписує сторонній add-on. App pod як і раніше не має Kubernetes service account token або прав читання метрик.
+Власні Namespace/Deployment/Service/ServiceAccount лежать у `courier-route-metrics`. Потрібні ClusterRole/ClusterRoleBinding і `APIService v1beta1.metrics.k8s.io` мають перевірювані owner labels; окремий наш RoleBinding у `kube-system` лише надає читання стандартної `extension-apiserver-authentication` конфігурації. Скрипт не привласнює й не перезаписує сторонній add-on. У блоці 9 app pod отримує окремий namespace-scoped ServiceAccount для читання моніторингу; його права описані нижче.
 
 Є два явні локальні TLS-винятки для метрик. У перевіреному kind kubelet на `172.18.0.2:10250` має сертифікат лише з DNS SAN `courier-route-control-plane`, виданий окремою node CA; перевірка проти cluster CA не проходить. Тому **тільки наш Metrics Server** використовує `--kubelet-insecure-tls`. Офіційний `APIService` також має **`insecureSkipTLSVerify: true`**: aggregation API→Metrics Server шифрується, але сертифікат сервера не перевіряється. Kubernetes authn/authz збережені; kubectl перевіряє TLS API-сервера. Для зовнішнього production-кластера потрібні належні CA/serving certificates та перевірка обох з'єднань. HTTPS застосунку, його проєктна CA, cookie й Origin цими винятками не послаблюються.
 
@@ -384,7 +427,7 @@ Queued cancel атомарно створює кінцевий `cancelled` бе�
 
 Після записаного deadline будь-який живий dispatcher може атомарно перевести досі running у `failed/worker_lost`, без повторного запуску тієї самої задачі. До deadline новий сервер не оголошує чужі активні задачі втраченими. За недоступної БД нові claim припиняються, свій worker зупиняється з причиною `database_unavailable`, а невдалий кінцевий запис повторюється в наступних обмежених poll-циклах; до узгодження не береться інша локальна робота. Якщо процес не зберіг стан, залишається deadline-відновлення. Звичайний shutdown записує `failed/server_shutdown`, якщо раніший користувацький cancel не отримав пріоритет.
 
-Базову спільну PostgreSQL-чергу створено у блоці 4, UI задач — у 5, реєстр потужності й ETA — у 6, балансувальник та HTTPS — у 7, Metrics Server і HPA — у 8. Історичні перевірки збережені у відповідних звітах; докази queued при зайнятих слотах і прогноз/факт — у звітах 6 та 8. Адмінпанель залишається блоку 9.
+Базову спільну PostgreSQL-чергу створено у блоці 4, UI задач — у 5, реєстр потужності й ETA — у 6, балансувальник та HTTPS — у 7, Metrics Server і HPA — у 8. Історичні перевірки збережені у відповідних звітах; докази queued при зайнятих слотах і прогноз/факт — у звітах 6 та 8. Панель моніторингу реалізовано в блоці 9; фактичні перевірки — у [звіті 9](docs/block-09-report.md).
 
 ## Перевірки
 
@@ -544,13 +587,13 @@ AGENTS.md               Постійні інструкції та Git-прав�
 
 Локальний репозиторій у корені проєкту збережено з історією, основна гілка — **main**. Remote й push не налаштовано. Завершені логічні зміни комітяться окремо з короткими англійськими назвами `type(scope): description`, scope необов'язковий. Перед комітом перевіряються status, звичайний і staged diff та доречні перевірки. Повні постійні правила — у [AGENTS.md](AGENTS.md).
 
-Ігноруються `node_modules`, `dist`, `.env`, локальні кластери/дані, cookie-файли й логи; `.env.example`, SQL, тести, JSON-приклади та lock-файл відстежуються. Дослівні вхідні тексти захищені від перетворення кінців рядків у `.gitattributes`. Після перевірок, звіту й комітів блоку 8 робота зупиняється перед блоком 9 до нового завдання керівника. App pod на одному локальному kind node є незалежними серверними процесами; заміна pod контролером Deployment не є HPA або відмовостійкістю фізичних машин.
+Ігноруються `node_modules`, `dist`, `.env`, локальні кластери/дані, cookie-файли й логи; `.env.example`, SQL, тести, JSON-приклади та lock-файл відстежуються. Дослівні вхідні тексти захищені від перетворення кінців рядків у `.gitattributes`. Явним дорученням виконано блок 9; після його перевірок, звіту, комітів і ZIP робота зупиняється перед блоком 10. App pod на одному локальному kind node є незалежними серверними процесами; заміна pod контролером Deployment не є HPA або відмовостійкістю фізичних машин.
 
 ZIP для локальної перевірки створюється після фінального коміту з точного HEAD:
 
 ```sh
-git archive --format=zip --output=../CourierRoute-block-08.zip HEAD
-open -R /Users/a860/Documents/CourierRoute-block-08.zip
+git archive --format=zip --output=../CourierRoute-block-09.zip HEAD
+open -R /Users/a860/Documents/CourierRoute-block-09.zip
 ```
 
 Архів містить відстежувані файли поточного коміту, включно зі звітом, міграціями, тестами та lock-файлом. `.git`, `.env`, `node_modules`, `dist`, локальні БД, логи й cookie до нього не включаються. Архів залишається локальним; завантаження чи push не виконується.

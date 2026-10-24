@@ -1,0 +1,242 @@
+ВИКОНАЙ БЛОК 9 ПРОЄКТУ COURIER ROUTE
+
+Продовжуй наявний проєкт у відкритій папці VS Code. Реалізуй тільки блок 9: українську панель адміністратора для спостереження за всіма app-серверами, їхніми обчислювальними виконавцями, задачами/чергою та фактичним CPU/RAM. Дані мають надходити з PostgreSQL і наявного Kubernetes Metrics API; панель працює через спільну авторизацію та HTTPS/Traefik при HPA 2–4.
+
+Це явне нове доручення дозволяє блок 9. Старі межі «перед блоком 9» описували попередню зупинку й не блокують це завдання. Потрібні працюючий код, перевірки API/UI/RBAC/реальних метрик, звіт, змістовні коміти та ZIP фінального HEAD. Після виконання зупинись перед блоком 10.
+
+ПРИЙМАННЯ БЛОКУ 8
+
+Керівник перевірив ZIP зі 139 файлами й коментарем 6720e55b9b19e010002112f9add389685840adc3, зміни Metrics Server/HPA/provision/replica handoff/stop-start, drivers, тести та звіт. Суттєвих проблем не виявлено; блок 8 прийнято.
+
+Незалежно пройшли npm ci, typecheck/build і 134 тести без БД: 38 unit/config/bind/deployment/autoscale safety + 36 route/executor/HTTP + 3 jobs config + 43 client + 14 queue config/estimator/read-budget. Помилок і пропусків немає. Пройшли TS/built CLI (квадрат, length=4, seed=0), production HTML/JS/CSS, стабільний health/реальний X-Instance-Id, ready=503 без БД, API-404, Vite TS/CSS/health proxy та /api.ts як JavaScript. Тимчасові HTTP/Vite-процеси зупинені; синтаксис усіх native .mjs перевірено, JSON manifests розбираються. CRC коректний. Після відновлення попереднього ZIP 261856e побайтово звірено 31 захищений файл і всі 45 файлів src: application/server/client/worker не змінювалися в блоці 8.
+
+49 PostgreSQL-сценаріїв, 8 container-груп, 10 статичних deployment/fault + 9 HTTPS Chrome-груп, 9 HPA-груп і 4 Chrome-спостереження та PNG підтверджені звітом ВИКОНАВЦЯ. Керівник переглянув код, але НЕ повторював ці сценарії через відсутність Docker/Colima/kind/kubectl, PostgreSQL/TEST_DATABASE_URL та Chrome у своєму середовищі. PNG до ZIP не входять, керівник їх не оглядав. Не приписуй йому npm test 183, реальний HPA/HTTPS/browser pass або візуальний огляд. Старі 16 local Chrome-груп у блоці 8 виконавець також не повторював: client/auth/dev код не змінювався, їхній історичний результат лишився у звітах 6/7.
+
+Окреме відкрите спостереження: першопричину одного ECONNRESET під час cancel POST у проміжному HPA run 3 не встановлено. Його не названо виправленим. Driver виконує лише read-only узгодження невизначеної мутації, не повторює POST і не зараховує відсутній 202 до строгого cross-handler cancel proof. Фінальний run 4 виконавця пройшов без transport failure: 84 accepted, 82 completed і 2 навмисних cancelled, C/D завершили власні задачі, HPA 2→4→3→2. Збережи цю чесну межу; якщо reset повториться, збережи безпечну діагностику ДО cleanup, установи причину й виправ доведену проблему. Не приховуй його retries або послабленням assertions. Історичний docs/block-08-report.md не переписуй.
+
+ДЖЕРЕЛА ТА ОБСЯГ
+
+Спочатку прочитай AGENTS.md і вкладені інструкції, docs/assignment.txt, PROJECT_PLAN.md, README.md, docs/block-08-report.md та фактичний код auth/sessions/jobs/registry/executor/client, deployment helpers/RBAC/HPA і тести. Перевір реальні Git-корінь/гілку/status/історію, джерела метрик і чинне розгортання. Відокремлюй оригінальні вимоги викладача від наших рішень і результатів.
+
+Стек незмінний: strict TypeScript, Node.js 24.x/npm 11.x, Express, HTML/CSS/TypeScript/Vite, PostgreSQL 18/pg, worker_threads, Docker/kind/Kubernetes, Traefik, Metrics Server 0.9.0/HPA. Один npm-проєкт. Не додавай окремий monitoring backend, Prometheus/Grafana/Redis/ORM, UI-фреймворк або новий runtime. Наявних можливостей достатньо; нову залежність додавай тільки за конкретної необхідності.
+
+У цьому блоці «сервери» — незалежні app-процеси в app pod, що обробляють HTTP і виконують по одному важкому worker. Адміністратор бачить ці сервери та всі задачі всіх власників. CPU/RAM вимірюється для відповідного app-контейнера, включно з його потоками. Не видавай це за per-worker CPU або весь Mac/Colima/node. PG/Traefik/Metrics Server не треба перетворювати на керований парк процесів.
+
+Панель призначена для читання. Не додавай через неї restart/delete/scale pod, зміну HPA, ролей чи паролів, видалення історії, чужий cancel, terminal/SQL console, Kubernetes dashboard або перегляд secrets/logs. Особистий cancel користувача лишається наявною функцією. Пункт 8 завдання викладача — моніторинг, не нова система адміністрування кластера. Повне наскрізне приймання всіх вимог лишається блоку 10.
+
+ПОСТІЙНІ ДЕВ'ЯТЬ GIT-ПРАВИЛ
+
+1. Працюй у наявному Git-репозиторії main, не переініціалізовуй його й не створюй вкладений. Останній відомий HEAD — 6720e55 docs: record block 8 autoscaling evidence; фактичний стан має пріоритет.
+2. Використовуй справжні налаштовані user.name/user.email. Не вигадуй ідентичність і не змінюй глобальний Git. Якщо коміти заблоковані, заверши незалежне й точно повідом причину. Remote/GitHub/push без окремого доручення не налаштовуй.
+3. Коміть регулярно після завершених логічних частин. Не після кожної дрібної правки й не всі наступні блоки одним комітом. Взаємозалежні зміни мають утворювати працездатний набір.
+4. Перед комітом переглядай status/diff/staged diff та запускай доречні typecheck/build/тести. Тут потрібні справжній PostgreSQL, контроль доступу, реальні Kubernetes/RBAC/метрики та доступний Chrome. Не коміть відомі невиправлені помилки. Блокування середовищем явно позначай, не видавай за pass; окремий docs-коміт не потребує повтору незмінного коду.
+5. Назви англійською: type(scope): description, scope необов'язковий, орієнтир до 72 символів; feat/fix/refactor/test/docs/chore/build/ci. Приклади: feat(admin): expose bounded role-protected monitoring; feat(client): add live administrator overview; test(admin): verify authorization and real pod metrics; docs: record block 9 monitoring verification. Це приклади, не задана кількість комітів. Не використовуй update/done/final/fix stuff.
+6. Додавай файли вибірково й зберігай сторонні зміни. Не коміть .env/.local/node_modules/dist, credentials/password hashes/cookie, DB/PVC, kubeconfig, ServiceAccount tokens, Secret YAML/base64, private TLS/CA keys, browser profiles/внутрішні PNG, logs/summary. Код, lock, нові міграції, безпечні manifests/scripts і документація відстежуються. Assignment і застосовані SQL не форматуй.
+7. Не переписуй готову історію й не відкидай чужі зміни заради чистого status. Помилку після коміту виправляй новим перевіреним fix-комітом.
+8. Наприкінці наведи створені за це завдання коміти з хешами/назвами, активну гілку й остаточний git status --short. Власні завершені зміни закомічені; сторонні залишені зміни поясни. Хеш самого фінального звіту повідом у чаті після commit, без циклу записування у цей звіт.
+9. Збережи ці дев'ять правил в AGENTS.md, процес — у PROJECT_PLAN.md, короткий опис — у README. Після фінального коміту створи ZIP точного HEAD за інструкцією наприкінці.
+
+1. АВТОРИЗАЦІЯ АДМІНІСТРАТОРА ТА ЯВНЕ ПРИЗНАЧЕННЯ РОЛІ
+
+У users і PublicUser вже є role user/admin. Використай наявні PostgreSQL-сесії та requireAuth, додай серверний requireAdmin. Кожний /api/admin/* перевіряє актуальні сесію та роль через PostgreSQL до читання загальних задач, повернення кешу або звернення до Kubernetes. Без сесії — 401, дійсний звичайний user — 403, дійсний admin — дозволений read. При БД-відмові — коректний 503, не довіра до раніше закешованої ролі.
+
+Клієнтський role, прихована кнопка, localStorage, заголовок, query чи тіло запиту не надають прав. Публічна реєстрація як і раніше створює лише user; спроба передати role=admin не підвищує привілеї. Не роби першу реєстрацію автоматично адміністратором і не додавай hardcoded admin/password або bypass env для HTTP.
+
+Додай невеликий операторський CLI для явної зміни ролі ІСНУЮЧОГО користувача за username на admin або user, наприклад admin:role з аргументами --username та --role. Параметризований SQL, валідація логіна/ролі, зрозумілий результат для невідомого користувача й ідемпотентний повтор; без паролів/URL у логах чи argv. CLI використовує роль застосунку, не superuser. Надай перевірені TS/built команди й варіант для власного Kubernetes deployment через операторський kubeconfig/owner guards. Це локальна дія оператора, не public API або додаткові pods/exec права HTTP-сервісу.
+
+Не призначай admin довільному наявному користувачу і не змінюй чужі ролі автоматично. Для demo README має давати короткий точний шлях: зареєструвати свій звичайний login → явно призначити саме його CLI → увійти/оновити сеанс → відкрити панель. Для перевірок створи лише власні випадкові акаунти, явно надай одному admin і потім зніми для negative test. Це не блокер, що невідомий користувацький login не було вгадано заздалегідь.
+
+Перевір зміну admin→user з чинною cookie через інший handler: наступний admin API має дати 403 навіть за прогрітого кешу. Logout/expiry/401 прибирають приватні admin-дані; 403 після втрати ролі закриває admin-панель без розкриття старого snapshot. Загальні endpoints не повертають password_hash, session/token hashes, cookie або credentials. Cache-Control: no-store для всіх admin API outcomes.
+
+2. ДЖЕРЕЛА СТАНУ Й ТОЧНЕ ЗІСТАВЛЕННЯ ПРОЦЕСІВ
+
+PostgreSQL є джерелом jobs, власників, progress/terminal/cancel і реєстру executor. Kubernetes — джерело фізичних app pod/UID/phase/Ready/terminating/restart та конфігурації Deployment/HPA; Metrics API — джерело CPU/RAM. Це різні часові знімки. Відобрази походження/час/доступність, а не обіцяй одну атомарну транзакцію між БД і Kubernetes.
+
+Нині executor_registry містить process instanceId, але не pod UID. Додай явне зіставлення, наприклад валідовані POD_UID/POD_NAME/POD_NAMESPACE через Downward API і нову additive SQL-міграцію 004 з nullable metadata реєстру. Назви/деталі можеш уточнити, але UUID процесу залишається реальним health instanceId; не замінюй його на pod name. У host/npm dev metadata може бути відсутня. Старі рядки/користувачі/сесії/jobs/results зберігаються. SQL 001–003 незмінні, нова міграція явна, runner/checksum/build/readiness й fixtures знають її версію.
+
+Під час rolling upgrade старі процеси ще можуть писати реєстр без нових колонок: additive nullable/default-схема повинна це дозволяти. Heartbeat має не більше одного SQL у польоті, зберігає DB clock/freshness, claim/finalization busy та bounded shutdown. Нові metadata не додають серійних DB round trips після commit claim й не змінюють 21000 мс резерв, TTL або lost_after. CLI маршруту лишається незалежним від PostgreSQL/Kubernetes.
+
+Покажи реальні Pending/NotReady/Ready/terminating app pod, навіть якщо вони ще не зареєстрували executor. Для запису DB без підтвердженого pod-збігу чесно познач «немає зіставлення»/«поза Kubernetes», а не вигадуй CPU. Pod UID стабільний при container restart, instanceId змінюється: попередня свіжа lease того самого pod не є другим фізичним сервером. Старі/дубльовані/прострочені реєстрації показуй окремо від поточних pod і доступних слотів. Не склеюй їх за порядком рядків, hostname-припущенням або схожим коротким UUID.
+
+Busy визначається чинними claim/running/finalization, не CPU-відсотком. Старий idle heartbeat не робить committed running вільним; cancelRequested не означає фізично звільнений слот. Expired executor з running job позначається недоступним, але job не стає failed до чинного lost_after. Дані моніторингу не перепризначають jobs і не змінюють їхній стан.
+
+Для CPU/RAM зіставляй namespace + pod name + container name=app з поточним Kubernetes pod UID; якщо UID у Metrics API відсутній, не вигадуй його. Перевір timestamp щодо поточного pod/container start і не приписуй старий sample новому процесу після restart. Чесний короткий unknown під час переходу кращий за неправильне зіставлення. Застарілий sample не стає свіжим лише від нового HTTP GET.
+
+Обмежуй читання реєстру: усі поточні pod, свіжі виконавці й виконавці незавершених jobs потрібні; необмежена багаторічна історія heartbeat — ні. Можна показувати обмежене недавнє вікно недоступних записів із явною межею, не обрізаючи мовчки поточні активні дані. Визначення available capacity узгоджене з чинною чергою/ETA, а не з HPA desiredReplicas.
+
+3. KUBERNETES-ДОСТУП ТІЛЬКИ НА СЕРВЕРІ
+
+Панельний backend читає Kubernetes API з app pod напряму по HTTPS з cluster CA і окремим ServiceAccount з мінімальними read-only правами власного namespace. Наявного Node HTTPS достатньо; не запускай kubectl/docker через HTTP-handler, не монтуй операторський kubeconfig/Docker socket і не додавай sidecar proxy лише заради читання. Браузер звертається тільки до відносних /api/admin/* через Traefik, не до Kubernetes/Metrics Server напряму.
+
+Додай власні namespaced ServiceAccount/Role/RoleBinding та явно потрібний projected/автомонтований token лише HTTP-app контейнеру, який читає API; migration Job/worker не отримують його як аргумент/env. Використовуй короткоживучий bound token, врахуй його ротацію: не кешуй початковий токен назавжди, не створюй довгоживучий Secret-токен. Зберігай readOnly/nonroot rootfs, працездатність читання CA/token для UID 1000 і правильний shutdown запитів. Token, CA paths і сирі headers не потрапляють у клієнт чи логи.
+
+Достатні права: get/list app pod, get Deployment app і HPA app, get/list pod metrics групи metrics.k8s.io у цьому namespace; за потреби get/list EndpointSlices для фактичних ready backends. Для named get застосовуй resourceNames, де це придатно. Dynamic pod list обмежується namespace/RBAC і серверним label/owner selector: не стверджуй, що сам RBAC list фільтрує довільні labels. Немає прав secrets, pods/exec, pods/log, mutation/scale/delete/roles/impersonate/cluster-admin, немає читання чужих namespace або всіх nodes заради цієї панелі.
+
+Джерело конфігурації namespace/owner/API address — server deployment/Downward API, не HTTP query/body. Дозволені API paths фіксовані й параметри URL безпечно закодовані. Namespace/selector не можна підмінити клієнтом. Не виконуй HTTP fan-out по довільних адресах усіх pod; для списку станів достатньо bounded list-відповідей. Owner/context guards provisioning лишаються для створення ServiceAccount/RBAC; чужі об'єкти не перезаписуються.
+
+Використовуй фактичний metrics.k8s.io/v1beta1 нашого Kubernetes 1.36.1/Metrics Server 0.9.0; не копіюй приклад v1 лише тому, що поточні docs вже описують новіший Kubernetes. TLS до API-server нормально перевіряється cluster CA/hostname, без rejectUnauthorized:false/глобальних bypass. Вузькі локальні kubelet/aggregation TLS-винятки Metrics Server з блоку 8 не поширюються на цей клієнт або app HTTPS.
+
+Для npm dev поза Kubernetes передбач явний disabled-режим джерела інфраструктури: авторизація й DB-частина панелі працюють, CPU/RAM/Kubernetes статуси unknown з поясненням. Не вгадуй ~/.kube/config чи сторонній кластер, не повертай фіктивні два сервери/0% CPU. Тимчасовий збій Metrics API/RBAC не вимикає звичайний HTTP/jobs/liveness/readiness, якщо БД/схема справні.
+
+4. МІНІМАЛЬНИЙ ТИПІЗОВАНИЙ ADMIN API
+
+Запропонований компактний контракт: GET /api/admin/overview для summary/server/executor/HPA/metric source status та GET /api/admin/jobs з пагінацією й фільтром status, за потреби executedBy. Назви можеш уточнити, не множ вимоги на зайві endpoints. Зберігай shared DTO і runtime-валідацію зовнішніх даних та клієнтських відповідей, як у чинному jobs UI.
+
+Overview має дати:
+- Лічильники queued/running та terminal-станів, кількість поточних app/Ready/terminating і підтверджених виконавців/зайнятих слотів; чіткі назви показників, щоб desired/Ready/executors не змішувалися.
+- HPA min/max/current/desired і короткий стан за фактичними даними; недоступний HPA не підставляється дефолтними 2/4 як спостереженням.
+- Поточні app-сервери з реальними pod UID/name, process UUID за наявності, phase/Ready/restarts, registry freshness/busy/current job, часами й nullable CPU/RAM + declared requests/limits. Втрачені/неузгоджені реєстрації відокремлені.
+- Час DB snapshot, час спостереження Kubernetes і фактичні timestamp/window метрик, status джерел ok/unavailable/disabled/stale/partial або еквівалентний чіткий контракт.
+
+Jobs list показує всі власні й чужі задачі адміністратору: id, owner id/username, status, реальний stage/percent/iterations, created/started/finished/updated, executedBy, cancelRequested та безпечну failure reason. Для моніторингу не треба масово повертати input/result/coordinates або claims/паролі/SQL-повідомлення. Використовуй projection, а не SELECT * і подальше приховування секретів. Не змінюй контракт звичайних owner endpoints.
+
+Пагінація: розумний default 20, максимум 50, валідовані цілі limit/offset, допустимі status/UUID, відмова невідомим/масивним query. Стабільне сортування created_at/id або інший узгоджений порядок; при однакових датах сторінки не стрибають. Усі SQL значення параметризовані, рядки сортування/колонки не надходять довільно з клієнта. Count і page належать узгодженому короткому snapshot або їхня допустима часова різниця явно описана.
+
+Неповні інфраструктурні дані не перетворюй на нулі. Якщо DB/auth справні, а Kubernetes/Metrics недоступні, overview може повернути явний partial/degraded контракт з актуальною DB-частиною і last-known даними, позначеними stale з початковими часами. Якщо останніх даних немає — null/unknown. Provider 401/403 від Kubernetes є збоєм джерела, а не 401/403 людської сесії; не розлогінюй admin через ServiceAccount/RBAC-помилку. Справжній людський 401/403 обробляється окремо.
+
+CPU quantity коректно перетворюється з n/u/m/cores; RAM — з фактичних Kubernetes quantities у байти/MiB зі скінченними межами. CPU — використані ядра за window, memory — working set. Якщо показуєш відсоток, явно визнач denominator request/limit й не clamp до 100%: utilization від 250m може бути понад 100. Агрегат CPU/RAM — тільки сума придатних samples app, з coverage, наприклад 3/4; часткова сума не видається за весь кластер або Mac. Відсутня RAM не означає «0 MiB».
+
+Не повертай raw Pod/HPA JSON: whitelist достатніх полів. ServiceAccount token, secret refs/values, env, kubeconfig, IP/endpoint credentials, password_hash, session hashes, claim token та повні внутрішні errors не мають потрапити в JSON/HTML/логи/bundle. Так само помилкові відповіді й кеш не обходять проекцію та роль.
+
+5. ОБМЕЖЕНІ ЧИТАННЯ, КЕШ І СВІЖІСТЬ
+
+Панель не повинна створювати N+1 SQL/API calls по всій історії, новий запит на кожний рядок, безмежний watch або необмежений список. Достатньо кількох паралельних bounded read запитів до БД/Kubernetes. Обмежуй count/size зовнішніх відповідей та registry/job rows; за порушення меж не позначай обрізані дані повними.
+
+Для admin HTTP визнач спільний абсолютний бюджет від middleware перед auth, включно з pool acquisition, SQL, Kubernetes, parsing/commit. Орієнтир — до 8 с, нижче чинного client request timeout 10 с; API-source запит до 2 с, reply до кількох MiB. Остаточні значення узгодь із pool/SQL limits і запиши в README/тести. Timeout повинен фізично abort/destroy запит і звільняти ресурси; Promise.race без припинення залишеного запиту недостатньо. Не додавай необмежені retry.
+
+Короткий per-process cache/single-flight інфраструктурного read, наприклад 5 с, допустимий для контролю навантаження. Він не кешує дозвіл admin або cookie й повертається тільки ПІСЛЯ актуального requireAuth/requireAdmin. Запізнілий refresh, збій джерела чи новий handler не оновлює timestamp старого sample. Після невдачі last-known snapshot явно stale; налаштуй й опиши межі віку sample/cache та відновлення. DB lease freshness визначається DB timestamp, не годинником браузера; локальний TTL кешу може використовувати monotonic time.
+
+Метрики per-process cache різних backend можуть мати різний час; панель не обіцяє строго спадний/синхронний CPU-графік. Панельне читання не бере глобальний admission lock, не змінює jobs/registry й не впливає на HPA decisions. Перед завершенням сервера припини нові refresh/timers, фізично закрий видані HTTP-запити й не запускай нові SQL після Pool.end.
+
+6. УКРАЇНСЬКА ПАНЕЛЬ У НАЯВНОМУ UI
+
+Додай зрозумілий пункт «Адміністрування» тільки для актуального admin та можливість повернутися до власних маршрутів. Не переписуй основний layout/auth/jobs UI й не додавай фреймворк. Статичний HTML shell може бути публічним, приватні дані захищає API; не вбудовуй snapshot/secrets у сторінку до авторизації.
+
+Достатня структура: невеликий summary, список/таблиця серверів і виконавців, пагіновані задачі всіх власників із фільтром стану. Показуй зрозумілі Ukrainian назви, читабельні стани/прогрес/час, CPU з одиницями й RAM MiB, поточну job/executedBy; повні UUID доступні без руйнування 360 px layout. Для HPA відокрем бажані/готові сервери, поточний worker busy і джерело метрик. Не називай Ready автоматично вільним виконавцем.
+
+Polling, наприклад раз на 5 с, працює лише коли admin-панель відкрита й дозволена. Один керований цикл, максимум один запит відповідного виду в польоті; ні timer на кожний рядок, ні дублювання циклів після повторного входу/перемикання. Manual refresh, loading/empty/partial/error/stale доступні. За прихованої вкладки/виходу з панелі припини чи обґрунтовано уповільни polling. Зміна фільтра/сторінки не скидає фокус і не застосовує стару відповідь до нового вибору.
+
+Використовуй AbortController і покоління сесії/панелі/запиту. Logout/401/403 втрати admin очищують приватний стан та забороняють запізнілим успішним відповідям відновити його. 503 або збій Kubernetes зберігає останнє коректне представлення тільки з явним попередженням про неактуальність. Дані текстом/textContent, без вставляння неочищеного HTML із логінів/помилок/API.
+
+У 360 px можна мати контрольоване прокручування окремої широкої таблиці чи адаптивні картки; весь viewport не розповзається. Клавіатура, помітний focus, labels, пояснення unknown/stale, відмінність busy/idle/недоступний видимі не лише кольором. Не вигадуй history charts/спарклайни з неіснуючих даних; live snapshot достатній. Панель не виконує пошук маршруту в браузері й не формує фальшивий прогрес.
+
+7. ДЕПЛОЙ ТА ЗБЕРЕЖЕННЯ ПОПЕРЕДНІХ ГАРАНТІЙ
+
+Розшир наявні manifests/config/provision app ServiceAccount/RBAC/Downward API та новою явною compiled міграцією ДО rollout. Образ як і раніше nonroot, compiled runtime, без source/dev tools/operator kubeconfig/секретів у шарах. Нові TS/CLI/SQL файли включені в build/runtime; CLI не починає вимагати Kubernetes для звичайної роботи. Нові monitor-настройки мають явні валідовані межі, безпечний .env.example й працездатний host/npm dev fallback.
+
+HPA й далі володіє replicas, новий/явний stopped bootstrap2, звичайний repeat не скидає 4→2/1. Збережи канонічний last-applied LF, surge0/unavailable1, bounds 2/4/CPU70%, bounded load, stop/HPA deletion/новий port-forward/CA-verified HTTPS readiness. Не змінюй спільний Metrics Server/його TLS лише заради панелі. RBAC конфігурація належить власному namespace/owner; HTTP SA не отримує cluster-admin навіть для «зручної перевірки».
+
+Панель читає саме свій deployment namespace, включно з випадковим test namespace, а не hardcoded demo. Operator kubeconfig залишається тільки в deployment scripts. Test cleanup не видаляє shared metrics add-on чи demo. Неправильні/чужі owner/context, namespace, токени або відповіді провайдера дають явний fail/degraded, без fallback на інший кластер.
+
+8. ОБОВ'ЯЗКОВІ ПЕРЕВІРКИ ДОСТУПУ, ДАНИХ І МЕТРИК
+
+Змістовні unit/controller/parser перевірки:
+- Рольовий gate: user/localStorage/spoof header не надають admin; кеш і source provider не читаються перед дозволом. Malformed response/quantities, null/0/stale/partial, request bounds й stop/abort не викликають неконтрольованих promises.
+- Mapping pod UID/name/namespace/process UUID і restart: попередня lease не додає ще один live pod, Pending не стає executor, stale метрика не приписується новому контейнеру. Busy/finishing/cancelRequested/expired не змішуються з Ready.
+- Client generations: logout/401/role403/зміна фільтра/сторінки/закриття панелі, запізнілий successful response, відсутність повторного polling/фокусу/приватних залишків.
+- Absolute budgets/single-flight/cache freshness, фізичне припинення запитів, bounded відповіді; формування безпечних DTO. Не множ тести простим повторенням присвоєних констант.
+
+Справжній PostgreSQL і два незалежні HTTP-процеси:
+- Guard TEST_DATABASE_URL незмінний: явна окрема test-БД, перевірені фактичні host/port/database/роль без superuser й випадкова схема; робочі таблиці не очищуються.
+- Міграція 001→002→003→004 із збереженими account/session/job/result/registry, repeat/concurrent compiled runner/checksum/readiness. Онови потрібні fixtures/очікування попередніх тестів під нову версію без послаблення їхніх meaningful assertions; SQL 001–003 незмінні.
+- Normal user реєструється як user, admin роль надає тільки явний операторський CLI. Перевір unknown username/повтор/невалідну роль без небезпечної зміни. Адмін за однією cookie читає overview/всі jobs через A/B, звичайний user на кожний admin endpoint має 403, без сесії 401; public owner API й далі приховує чужі дані як 404.
+- Демотуй свого test admin при активній сесії й прогрітому кеші через інший процес: наступний запит на A/B — 403. Logout/expiry — 401, DB-down — 503. Підвищення ролі через JSON/query/header/клієнтський стан не працює.
+- Щонайменше два власники, понад одну сторінку jobs/однакові created_at, фільтри/пагінація/сталі лічильники/real progress, збереження історії після restart. Не генеруй зайві важкі jobs для тестування сторінок: bounded термінальні fixtures в ізольованій test-схемі допустимі, CPU-приклади перевіряються окремо справжніми worker.
+- Перевір проекцію всіх outcome/cache/error: жодних хешів/токенів/credentials/claim/raw env/input/result у моніторинговому list. Невідомі/надмірні query відхиляються; читання не чекає admission lock й не дублює N+1.
+
+Реальний Kubernetes/HTTPS/RBAC сценарій у власному тестовому namespace:
+1) Підняті app image/явна 004/RBAC/SA/Downward API. Адмін входить через Traefik з Secure cookie; два process instanceId/pod UID коректно зіставлені. Міграційний/worker-контекст не використовує Kubernetes token як env/аргумент.
+2) Фактичні pod CPU/RAM timestamp/window у admin API/UI зіставлені з raw Metrics API/kubectl top для тих самих pod/container. Порівнюй однаковий sample/time або поясни різницю sampling/округлення; не вимагай збігу двох незалежних живих вимірів до міліядра.
+3) Справжній пошук займає worker: admin бачить відповідну job/owner/progress/executedBy і busy, CPU змінюється за реальною метрикою, HTTP лишається доступним. Після cancel/timeout/terminal slot і таблиця оновлюються; графічний маршрут owner UI не зламаний.
+4) Права SA реально перевірені через kubectl auth can-i з конкретною ServiceAccount identity та actual read: потрібні pods/metrics/HPA дозволені, secrets/exec/logs/scale/delete й чужий namespace — заборонені. Не виконуй справжню небезпечну мутацію заради negative test; достатньо правового probe/безпечної відмови.
+5) Тимчасово прибери лише необхідне metrics/read право власного app SA в test namespace або іншим вузьким способом виклич реальний provider 403. Shared Metrics Server/HPA/demo не вимикаються. Адмін бачить partial/unknown чи stale з первісним timestamp, звичайні tasks/auth/readiness працюють. Відновлення права повертає свіжі метрики. Provider 403 не підміняється людським logout/роллю.
+6) Заміна/рестарт одного власного app pod показує новий process UUID, правильний pod UID/restarts і чесну доступність старого реєстру/метрик. Старий процес не додає фіктивний живий сервер, історія/сеанс збережені. Fault і terminal відповідають справжньому SIGTERM/server_shutdown або SIGKILL/worker_lost, не fake cancel; guard owner/context збережений.
+
+HPA й панель перевір на одному реальному bounded циклі 2→4→2 із наявним load driver та admin observer:
+- Чинний тест блоку 8 зберігає строгі proofs: HPA сам створив C/D, обидва мають positive progress→completed власних jobs, максимум 4, реальна queued ETA, один slot/process, не більше одного committed claim, repeat-at-four не скидає replicas, нормальні jobs не failed, cooldown/physical exit/registry exclusion/stop-start.
+- Адмін API/UI автоматично показує C/D, фактичні CPU/RAM/джерело/час і всі jobs різних власників; бажані/Pending не видаються за Ready/live, після downscale недоступні записи позначені й не входять до живої місткості. Сесія працює через нові handlers без нового входу.
+- Не додавай повторний повний стрес-тест лише заради другого скриншота. Можна доповнити існуючий driver одним окремим test admin без навантажувальних jobs і browser observer; три звичайні load-власники/всі budgets лишаються чинними.
+- Додай safe діагностику при transport failure ДО cleanup, не повторюй невизначений POST. Відсутній 202 не зараховується до cancel proof; новий окремий bounded cancel-кандидат не приховує failed/restart. Невідтворений reset із блоку 8 не оголошується виправленим заднім числом.
+
+Chrome: звичайний user не отримує панельних даних навіть прямим API, admin бачить summary/сервери/метрики/всі owner jobs, фільтр/пагінацію/refresh, partial/stale/RBAC-recovery, role403/logout/401 та очищення після запізнілих відповідей. Desktop/360 px/клавіатура, немає console/resource/mixed-content/viewport overflow. Фактично оглянь PNG server/job/partial/нові HPA executors. Внутрішні PNG не комітити/не публікувати; HTTP не називати візуальним прийманням.
+
+Регресія: npm ci, typecheck/build, повний npm test (до змін 183 = 134 non-DB + 49 PG), TS/built CLI; нові осмислені тести додаються зверху. Повтори container/static deployment/HTTPS сценарії для зміненого app image/schema/SA/provision, збережи попередні assertions про runtime, міграції, auth/ownership/квоти/worker/cancel/SIGTERM/SIGKILL/PVC/stop. Статичний режим лишається autoscaling:false/2, HPA — окремий. Старі local Chrome-групи повтори для зміненого auth/client; не видавай історичний результат за новий pass. Великий benchmark незмінного алгоритму не повторюй.
+
+9. РОБОТА ДО ЗАВЕРШЕННЯ ТА ЧЕСНІ БЛОКЕРИ
+
+Рухайся автономно в межах дорученого. Перед уже дозволеними локальними змінами не потрібне загальне повторне підтвердження. Для довгого HPA-тесту використовуй bounded polling/прогрес, не мовчазний багатохвилинний wait. Абсолютний work budget, фізичне припинення HTTP/child/Chrome і окремий скінченний cleanup з блоку 8 збережені.
+
+Якщо справді недоступні runtime/БД/Kubernetes permissions/Chrome/мережа, заверши незалежні code/manifests/tests/docs і доступні перевірки, тоді назви точний blocker та мінімальну потрібну дію. Не оголошуй панель завершеною лише за статичним макетом, моком CPU/RAM, захованим admin button або сухим schema validation. Не підміняй чужими privileges/cluster або вимкненням TLS.
+
+Зберігай host PostgreSQL/Postgres.app, demo/Colima/чужі namespace й користувацькі дані. Test changes/role grants/RBAC faults — тільки у власних ізольованих ресурсах. Cleanup прибирає власні test jobs/users/schema/PVC/namespace/Chrome/forwardings, не shared Metrics Server/demo. Не створюй невідомого користувачу постійного superadmin чи secret password у звіті.
+
+10. ДОКУМЕНТАЦІЯ, ЗВІТ, ZIP ТА ЗУПИНКА
+
+README: як явно надати/зняти роль свого login через перевірений CLI й увійти в панель; що вона показує, одиниці/походження/свіжість/unknown/partial і host dev fallback; потрібні SA/RBAC/Downward API, token rotation/CA; нова явна міграція без втрати даних, deploy/start/status/stop/test команди, polling/cache/HTTP budgets і limits. Не називай app-container CPU/RAM всім Mac чи окремим worker; місцеві TLS-винятки Metrics Server й browser SPKI збережені чесно. Команди оператора завжди мають власний kubeconfig/context/namespace, жодних прикладів паролів у CLI.
+
+PROJECT_PLAN.md/AGENTS.md: запиши приймання блоку 8 з 134 незалежними non-DB/typecheck/build/CLI/HTTP й точними обмеженнями runtime/PG/browser/PNG. Невстановлений reset лишається невстановленим. Пункт 8 про панель познач реалізованим лише після server role/API/UI/реальних метрик/HPA-відображення. Загальна система ще чекає повного приймання блоку 10. Збережи дев'ять Git-правил, assignment/старі доручення/звіти/SQL 001–003 незмінні.
+
+Створи docs/block-09-report.md з:
+1. Статусом готово/частково/заблоковано, точними незалежними перевірками керівника й фактичними перевірками виконавця.
+2. Новими/зміненими файлами, обґрунтуванням залежностей, additive 004/migration/build/readiness та збереженими даними.
+3. Контрактом ролі/операторського CLI/requireAdmin, доказами 401/403/admin/demotion/logout і відсутності витоку через кеш/API/browser. Випадкові test логіни допустимі, credentials/hashes/token — ні.
+4. Джерелами Kubernetes/DB/метрик, SA/RBAC і реальними allow/deny, TLS/token rotation, namespace/owner scoping; host fallback та джерельні помилки окремо від user auth.
+5. Mapping pod UID↔process UUID↔job executedBy, restart/lease/Ready/busy/Pending/terminating/зниклі процеси й чесні межі зіставлення.
+6. Одиницями CPU/RAM, timestamp/window, source/cache ages/coverage, partial/stale й відновленням; кількома фактичними зіставленнями UI/API/raw Metrics API без вигаданих синхронних цифр.
+7. Jobs projection/пагінацією/фільтрами/real progress, bounded SQL/API/cache/одночасністю/абсолютними timeout/abort/shutdown і впливом polling.
+8. Реальним HTTPS/Chrome/HPA сценарієм: A/B→C/D→2, правильні метрики/власники/jobs/progress у панелі; cross-handler сесія/роль, negative RBAC, доступ user/admin, збережені history/results/PVC/CA/stop-start.
+9. Таблицею unit/PG/container/static deployment/HPA/HTTPS/browser pass/fail/skipped, timeout/error cases та реальним оглядом desktop/360 PNG. Проміжні fail/невідомі причини прямо зазначені, без ретроспективного pass.
+10. Перевіреними командами, створеними комітами, гілкою/status, cleanup/збереженими ресурсами, станом demo/HPA/Metrics Server/Colima/host PostgreSQL й безпечним stop/start. Demo бажано лишити idle2 без фонового load й довільно підвищених чужих ролей.
+11. Межами наступного блоку 10 — повне приймання/демонстрація всіх пунктів — та ZIP фінального HEAD, ручними діями лише за реального blocker.
+
+Після перевірок переглянь status/diff/staged diff, результати й секрети; закоміть власні завершені зміни й звіт. З кореня наявного репозиторію після фінального коміту:
+
+git archive --format=zip --output=../CourierRoute-block-09.zip HEAD
+
+Перевір CRC, commit-коментар, точний набір та побайтовий вміст tracked файлів фінального HEAD. .git/.env/node_modules/dist/.local/DB/PVC/kubeconfig/ServiceAccount tokens/Secret/private keys/browser profiles/внутрішніх PNG/logs/summary і сторонніх untracked у ZIP немає. Якщо commit заблокований, не називай старий архів актуальним. Архів автоматично нікуди не публікуй.
+
+Фінальна відповідь: короткий результат/як відкрити панель і явно призначити свій login, фактичні перевірки/блокери, звіт, коміти/гілка/status, стан залишених ресурсів та безпечна зупинка, ZIP/Finder-команда. Для очікуваного /Users/a860/Documents/Site:
+open -R /Users/a860/Documents/CourierRoute-block-09.zip
+Перевір фактичний шлях. Після виконання зупинись перед блоком 10.
+
+ОФІЦІЙНІ ТЕХНІЧНІ ДЖЕРЕЛА
+
+Довідка, не нові продуктові вимоги; звір саме з Kubernetes 1.36.1/Metrics Server 0.9.0.
+- API з app pod, ServiceAccount/cluster CA: https://v1-36.docs.kubernetes.io/docs/tasks/run-application/access-api-from-pod/
+- RBAC/Role/RoleBinding/resourceNames: https://v1-36.docs.kubernetes.io/docs/reference/access-authn-authz/rbac/
+- ServiceAccount projected token: https://v1-36.docs.kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
+- Downward API UID/name/namespace: https://v1-36.docs.kubernetes.io/docs/concepts/workloads/pods/downward-api/
+- Resource metrics/CPU window/memory working set: https://v1-36.docs.kubernetes.io/docs/tasks/debug/debug-cluster/resource-metrics-pipeline/
+- Metrics Server: https://github.com/kubernetes-sigs/metrics-server/blob/v0.9.0/README.md
+- PodMetrics schema: https://github.com/kubernetes/metrics/blob/master/pkg/apis/metrics/v1beta1/types.go
+- Перевірка дозволів: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_auth/kubectl_auth_can-i/
+- HPA: https://v1-36.docs.kubernetes.io/docs/concepts/workloads/autoscaling/horizontal-pod-autoscale/
+
+ОРИГІНАЛЬНІ ВИМОГИ ВИКЛАДАЧА ДЛЯ ЗВІРКИ
+
+docs/assignment.txt має залишитися незмінним. Маркери нижче не є частиною оригіналу.
+
+<<<BEGIN_ASSIGNMENT>>>
+Створити веб застосування, backend якого здатний коректно обслуговувати трудомісткі запити користувачів.
+
+Прикладами таких запитів можуть бути задачі: розв"язування системи рівнянь, метод скінченних елементів, розпізнавання образів, обробка зображень та інші, на вибір студента. 
+
+Особливості:
+1) Повинна бути обмежена максимальна трудомісткість одної задачі (кількість невідомих, час обчислення).У разі перевищення - помилка або відмова у виконанні. (Перевірку вхідних даних задачі можна виконати ще на клієнті (frontend)).
+2) Оскільки запити трудомісткі, клієнт повинен інформуватись про хід виконання задачі (відсоток/етап виконання).
+3) Клієнт повинен мати доступ до історії результатів виконання задач, переглядати стан поточної задачі (див. пункт 1.), скасувати виконання задачі, запустити виконання нової задачі. (максимальна кількість задач повинна бути обмежена, необхідні дані зберігатись в базі даних)
+4) Авторизація клієнта (з використанням https (+бали))
+
+---------------------------------------- Найважливіша частина завдання ---------------------------------------------
+5) Веб застосування повинне забезпечувати т.з. балансування навантаження як мінімум для 2-ох серверів. 
+(для цього повинен бути застосований так званий load balancer, в його ролі може виступати і сам веб сервер, а задачі виконуватись на кількох серверах застосувань (application server)).
+---------------------------------------------------------------------------------------------------------------------------------
+
+
+----------------------------------------- Додаткові бали --------------------------------------------------------------------------
+6) (+бали) Якщо всі ресурси системи вичерпані, клієнт повинен бути повідомлений про те, що його запит поставлено у чергу та інформуватись про приблизний час очікування.
+7) (+бали) Горизонтальне розширення за рахунок автоматичного запуску нових серверів (віртуальні машини, контейнери), максимальна кількість повинна бути обмежена.
+8) (+бали) Панель адміністратора для моніторингу всіх запущених процесів та навантаження на систему серверів.
+----------------------------------------------------------------------------------------------------------------------------------------
+
+<<<END_ASSIGNMENT>>>

@@ -1,7 +1,7 @@
 import { performance } from 'node:perf_hooks';
 import type { Pool } from 'pg';
-import type { ExecutorConfig } from './executor-config.js';
-import { validateExecutorConfig } from './executor-config.js';
+import type { ExecutorConfig, ExecutorPodMetadata } from './executor-config.js';
+import { readExecutorPodMetadata, validateExecutorConfig } from './executor-config.js';
 
 export interface ExecutorRegistrationState {
   acceptingClaims: boolean;
@@ -18,6 +18,7 @@ export class ExecutorRegistry {
   readonly #pool: Pool;
   readonly #instanceId: string;
   readonly #config: ExecutorConfig;
+  readonly #metadata: ExecutorPodMetadata;
   #state: (() => ExecutorRegistrationState) | undefined;
   #onFailure: (() => Promise<void>) | undefined;
   #operation: Promise<boolean> | undefined;
@@ -28,10 +29,12 @@ export class ExecutorRegistry {
   #stopping = false;
   #shutdownPromise: Promise<void> | undefined;
 
-  constructor(pool: Pool, instanceId: string, config: ExecutorConfig) {
+  constructor(pool: Pool, instanceId: string, config: ExecutorConfig, metadata: ExecutorPodMetadata = readExecutorPodMetadata()) {
     this.#pool = pool;
     this.#instanceId = instanceId;
     this.#config = validateExecutorConfig(config);
+    this.#metadata = readExecutorPodMetadata(metadata.podUid === null && metadata.podName === null && metadata.podNamespace === null
+      ? {} : { POD_UID: metadata.podUid ?? undefined, POD_NAME: metadata.podName ?? undefined, POD_NAMESPACE: metadata.podNamespace ?? undefined });
   }
 
   get confirmed(): boolean {
@@ -71,14 +74,18 @@ export class ExecutorRegistry {
   async #write(state: ExecutorRegistrationState, shutdownDeadline?: number): Promise<void> {
     const text = `
       WITH stamp AS (SELECT clock_timestamp() AS now)
-      INSERT INTO executor_registry(instance_id, started_at, last_seen_at, expires_at, accepting_claims, busy, current_job_id)
-      SELECT $1::uuid, now, now, now + $2::integer * INTERVAL '1 millisecond', $3::boolean, $4::boolean, $5::uuid
+      INSERT INTO executor_registry(instance_id, started_at, last_seen_at, expires_at, accepting_claims, busy, current_job_id,
+        pod_uid, pod_name, pod_namespace)
+      SELECT $1::uuid, now, now, now + $2::integer * INTERVAL '1 millisecond', $3::boolean, $4::boolean, $5::uuid,
+        $6::uuid, $7::text, $8::text
       FROM stamp
       ON CONFLICT(instance_id) DO UPDATE SET last_seen_at = EXCLUDED.last_seen_at,
         expires_at = EXCLUDED.expires_at, accepting_claims = EXCLUDED.accepting_claims,
-        busy = EXCLUDED.busy, current_job_id = EXCLUDED.current_job_id
+        busy = EXCLUDED.busy, current_job_id = EXCLUDED.current_job_id,
+        pod_uid = EXCLUDED.pod_uid, pod_name = EXCLUDED.pod_name, pod_namespace = EXCLUDED.pod_namespace
     `;
-    const values = [this.#instanceId, this.#config.leaseTtlMs, state.acceptingClaims, state.busy, state.currentJobId];
+    const values = [this.#instanceId, this.#config.leaseTtlMs, state.acceptingClaims, state.busy, state.currentJobId,
+      this.#metadata.podUid, this.#metadata.podName, this.#metadata.podNamespace];
     if (shutdownDeadline === undefined) {
       await this.#pool.query(text, values);
       return;

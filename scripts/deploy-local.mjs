@@ -398,6 +398,14 @@ async function provision({ state, namespace, ownerId, httpPort, httpsPort, image
     return value;
   }
   await apply(await manifest('namespace'));
+  const monitorRbac = await manifest('monitor-rbac');
+  // Preflight every existing target before changing any of these rights. A
+  // namespace label alone does not prove ownership of a pre-existing Role.
+  for (const object of monitorRbac.items) {
+    const prior = await kubectl(['get', object.kind, object.metadata.name, '--ignore-not-found', '-o', 'json']);
+    if (prior.trim()) assertObjectOwner(JSON.parse(prior), { namespace, ownerId, kind: object.kind, name: object.metadata.name });
+  }
+  await apply(monitorRbac);
   const directory = join(local, namespace);
   const credentialsPath = join(directory, 'credentials.json');
   let credentials = await readJson(credentialsPath);
@@ -576,9 +584,58 @@ export async function provisionTestDeployment({ namespace, ownerId, httpPort, ht
   }
 }
 
+/** This is a local operator action, using the explicitly owned kubeconfig.
+ * The HTTP ServiceAccount has no exec or role mutation permission. */
+export async function assignDeploymentRole({ namespace = 'courier-route', ownerId, username, role } = {}) {
+  assert.match(username ?? '', /^[A-Za-z0-9_-]{3,32}$/u, 'Use a valid existing login.');
+  assert.ok(role === 'admin' || role === 'user', 'Role must be admin or user.');
+  assert.ok(namespace === 'courier-route' || /^courier-route-test-[a-z0-9-]+$/u.test(namespace), 'Use an owned app namespace.');
+  const state = await clusterState();
+  await assertClusterOwnership(state);
+  if (namespace === 'courier-route') {
+    assert.ok(ownerId === undefined || ownerId === state.ownerId, 'The demo owner must match its local record.');
+    ownerId = state.ownerId;
+  }
+  assert.match(ownerId ?? '', /^[0-9a-f-]{36}$/u, 'A test namespace needs its exact owner ID.');
+  const kubectl = kubectlFor(namespace);
+  const ownedNamespace = await kubectl(['get', 'namespace', namespace, '-o', 'json'], { json: true });
+  assertObjectOwner(ownedNamespace, { namespace: undefined, ownerId, kind: 'Namespace', name: namespace });
+  const app = await kubectl(['get', 'deployment', 'app', '-o', 'json'], { json: true });
+  assertObjectOwner(app, { namespace, ownerId, kind: 'Deployment', name: 'app' });
+  const image = app.spec.template.spec.containers.find((container) => container.name === 'app')?.image;
+  assert.match(image ?? '', /^courier-route:block07-[0-9a-f]{16}$/u, 'Only the owned compiled app image may run the role CLI.');
+  const pods = await kubectl(['get', 'pods', '-l', 'app.kubernetes.io/name=courier-route-app', '-o', 'json'], { json: true });
+  const pod = pods.items.find((value) => !value.metadata.deletionTimestamp && value.status?.phase === 'Running'
+    && value.status?.conditions?.some((condition) => condition.type === 'Ready' && condition.status === 'True')
+    && value.metadata.labels?.['courier-route.local/owner-id'] === ownerId
+    && value.metadata.labels?.['app.kubernetes.io/managed-by'] === managedLabel
+    && value.spec.nodeName === `${cluster}-control-plane`
+    && value.spec.containers.find((container) => container.name === 'app')?.image === image);
+  assert.ok(pod, 'A current Ready app process is required for the operator role CLI.');
+  const reference = pod.metadata.ownerReferences?.find((value) => value.controller && value.kind === 'ReplicaSet');
+  assert.ok(reference, 'The target pod must belong to an app ReplicaSet.');
+  const replicaSet = await kubectl(['get', 'replicaset', reference.name, '-o', 'json'], { json: true });
+  assert.equal(replicaSet.metadata.uid, reference.uid);
+  assert.ok(replicaSet.metadata.ownerReferences?.some((value) => value.controller && value.kind === 'Deployment'
+    && value.name === 'app' && value.uid === app.metadata.uid), 'The target pod must belong to the owned Deployment.');
+  return (await kubectl(['exec', pod.metadata.name, '-c', 'app', '--', 'node', '/app/dist/server/admin-role.js',
+    '--username', username, '--role', role], { timeoutMs: 20_000 })).trim();
+}
+
 async function main(command) {
   if (command === 'preflight') { console.log(JSON.stringify(await preflight(), null, 2)); return; }
   if (command === 'image') { console.log(await buildImage()); return; }
+  if (command === 'role') {
+    const args = process.argv.slice(3);
+    const values = new Map();
+    for (let index = 0; index < args.length; index += 2) {
+      const key = args[index]; const value = args[index + 1];
+      assert.ok((key === '--username' || key === '--role') && value && !values.has(key), 'Use --username LOGIN --role admin|user.');
+      values.set(key, value);
+    }
+    console.log(await assignDeploymentRole({ username: values.get('--username'), role: values.get('--role') }));
+    return;
+  }
   const state = await clusterState({ create: command === 'up' });
   const kubectl = kubectlFor('courier-route');
   if (command === 'status') {
@@ -591,7 +648,7 @@ async function main(command) {
     await stopNamespace(kubectl, 'courier-route', state.ownerId);
     console.log('HPA призупинено; застосунок, Traefik і PostgreSQL зупинено; кластер, Metrics Server та PVC збережено.'); return;
   }
-  assert.equal(command, 'up', 'Commands: preflight, image, up, status, stop');
+  assert.equal(command, 'up', 'Commands: preflight, image, up, status, stop, role');
   const image = await buildImage();
   await run('kind', ['load', 'docker-image', image, '--name', cluster], { env: dockerEnvironment, timeoutMs: 180_000, inherit: true });
   const deployment = await provision({ state, namespace: 'courier-route', ownerId: state.ownerId,

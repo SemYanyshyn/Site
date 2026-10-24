@@ -284,7 +284,7 @@ export async function verifyDeployment(environment) {
       console.log(JSON.stringify({uid:process.getuid(),source:existsSync('/app/src'),tsx:existsSync('/app/node_modules/tsx'),
       typescript:existsSync('/app/node_modules/typescript'),vite:existsSync('/app/node_modules/vite'),
       server:existsSync('/app/dist/server/index.js'),worker:existsSync('/app/dist/server/route/worker.js'),
-      migrations:existsSync('/app/dist/migrations/003_executor_registry.sql')}));`);
+      migrations:existsSync('/app/dist/migrations/003_executor_registry.sql')&&existsSync('/app/dist/migrations/004_executor_metadata.sql')&&existsSync('/app/dist/server/admin-role.js')}));`);
     assert.notEqual(runtime.uid, 0);
     assert.deepEqual(runtime, { uid: runtime.uid, source: false, tsx: false, typescript: false, vite: false, server: true, worker: true, migrations: true });
   }

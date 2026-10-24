@@ -34,7 +34,8 @@ export async function isDatabaseReady(pool: Pool): Promise<boolean> {
           timeout_ms, lost_after, result, failure_reason, failure_message
         FROM jobs LIMIT 0
       ), executor_shape AS (
-        SELECT instance_id, started_at, last_seen_at, expires_at, accepting_claims, busy, current_job_id
+        SELECT instance_id, started_at, last_seen_at, expires_at, accepting_claims, busy, current_job_id,
+          pod_uid, pod_name, pod_namespace
         FROM executor_registry LIMIT 0
       )
       SELECT version FROM schema_migrations

@@ -82,7 +82,9 @@
               "runAsGroup": 1000,
               "seccompProfile": {
                 "type": "RuntimeDefault"
-              }
+              },
+              "fsGroup": 1000,
+              "fsGroupChangePolicy": "OnRootMismatch"
             },
             "containers": [
               {
@@ -109,6 +111,33 @@
                       "secretKeyRef": {
                         "name": "courier-route-database",
                         "key": "DATABASE_URL"
+                      }
+                    }
+                  },
+                  {
+                    "name": "POD_UID",
+                    "valueFrom": {
+                      "fieldRef": {
+                        "apiVersion": "v1",
+                        "fieldPath": "metadata.uid"
+                      }
+                    }
+                  },
+                  {
+                    "name": "POD_NAME",
+                    "valueFrom": {
+                      "fieldRef": {
+                        "apiVersion": "v1",
+                        "fieldPath": "metadata.name"
+                      }
+                    }
+                  },
+                  {
+                    "name": "POD_NAMESPACE",
+                    "valueFrom": {
+                      "fieldRef": {
+                        "apiVersion": "v1",
+                        "fieldPath": "metadata.namespace"
                       }
                     }
                   }
@@ -163,6 +192,11 @@
                   {
                     "name": "tmp",
                     "mountPath": "/tmp"
+                  },
+                  {
+                    "name": "monitor-api",
+                    "mountPath": "/var/run/secrets/courier-route",
+                    "readOnly": true
                   }
                 ]
               }
@@ -173,8 +207,34 @@
                 "emptyDir": {
                   "sizeLimit": "32Mi"
                 }
+              },
+              {
+                "name": "monitor-api",
+                "projected": {
+                  "defaultMode": 288,
+                  "sources": [
+                    {
+                      "serviceAccountToken": {
+                        "path": "token",
+                        "expirationSeconds": 3600
+                      }
+                    },
+                    {
+                      "configMap": {
+                        "name": "kube-root-ca.crt",
+                        "items": [
+                          {
+                            "key": "ca.crt",
+                            "path": "ca.crt"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
               }
-            ]
+            ],
+            "serviceAccountName": "courier-route-monitor"
           }
         }
       }

@@ -110,7 +110,7 @@ async function main() {
         assert.throws(() => require.resolve(dependency));
       }
       assert.ok(require.resolve('pg'));
-      for (const file of ['/app/dist/server/index.js', '/app/dist/server/route/worker.js', '/app/dist/server/route/cli.js', '/app/dist/migrations/003_executor_registry.sql', '/app/dist/examples/route-small.json']) assert.ok(existsSync(file));
+      for (const file of ['/app/dist/server/index.js', '/app/dist/server/route/worker.js', '/app/dist/server/route/cli.js', '/app/dist/migrations/003_executor_registry.sql', '/app/dist/migrations/004_executor_metadata.sql', '/app/dist/server/admin-role.js', '/app/dist/examples/route-small.json']) assert.ok(existsSync(file));
       assert.equal(existsSync('/app/src'), false);
       assert.equal(existsSync('/app/.env'), false);
       assert.equal(existsSync('/app/scripts'), false);
@@ -211,7 +211,7 @@ async function main() {
         const {rows:[row]}=await pool.query("SELECT current_database() AS database,current_user AS role,rolsuper AS superuser FROM pg_roles WHERE rolname=current_user");
         assert.equal(row.database,'courier_container_test');assert.equal(row.role,'courier_container');assert.equal(row.superuser,false);
         const migrations = await pool.query('SELECT version FROM schema_migrations ORDER BY version');
-        assert.deepEqual(migrations.rows.map(row=>row.version),['001_auth','002_jobs','003_executor_registry']);
+        assert.deepEqual(migrations.rows.map(row=>row.version),['001_auth','002_jobs','003_executor_registry','004_executor_metadata']);
         console.log(JSON.stringify({...row,migrations:migrations.rows.length}));
       } finally {await pool.end();}
     `, { env: true });

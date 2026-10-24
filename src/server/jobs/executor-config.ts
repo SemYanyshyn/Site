@@ -3,6 +3,25 @@ export interface ExecutorConfig {
   leaseTtlMs: number;
 }
 
+export interface ExecutorPodMetadata {
+  podUid: string | null;
+  podName: string | null;
+  podNamespace: string | null;
+}
+
+/** Downward API identity is optional on a host, and must be complete in a pod. */
+export function readExecutorPodMetadata(env: NodeJS.ProcessEnv = process.env): ExecutorPodMetadata {
+  const values = [env.POD_UID, env.POD_NAME, env.POD_NAMESPACE];
+  if (values.every((value) => value === undefined)) return { podUid: null, podName: null, podNamespace: null };
+  const [podUid, podName, podNamespace] = values;
+  if (!podUid || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(podUid)
+    || !podName || podName.length > 253 || !podName.split('.').every((part) => part.length <= 63 && /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(part))
+    || !podNamespace || podNamespace.length > 63 || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(podNamespace)) {
+    throw new ExecutorConfigurationError('POD_UID, POD_NAME і POD_NAMESPACE мають містити повну коректну ідентичність Downward API або бути відсутніми поза Kubernetes.');
+  }
+  return { podUid: podUid.toLowerCase(), podName, podNamespace };
+}
+
 export const DEFAULT_EXECUTOR_CONFIG: Readonly<ExecutorConfig> = Object.freeze({
   heartbeatIntervalMs: 1_000,
   leaseTtlMs: 15_000,

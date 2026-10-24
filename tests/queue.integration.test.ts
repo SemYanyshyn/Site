@@ -192,8 +192,8 @@ describe('Shared real executor capacity and queued ETA across independent proces
     assert.equal(failed, 0, 'All own processes, workers, registry timers, pools and random schema must be cleaned.');
   });
 
-  test('01: 001→002→003 preserves an existing account/session/job/result and repeated concurrent migrations', async () => {
-    for (const version of ['001_auth', '002_jobs']) {
+  test('01: 001→002→003→004 preserves an existing account/session/job/result/registry and concurrent migrations', async () => {
+    for (const version of ['001_auth', '002_jobs', '003_executor_registry']) {
       const sql = await readFile(new URL(`../migrations/${version}.sql`, import.meta.url), 'utf8');
       if (version === '001_auth') await pool.query('CREATE TABLE schema_migrations(version text PRIMARY KEY,checksum text NOT NULL,applied_at timestamptz NOT NULL DEFAULT now())');
       await pool.query(sql);
@@ -204,6 +204,10 @@ describe('Shared real executor capacity and queued ETA across independent proces
     const input = { ...quickRouteInput(), seed: 0 };
     const result = calculateRoute(input);
     const jobId = randomUUID();
+    const oldInstance = randomUUID();
+    await pool.query(`INSERT INTO executor_registry(instance_id,started_at,last_seen_at,expires_at,accepting_claims,busy,current_job_id)
+      VALUES($1,now()-interval '1 second',now(),now()+interval '15 seconds',false,false,NULL)`, [oldInstance]);
+    const oldRegistry = (await pool.query('SELECT * FROM executor_registry WHERE instance_id=$1', [oldInstance])).rows[0];
     await pool.query("INSERT INTO users(id,username,normalized_username,password_hash) VALUES($1,'queue_migration','queue_migration','unusable_fixture_hash')", [userId]);
     await pool.query("INSERT INTO sessions(token_hash,user_id,expires_at) VALUES($1,$2,now()+interval '1 hour')", [createHash('sha256').update(token).digest('hex'), userId]);
     await pool.query(`INSERT INTO jobs(id,user_id,input,status,progress_stage,completed_iterations,total_iterations,progress_percent,
@@ -215,9 +219,17 @@ describe('Shared real executor capacity and queued ETA across independent proces
     await stop(appA);
     await Promise.all([migrate(), migrate()]);
     const versions = await pool.query<{ version: string; checksum: string }>('SELECT version,checksum FROM schema_migrations ORDER BY version');
-    assert.deepEqual(versions.rows.map((row) => row.version), ['001_auth', '002_jobs', '003_executor_registry']);
+    assert.deepEqual(versions.rows.map((row) => row.version), ['001_auth', '002_jobs', '003_executor_registry', '004_executor_metadata']);
     assert.equal(await readFile(new URL('../dist/migrations/003_executor_registry.sql', import.meta.url), 'utf8'),
       await readFile(new URL('../migrations/003_executor_registry.sql', import.meta.url), 'utf8'));
+    assert.equal(await readFile(new URL('../dist/migrations/004_executor_metadata.sql', import.meta.url), 'utf8'),
+      await readFile(new URL('../migrations/004_executor_metadata.sql', import.meta.url), 'utf8'));
+    const retainedRegistry = (await pool.query('SELECT * FROM executor_registry WHERE instance_id=$1', [oldInstance])).rows[0];
+    assert.deepEqual(retainedRegistry, { ...oldRegistry, pod_uid: null, pod_name: null, pod_namespace: null });
+    // A rolling-upgrade process using the old heartbeat shape can still write.
+    await pool.query(`UPDATE executor_registry SET last_seen_at=clock_timestamp(),expires_at=clock_timestamp()+interval '15 seconds'
+      WHERE instance_id=$1`, [oldInstance]);
+    await pool.query('DELETE FROM executor_registry WHERE instance_id=$1', [oldInstance]);
     await Promise.all([migrate(), migrate()]);
     assert.deepEqual((await pool.query('SELECT version,checksum FROM schema_migrations ORDER BY version')).rows, versions.rows);
     [appA, appB] = await Promise.all([start(), start()]);

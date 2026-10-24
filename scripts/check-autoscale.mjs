@@ -195,6 +195,7 @@ async function runAutoscaleWithinBudget(budget, deadlineEpochMs, withoutDeployme
   const users = [];
   const instances = new Map();
   const progressObservations = new Map();
+  const queueObservations = [];
   let latest;
   let lastPrinted = 0;
   const save = () => writeFile(new URL('summary.json', directory), JSON.stringify(summary, null, 2), { mode: 0o600 });
@@ -434,6 +435,7 @@ async function runAutoscaleWithinBudget(budget, deadlineEpochMs, withoutDeployme
         const queued = await detail(pair.queued.id);
         if (queued.status === 'queued' && queued.queue.executorCount === 2 && Number.isFinite(queued.queue.estimatedWaitMs)) {
           summary.baselineQueue = queued.queue;
+          queueObservations.push({ phase: 'baseline', jobId: pair.queued.id, queue: queued.queue });
           (summary.browserObservations ??= []).push(await observer.observe({ phase: 'baseline', queuedJobId: pair.queued.id, runningJobId: pair.running.id,
             expectedExecutorCount: 2, expectedInstanceIds: value.pods.map((pod) => pod.instanceId) }));
           baselineObserved = true;
@@ -446,6 +448,9 @@ async function runAutoscaleWithinBudget(budget, deadlineEpochMs, withoutDeployme
           if (queued.status === 'queued' && queued.queue.executorCount === 4 && Number.isFinite(queued.queue.estimatedWaitMs)) {
             expanded ??= structuredClone(value);
             summary.expandedQueue ??= queued.queue;
+            if (!queueObservations.some((item) => item.phase === 'expanded')) {
+              queueObservations.push({ phase: 'expanded', jobId: pair.queued.id, queue: queued.queue });
+            }
             summary.fourSlots ??= running;
             if (!expandedObserved) {
               summary.phaseTimes.fourReadyBusyMs = value.elapsedMs;
@@ -569,6 +574,31 @@ async function runAutoscaleWithinBudget(budget, deadlineEpochMs, withoutDeployme
     assert.equal(allTerminal.jobs.length, accepted.size);
     const normal = allTerminal.jobs.filter((job) => !accepted.get(job.id).intentionalCancel);
     assert.ok(normal.every((job) => job.status === 'completed'));
+    // Reuse this same bounded run to prove both initial servers did concurrent
+    // real work which later completed. Health-handler rotation alone is weaker.
+    const initialPair = summary.timeline.find((item) => initial.pods.every((pod) => item.jobs.some((job) =>
+      job.executedBy === pod.instanceId && job.status === 'running' && job.completedIterations > 0
+      && normal.some((done) => done.id === job.id && done.executedBy === pod.instanceId))));
+    assert.ok(initialPair, 'Both initial processes must have simultaneous positive work with their own later completed results.');
+    summary.initialExecutors = [];
+    for (const pod of initial.pods) {
+      const observed = initialPair.jobs.find((job) => job.executedBy === pod.instanceId && job.status === 'running'
+        && job.completedIterations > 0 && normal.some((done) => done.id === job.id && done.executedBy === pod.instanceId));
+      assert.ok(observed);
+      const completed = await detail(observed.id); validateCompletedRoute(completed);
+      summary.initialExecutors.push({ pod: pod.name, uid: pod.uid, instanceId: pod.instanceId, jobId: observed.id,
+        observedAt: initialPair.observedAt, observedIterations: observed.completedIterations,
+        status: completed.status, iterationsCompleted: completed.result.iterationsCompleted,
+        routeLength: completed.result.length, resultChecked: true });
+    }
+    summary.queueWaits = queueObservations.map(({ phase: observedPhase, jobId, queue }) => {
+      const job = allTerminal.jobs.find((item) => item.id === jobId);
+      assert.ok(job?.startedAt, 'An observed queued job must actually start in this run.');
+      const actualWaitMs = Date.parse(job.startedAt) - Date.parse(queue.calculatedAt);
+      assert.ok(Number.isFinite(actualWaitMs) && actualWaitMs >= 0);
+      return { phase: observedPhase, jobId, ...queue, startedAt: job.startedAt, actualWaitMs,
+        context: 'Real bounded load; other jobs can finish or be intentionally cancelled and HPA adds capacity. ETA is time until start, not a countdown.' };
+    });
     const additions = proveExpandedWork(initialUids, expanded.pods, [...progressObservations.values()], allTerminal.jobs);
     for (const item of additions) validateCompletedRoute(await detail(item.jobId));
     summary.additionalExecutors = additions;

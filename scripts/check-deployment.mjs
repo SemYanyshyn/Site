@@ -363,6 +363,12 @@ export async function verifyDeployment(environment) {
   }
   const thirdRunning = await searching(third.value.id, cookie);
   assert.equal(thirdRunning.value.queue, undefined);
+  const queueStart = { jobId: third.value.id, executedBy: thirdRunning.value.executedBy,
+    startedAt: thirdRunning.value.startedAt, predictions: queuePredictions.map((prediction) => {
+      const actualWaitMs = Date.parse(thirdRunning.value.startedAt) - Date.parse(prediction.calculatedAt);
+      assert.ok(Number.isFinite(actualWaitMs) && actualWaitMs >= 0);
+      return { ...prediction, actualWaitMs };
+    }), context: 'The initial workers were intentionally cancelled; the queued target started after the physical slot release.' };
   const thirdClaims = await environment.sql('SELECT instance_id FROM deployment_claim_audit WHERE job_id=$1', [third.value.id]);
   assert.equal(thirdClaims.length, 1, 'A real database trigger must observe exactly one committed queued→running claim.');
   assert.equal(thirdClaims[0].instance_id, thirdRunning.value.executedBy);
@@ -405,7 +411,7 @@ export async function verifyDeployment(environment) {
   await Promise.all(admitted.map((response) => terminal(response.value.id, cookie)));
   checks.push('parallel admission across both TLS handlers respects shared personal and bounded system quotas without extra records');
 
-  return { checks, traces, crossCancel, queuePredictions, instanceIds: [...handlers], resultJobId: resultJob.value.id,
+  return { checks, traces, crossCancel, queuePredictions, queueStart, instanceIds: [...handlers], resultJobId: resultJob.value.id,
     cookie, loginHandler: login.handler, ca, spki, invoke, create, searching, terminal, cancel, detail, heavy, square,
     pods, podForInstance, waitReplicas, owned, execApp, observeBoth };
 }
@@ -564,7 +570,8 @@ export async function runDeployment() {
     summary = { status: 'pass', namespace: environment.namespace, context: environment.context, image: environment.image,
       httpsOrigin: environment.httpsOrigin, httpOrigin: environment.httpOrigin,
       checks: result.checks, traces: result.traces, faultEvidence: faults.faultEvidence,
-      browser, instanceIds: result.instanceIds, crossCancel: result.crossCancel, queuePredictions: result.queuePredictions };
+      browser, instanceIds: result.instanceIds, crossCancel: result.crossCancel,
+      queuePredictions: result.queuePredictions, queueStart: result.queueStart };
   } catch (error) {
     if (environment) {
       const directory = new URL(`../.local/deployment-tests/${environment.ownerId}/`, import.meta.url);

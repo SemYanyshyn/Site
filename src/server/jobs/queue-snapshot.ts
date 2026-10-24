@@ -51,9 +51,13 @@ export async function readQueueSnapshot(
   client: PoolClient, targetId: string, calculatedAt: string, timeoutMs: number, deadline = performance.now() + 8_000,
 ): Promise<JobQueueInfo> {
   const executors = await queryQueueSnapshot<ExecutorRow>(client, deadline, `
-    SELECT instance_id, expires_at, accepting_claims, busy, current_job_id
-    FROM executor_registry WHERE accepting_claims AND expires_at > $1::timestamptz
-    ORDER BY instance_id LIMIT $2
+    SELECT e.instance_id, e.expires_at, e.accepting_claims, e.busy, e.current_job_id
+    FROM executor_registry e WHERE e.accepting_claims AND e.expires_at > $1::timestamptz
+      AND (e.pod_uid IS NULL OR e.pod_namespace IS NULL OR NOT EXISTS (
+        SELECT 1 FROM executor_registry newer WHERE newer.pod_namespace = e.pod_namespace AND newer.pod_uid = e.pod_uid
+          AND (newer.started_at, newer.instance_id) > (e.started_at, e.instance_id)
+      ))
+    ORDER BY e.instance_id LIMIT $2
   `, [calculatedAt, QUEUE_LIMITS.maxExecutors + 1]);
   const running = await queryQueueSnapshot<RunningRow>(client, deadline, `
     SELECT id, instance_id, started_at, timeout_ms, progress_stage,

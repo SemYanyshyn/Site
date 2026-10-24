@@ -40,10 +40,10 @@ h3 { font-size: 18px; }
 .auth-modes { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
 #user-state { display: flex; align-items: center; gap: 22px; }
 .user-summary { margin: 0; font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
-button, input, textarea { font: inherit; }
+button, input, textarea, select { font: inherit; }
 button { min-height: 44px; border: 1px solid transparent; border-radius: 8px; padding: 10px 14px; cursor: pointer; font-size: 13px; font-weight: 650; line-height: 1.4; }
 button:disabled { cursor: default; opacity: .55; }
-button, input, textarea, summary, a { -webkit-tap-highlight-color: transparent; }
+button, input, textarea, select, summary, a { -webkit-tap-highlight-color: transparent; }
 .mode-button { color: var(--muted); background: transparent; }
 .mode-button[aria-pressed="true"] { color: var(--green); background: #e9eee5; }
 .primary-button { color: #fff; background: var(--green); }
@@ -57,7 +57,7 @@ button, input, textarea, summary, a { -webkit-tap-highlight-color: transparent; 
 fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 legend { margin: 0 0 14px; font-size: 13px; font-weight: 700; }
 label { display: block; margin: 0 0 8px; font-size: 13px; font-weight: 650; }
-input, textarea { display: block; width: 100%; min-width: 0; padding: 11px 12px; border: 1px solid #bdcbbb; border-radius: 8px; color: var(--green); background: #fff; font-size: 16px; line-height: 1.5; }
+input, textarea, select { display: block; width: 100%; min-width: 0; padding: 11px 12px; border: 1px solid #bdcbbb; border-radius: 8px; color: var(--green); background: #fff; font-size: 16px; line-height: 1.5; }
 input { min-height: 46px; }
 textarea { resize: vertical; min-height: 132px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 input::placeholder, textarea::placeholder { color: #7a897d; }
@@ -154,7 +154,38 @@ summary { width: fit-content; cursor: pointer; min-height: 30px; font-weight: 65
 .pagination span { font-size: 10px; color: #718267; text-align: center; }
 .noscript { max-width: 580px; margin: 22px 0; font-size: 13px; line-height: 1.7; color: #63746a; }
 footer { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-top: auto; padding-top: 24px; border-top: 1px solid var(--line); color: #84917b; font-size: 10px; letter-spacing: .02em; }
+.workspace-navigation { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 24px; padding: 8px; width: fit-content; max-width: 100%; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
+.admin-workspace { min-width: 0; }
+.admin-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 20px 0; }
+.admin-stat { min-width: 0; padding: 17px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
+.admin-stat dt { font-size: 11px; line-height: 1.65; }
+.admin-stat dd { font-size: 17px; font-weight: 650; }
+.admin-section { margin-top: 20px; }
+.admin-section > h3 { margin-bottom: 16px; }
+.admin-sources { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.admin-source { min-width: 0; padding: 14px; border-radius: 8px; background: #eef2e8; font-size: 12px; line-height: 1.75; overflow-wrap: anywhere; }
+.admin-source p { margin: 6px 0 0; }
+.admin-source[data-state="stale"], .admin-source[data-state="partial"], .admin-source[data-state="unavailable"] { background: #fbf0e7; color: #8f4332; }
+.admin-server-grid, .admin-job-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 20px 0 0; padding: 0; list-style: none; }
+.admin-server-card, .admin-job-card { min-width: 0; padding: 19px; border: 1px solid var(--line); border-radius: 10px; background: #fcfdf8; }
+.admin-card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.admin-card-heading h4 { margin: 0; font-size: 14px; font-weight: 650; }
+.admin-card-heading strong { font-size: 13px; }
+.admin-identifier { overflow-wrap: anywhere; word-break: break-word; }
+.admin-details { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 15px 18px; }
+.admin-details > div { min-width: 0; }
+.admin-details dd { font-size: 11px; }
+.admin-job-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); font-size: 10px; line-height: 1.8; }
+.admin-filter { flex: 0 1 210px; min-width: 0; }
+.admin-filter label { font-size: 11px; }
+.admin-filter select { font-size: 13px; }
+.admin-registry { margin-top: 22px; border-top: 1px solid var(--line); padding-top: 18px; }
+.admin-registry summary { font-size: 12px; line-height: 1.8; }
+.admin-unmatched-row { border-top: 1px solid var(--line); padding: 15px 0; font-size: 11px; line-height: 1.75; }
+.admin-unmatched-row p { margin: 6px 0; }
+button[aria-disabled="true"] { opacity: .55; cursor: default; }
 @media (max-width: 1000px) {
+  .admin-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .page { padding: 28px; }
   .workspace-grid { grid-template-columns: minmax(280px, .95fr) minmax(0, 1fr); gap: 16px; }
   .panel { padding: 22px; }
@@ -163,6 +194,7 @@ footer { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wr
   #user-state { flex-direction: column; align-items: flex-start; gap: 10px; }
 }
 @media (max-width: 760px) {
+  .admin-server-grid, .admin-job-grid, .admin-sources { grid-template-columns: minmax(0, 1fr); }
   .workspace-grid, .lists-grid { grid-template-columns: minmax(0, 1fr); }
   .intro { padding-top: 40px; }
   .detail-panel { min-height: 250px; }
@@ -171,6 +203,10 @@ footer { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wr
   #user-state { flex-direction: row; align-items: center; flex-wrap: wrap; }
 }
 @media (max-width: 480px) {
+  .admin-summary, .admin-details { grid-template-columns: minmax(0, 1fr); }
+  .admin-filter { flex-basis: auto; width: 100%; }
+  .admin-card-heading { flex-wrap: wrap; }
+  .admin-server-card, .admin-job-card { padding: 15px; }
   .point-label { font-size: 32px; }
   .page { padding: 20px 16px; }
   .page-header { align-items: flex-start; flex-direction: column; gap: 12px; padding-bottom: 18px; }

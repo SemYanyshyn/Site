@@ -14,6 +14,8 @@ import { readJobsConfig } from './jobs/config.js';
 import type { JobsConfig } from './jobs/config.js';
 import { JobsRepository } from './jobs/repository.js';
 import { createJobsRouter } from './jobs/router.js';
+import { AdminService } from './admin/service.js';
+import { createAdminRouter } from './admin/router.js';
 
 interface AppOptions {
   config: AppConfig;
@@ -22,11 +24,13 @@ interface AppOptions {
   routeLimits?: RouteLimits;
   jobsConfig?: JobsConfig;
   jobsRepository?: JobsRepository;
+  adminService?: AdminService;
 }
 
 export function createApp({
   config, pool, instanceId = randomUUID(), routeLimits = readRouteConfig(), jobsConfig = readJobsConfig(),
   jobsRepository = new JobsRepository(pool),
+  adminService = new AdminService(pool),
 }: AppOptions): express.Express {
   const app = express();
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(instanceId)) {
@@ -58,6 +62,7 @@ export function createApp({
 
   app.use('/api/auth', createAuthRouter(config, pool));
   app.use('/api/jobs', createJobsRouter(config, pool, jobsRepository, routeLimits, jobsConfig));
+  app.use('/api/admin', createAdminRouter(pool, adminService));
   app.use('/api', (_request, response) => {
     sendError(response, 404, 'NOT_FOUND', 'API-маршрут не знайдено.');
   });

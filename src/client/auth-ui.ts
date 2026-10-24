@@ -4,10 +4,13 @@ import type { AuthResponse, PublicUser } from '../shared/auth.js';
 export interface AuthCallbacks {
   onAuthenticated: (user: PublicUser) => void;
   onSignedOut: () => void;
+  onSigningOut?: () => void;
+  onRoleChanged?: (user: PublicUser) => void;
 }
 
 export interface AuthHandle {
   expireSession: () => void;
+  loseAdminRole: () => void;
   destroy: () => void;
 }
 
@@ -174,6 +177,7 @@ export function mountAuth(callbacks: AuthCallbacks): AuthHandle {
   logout.addEventListener('click', () => {
     if (busy) return;
     const version = nextGeneration();
+    callbacks.onSigningOut?.();
     busy = true;
     say('Завершуємо сеанс…');
     render();
@@ -190,6 +194,7 @@ export function mountAuth(callbacks: AuthCallbacks): AuthHandle {
       } catch (error) {
         if (destroyed || version !== generation) return;
         if (error instanceof AuthRequestError && error.status === 401) { expireSession(); return; }
+        if (user) callbacks.onRoleChanged?.(user);
         say(errorMessage(error), 'error');
       } finally {
         if (!destroyed && version === generation) { busy = false; render(); }
@@ -216,7 +221,13 @@ export function mountAuth(callbacks: AuthCallbacks): AuthHandle {
     }
   })();
 
-  return { expireSession, destroy: () => {
+  return { expireSession, loseAdminRole: () => {
+    if (destroyed || !user || user.role !== 'admin') return;
+    user = { ...user, role: 'user' };
+    callbacks.onRoleChanged?.(user);
+    say('Доступ адміністратора знято. Ваші особисті маршрути доступні.');
+    render();
+  }, destroy: () => {
     destroyed = true;
     nextGeneration();
     listeners.abort();

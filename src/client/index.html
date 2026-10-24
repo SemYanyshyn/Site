@@ -51,6 +51,39 @@
           <button id="logout" class="secondary-button" type="button">Вийти</button>
         </div>
       </section>
+      <nav id="workspace-navigation" class="workspace-navigation" aria-label="Робочий простір" hidden>
+        <button id="admin-close" class="mode-button" type="button" aria-pressed="true">Мої маршрути</button>
+        <button id="admin-open" class="mode-button" type="button" aria-pressed="false" hidden>Адміністрування</button>
+      </nav>
+      <section id="admin-workspace" class="workspace admin-workspace" aria-labelledby="admin-title" hidden>
+        <div class="workspace-heading">
+          <div><p class="eyebrow">Спостереження за застосунком</p><h2 id="admin-title">Адміністрування</h2></div>
+          <button id="admin-refresh" class="secondary-button" type="button">Оновити моніторинг</button>
+        </div>
+        <p class="panel-description">Панель лише для читання. CPU та RAM належать контейнерам app разом із їхніми потоками. Ready, вільний обчислювальний слот і бажані HPA replicas — різні показники.</p>
+        <p id="admin-message" class="notice" role="status" aria-live="polite"></p>
+        <dl id="admin-summary" class="admin-summary" aria-label="Зведення системи"></dl>
+        <section class="panel admin-section" aria-labelledby="admin-sources-title">
+          <h3 id="admin-sources-title">Джерела й автоматичне розширення</h3>
+          <div id="admin-source-status" class="admin-sources"></div>
+          <p id="admin-hpa" class="quiet-note"></p>
+          <p class="quiet-note">CPU — використані ядра за вказане вікно; 1000 мCPU = 1 ядро. RAM — working set у MiB (1048576 байт). Відсоток CPU обчислений від request і може перевищувати 100%. Невідоме значення не дорівнює нулю; сума має вказане покриття.</p>
+        </section>
+        <section class="panel admin-section" aria-labelledby="admin-servers-title">
+          <h3 id="admin-servers-title">Поточні app-сервери</h3>
+          <p class="panel-description">Pod UID — фізичний pod; process UUID — конкретний HTTP-процес та його єдиний worker-слот. Зайнятість визначає БД, а не CPU.</p>
+          <div id="admin-servers" class="admin-server-grid"></div>
+          <details class="admin-registry"><summary>Інші записи виконавців: попередні, недоступні або поза Kubernetes</summary><div id="admin-unmatched"></div></details>
+        </section>
+        <section class="panel admin-section" aria-labelledby="admin-jobs-title">
+          <div class="workspace-heading"><div><h3 id="admin-jobs-title">Задачі всіх власників</h3><p class="quiet-note">Моніторинговий список не містить координат чи результатів і не скасовує чужі задачі.</p></div>
+            <div class="admin-filter"><label for="admin-status-filter">Стан задачі</label><select id="admin-status-filter"><option value="">Усі стани</option><option value="active">Усі активні</option><option value="queued">У черзі</option><option value="running">Обчислюються</option><option value="completed">Завершені</option><option value="cancelled">Скасовані</option><option value="failed">Помилки</option></select></div>
+          </div>
+          <p id="admin-jobs-message" class="list-message" role="status" aria-live="polite"></p>
+          <ol id="admin-jobs" class="admin-job-grid"></ol>
+          <nav class="pagination" aria-label="Сторінки всіх задач"><button id="admin-prev" class="secondary-button" type="button" aria-disabled="true">← Попередні</button><span id="admin-page"></span><button id="admin-next" class="secondary-button" type="button" aria-disabled="true">Наступні →</button></nav>
+        </section>
+      </section>
       <section id="jobs-workspace" class="workspace" aria-label="Планування маршрутів" hidden>
         <div class="workspace-heading">
           <div><p class="eyebrow">Ваш робочий простір</p><h2>Планування маршрутів</h2></div>

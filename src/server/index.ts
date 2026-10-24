@@ -19,6 +19,8 @@ import { JobsRepository } from './jobs/repository.js';
 import { readExecutorConfig, validateExecutorConfig } from './jobs/executor-config.js';
 import type { ExecutorConfig } from './jobs/executor-config.js';
 import { ExecutorRegistry } from './jobs/executor-registry.js';
+import { readAdminConfig } from './admin/config.js';
+import { AdminService } from './admin/service.js';
 
 export interface ServerOptions {
   // Internal harness controls are not HTTP parameters or environment backdoors.
@@ -46,8 +48,10 @@ export function startServer(config: AppConfig = readConfig(), routeLimits: Route
   jobsConfig: JobsConfig = readJobsConfig(), options: ServerOptions = {}): ServerRuntime {
   validateJobsConfig(jobsConfig);
   const executorConfig = validateExecutorConfig(options.executorConfig ?? readExecutorConfig());
+  const adminConfig = readAdminConfig();
   const executor = new RouteExecutor(routeLimits, options.executorOptions);
   const pool = createDatabasePool(config.databaseUrl);
+  const adminService = new AdminService(pool, adminConfig);
   const instanceId = randomUUID();
   const jobsRepository = new JobsRepository(pool);
   const registry = new ExecutorRegistry(pool, instanceId, executorConfig);
@@ -65,7 +69,7 @@ export function startServer(config: AppConfig = readConfig(), routeLimits: Route
     void run.result.then(() => { void registry.refresh(); });
     return run;
   };
-  const app = createApp({ config, pool, instanceId, routeLimits, jobsConfig, jobsRepository });
+  const app = createApp({ config, pool, instanceId, routeLimits, jobsConfig, jobsRepository, adminService });
   const server = app.listen(config.port, config.host, () => {
     const address = server.address();
     const port = address && typeof address !== 'string' ? address.port : config.port;
@@ -77,9 +81,12 @@ export function startServer(config: AppConfig = readConfig(), routeLimits: Route
     console.info(`${signal}: завершення HTTP-сервера, dispatcher, worker та пулу PostgreSQL.`);
     process.removeListener('SIGINT', onSigint);
     process.removeListener('SIGTERM', onSigterm);
+    // Abort monitoring HTTP and SQL before draining the shared database pool.
+    adminService.close();
     const timeout = setTimeout(() => {
       console.error('Перевищено час завершення HTTP-сервера, worker та пулу PostgreSQL.');
       server.closeAllConnections();
+      adminService.close();
       process.exit(1);
     }, 5_000);
     timeout.unref();

@@ -48,6 +48,19 @@ function assertRoute(input: NormalizedRouteInput, result: RouteResult): void {
   const tolerance = Number.EPSILON * 128 * coordinates.length * Math.max(1, independentLength);
   assert.ok(Math.abs(result.length - independentLength) <= tolerance);
   assert.ok(result.length <= result.initialLength + tolerance);
+  assert.ok(result.initialOrder, 'New computations must retain the actual nearest-neighbor tour.');
+  assert.equal(result.initialOrder.length, input.points.length + 2);
+  assert.equal(result.initialOrder[0], 0);
+  assert.equal(result.initialOrder.at(-1), 0);
+  assert.deepEqual(result.initialOrder.slice(1, -1).sort((a, b) => a - b), input.points.map((_, index) => index + 1));
+  let independentInitialLength = 0;
+  for (let index = 1; index < result.initialOrder.length; index += 1) {
+    const previous = coordinates[result.initialOrder[index - 1]!]!;
+    const next = coordinates[result.initialOrder[index]!]!;
+    independentInitialLength += Math.sqrt((next.x - previous.x) ** 2 + (next.y - previous.y) ** 2);
+  }
+  assert.ok(Math.abs(result.initialLength - independentInitialLength) <= tolerance);
+  assert.notEqual(result.initialOrder, result.order, 'The initial snapshot must not alias the mutable best tour.');
   assert.ok(Number.isFinite(result.length) && result.length >= 0);
   assert.ok(Number.isFinite(result.initialLength) && result.initialLength >= 0);
   assert.ok(Number.isFinite(result.elapsedMs) && result.elapsedMs >= 0);
@@ -253,6 +266,7 @@ test('the same seed and budget give identical routes without mutating frozen inp
   assert.deepEqual(first.order, second.order);
   assert.equal(first.length, second.length);
   assert.equal(first.initialLength, second.initialLength);
+  assert.deepEqual(first.initialOrder, second.initialOrder);
   assert.equal(first.iterationsCompleted, second.iterationsCompleted);
 });
 
@@ -301,4 +315,38 @@ test('internal progress uses monotonic real counters and leaves terminal 100 to 
   calculateRoute(validate(baseInput), (value) => trivial.push(value));
   assert.deepEqual(trivial.map((value) => value.stage), ['preparing', 'finishing']);
   assert.ok(trivial.every((value) => value.completedIterations === 0 && value.percent === 0));
+});
+
+test('the five-delivery example preserves the real nearest-neighbor order while search improves a separate tour', () => {
+  const points = [{ x: 2, y: 1 }, { x: 3, y: 5 }, { x: 7, y: 2 }, { x: 8, y: 7 }, { x: 1, y: 8 }];
+  for (const seed of [0, 1, 42]) {
+    const input = validate({ warehouse: { x: 0, y: 0 }, points, iterations: 25_000, seed });
+    const result = calculateRoute(input);
+    assertRoute(input, result);
+    assert.deepEqual(result.initialOrder, [0, 1, 2, 5, 4, 3, 0]);
+    assert.equal(result.initialLength, 29.41492209332022);
+    // This exact seed/budget result was recorded before adding the snapshot.
+    // It is an observed best route, not a claim of global optimality.
+    assert.deepEqual(result.order, [0, 1, 3, 4, 5, 2, 0]);
+    assert.equal(result.length, 28.941677986860125);
+    assert.equal(result.iterationsCompleted, 25_000);
+    result.order[1] = 5;
+    assert.deepEqual(result.initialOrder, [0, 1, 2, 5, 4, 3, 0]);
+    assert.deepEqual(input.points, points);
+  }
+});
+
+test('nearest-neighbor snapshots retain input-index tie breaks, duplicate deliveries and trivial closed tours', () => {
+  const cases = [
+    { points: [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }], order: [0, 1, 3, 2, 4, 0] },
+    { points: [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }], order: [0, 1, 2, 3, 0] },
+    { points: [{ x: 3, y: 4 }], order: [0, 1, 0] },
+    { points: [{ x: 5, y: 0 }, { x: 1, y: 0 }], order: [0, 2, 1, 0] },
+  ];
+  for (const scenario of cases) {
+    const input = validate({ warehouse: { x: 0, y: 0 }, points: scenario.points, iterations: 1000, seed: 0 });
+    const result = calculateRoute(input);
+    assertRoute(input, result);
+    assert.deepEqual(result.initialOrder, scenario.order);
+  }
 });

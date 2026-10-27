@@ -8,6 +8,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { Worker } from 'node:worker_threads';
 import type { WorkerOptions } from 'node:worker_threads';
 import { RouteExecutor } from '../src/server/route/executor.js';
+import { calculateRoute } from '../src/server/route/algorithm.js';
 import type { RouteLimits, RouteProgress } from '../src/shared/route.js';
 import { quickRouteInput, routeInput } from './fixtures/route-input.js';
 
@@ -41,6 +42,7 @@ async function completesAgain(executor: RouteExecutor, workers: Worker[]): Promi
   const outcome = await run.result;
   assert.equal(outcome.status, 'completed');
   if (outcome.status === 'completed') assert.equal(outcome.result.length, 10);
+  if (outcome.status === 'completed') assert.deepEqual(outcome.result.initialOrder, [0, 1, 0]);
   assert.equal(executor.busy, false);
   assert.equal(workers.at(-1)?.threadId, -1, 'The result promise must wait for real worker exit.');
 }
@@ -330,4 +332,54 @@ test('built worker runs from another cwd without source TypeScript, tsx, or node
       await closed;
     }
   } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+for (const scenario of [
+  { name: 'duplicate delivery', initialOrder: [0, 1, 2, 5, 4, 4, 0] },
+  { name: 'missing closing warehouse', initialOrder: [0, 1, 2, 5, 4, 3] },
+  { name: 'out-of-range delivery', initialOrder: [0, 1, 2, 5, 4, 6, 0] },
+  { name: 'non-integer delivery', initialOrder: [0, 1, 2, 5, 4, 3.5, 0] },
+  { name: 'best copied as initial with a different length', initialOrder: [0, 1, 3, 4, 5, 2, 0] },
+  { name: 'invalid explicit initial snapshot', initialOrder: null },
+]) {
+  test(`worker rejects ${scenario.name} in initialOrder and the next real worker recovers`, async () => {
+    const input = { warehouse: { x: 0, y: 0 }, points: [{ x: 2, y: 1 }, { x: 3, y: 5 }, { x: 7, y: 2 }, { x: 8, y: 7 }, { x: 1, y: 8 }], iterations: 1000, seed: 0 };
+    const fixtureResult = { ...calculateRoute(input), elapsedMs: 0, initialOrder: scenario.initialOrder };
+    const workers: Worker[] = [];
+    let attempts = 0;
+    const executor = new RouteExecutor(limits, {
+      workerFactory: (url, options) => {
+        const worker = attempts++ === 0
+          ? new Worker(`const {parentPort,threadId,workerData}=require('node:worker_threads');parentPort.postMessage({kind:'result',runId:workerData.runId,threadId,result:workerData.fixtureResult});`,
+            { ...options, eval: true, workerData: { ...options.workerData, fixtureResult } })
+          : new Worker(url, options);
+        workers.push(worker);
+        return worker;
+      },
+    });
+    try {
+      const outcome = await within(executor.start(input).result, 5000);
+      assert.equal(outcome.status, 'failed');
+      if (outcome.status === 'failed') assert.equal(outcome.reason, 'worker_error');
+      assert.equal(workers[0]?.threadId, -1);
+      await completesAgain(executor, workers);
+    } finally { await executor.shutdown(); }
+  });
+}
+
+test('a valid legacy worker result without initialOrder remains readable while new results include it', async () => {
+  const input = quickRouteInput();
+  const { initialOrder: _omitted, ...legacyResult } = calculateRoute(input);
+  const executor = new RouteExecutor(limits, {
+    workerFactory: (_url, options) => new Worker(`const {parentPort,threadId,workerData}=require('node:worker_threads');parentPort.postMessage({kind:'result',runId:workerData.runId,threadId,result:workerData.fixtureResult});`,
+      { ...options, eval: true, workerData: { ...options.workerData, fixtureResult: { ...legacyResult, elapsedMs: 0 } } }),
+  });
+  try {
+    const outcome = await within(executor.start(input).result, 5000);
+    assert.equal(outcome.status, 'completed');
+    if (outcome.status === 'completed') {
+      assert.equal(outcome.result.initialOrder, undefined);
+      assert.equal(outcome.result.initialLength, legacyResult.initialLength);
+    }
+  } finally { await executor.shutdown(); }
 });

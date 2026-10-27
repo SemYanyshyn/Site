@@ -672,11 +672,44 @@ describe('Durable PostgreSQL jobs across independent production HTTP processes',
     context.diagnostic(`SIGKILL A=${appA.instanceId}, lost job=${lost.id}; збережений deadline timeout=${stored.timeout_ms}ms + effective grace≈${effectiveGrace}ms; B=${appB.instanceId} відновив worker_lost, не повторив start; жива ${alive.id} залишалась running.`);
   });
 
-  test('19: completed history, normalized input, progress, result and live session survive full HTTP restart', async () => {
-    const job = await create(appA, users[0], routeInput(20, 100000, 0));
+  test('19: completed history preserves actual initial route and legacy results across full HTTP restart', async () => {
+    const legacyJob = await create(appA, users[0]);
+    const input = { warehouse: { x: 0, y: 0 }, points: [
+      { x: 2, y: 1 }, { x: 3, y: 5 }, { x: 7, y: 2 }, { x: 8, y: 7 }, { x: 1, y: 8 },
+    ], iterations: 100000, seed: 0 };
+    const job = await create(appA, users[0], input);
     await command(appA, 'resume');
     const saved = await terminal(appB, job.id);
     assert.equal(saved.status, 'completed');
+    assert.ok(saved.result);
+    assert.deepEqual(saved.input, input);
+    const initialOrder = saved.result.initialOrder;
+    assert.ok(initialOrder);
+    assert.deepEqual(initialOrder, [0, 1, 2, 5, 4, 3, 0]);
+    assert.ok(Math.abs(saved.result.initialLength - 29.41492209332022) < 1e-8);
+    const coordinates = [saved.input.warehouse, ...saved.input.points];
+    const edgeLengths = initialOrder.map((point, index, order) => {
+      if (index === 0) return 0;
+      const previous = coordinates[order[index - 1]!]!;
+      const current = coordinates[point]!;
+      return Math.hypot(current.x - previous.x, current.y - previous.y);
+    });
+    assert.ok(Math.abs(edgeLengths.reduce((sum, length) => sum + length, 0) - saved.result.initialLength) < 1e-10);
+    const stored = await pool.query<{ result: JobDetails['result'] }>('SELECT result FROM jobs WHERE id=$1', [job.id]);
+    assert.deepEqual(stored.rows[0]?.result, saved.result, 'The actual worker initial sequence must be persisted, not reconstructed by a GET.');
+
+    const legacyCompleted = await terminal(appB, legacyJob.id);
+    assert.equal(legacyCompleted.status, 'completed');
+    assert.ok(legacyCompleted.result?.initialOrder);
+    // Simulate an older completed JSON only in this already guarded random test
+    // schema. Existing rows have initialLength but no saved initial sequence.
+    await pool.query("UPDATE jobs SET result=result-'initialOrder' WHERE id=$1", [legacyJob.id]);
+    const legacySaved = await details(appA, legacyJob.id);
+    assert.ok(legacySaved.result);
+    assert.equal(Object.hasOwn(legacySaved.result, 'initialOrder'), false);
+    assert.equal(legacySaved.result.initialLength, legacyCompleted.result.initialLength);
+    assert.deepEqual(legacySaved.result.order, legacyCompleted.result.order);
+
     const previousA = appA.instanceId;
     const previousB = appB.instanceId;
     await Promise.all([stop(appA), stop(appB)]);
@@ -686,8 +719,16 @@ describe('Durable PostgreSQL jobs across independent production HTTP processes',
     assert.equal((await get(appB, '/api/auth/me', users[0])).status, 200);
     assert.deepEqual(await details(appA, job.id), saved);
     assert.deepEqual(await details(appB, job.id), saved);
+    assert.deepEqual(await details(appA, legacyJob.id), legacySaved);
+    assert.deepEqual(await details(appB, legacyJob.id), legacySaved);
+    assert.equal(Object.hasOwn((await details(appB, legacyJob.id)).result!, 'initialOrder'), false,
+      'Opening an old result must not invent an initial sequence from input order or the best route.');
     const history = await (await get(appB, '/api/jobs', users[0])).json() as JobListResponse;
     assert.equal(history.jobs[0]?.id, job.id);
+    assert.ok(history.jobs.some((entry) => entry.id === legacyJob.id));
+    assert.ok(history.jobs.every((entry) => !('result' in entry)), 'History summaries stay compact; opening details supplies persisted routes.');
+    await error(await get(appB, `/api/jobs/${job.id}`, users[1]), 404);
+    await error(await get(appB, `/api/jobs/${legacyJob.id}`, users[1]), 404);
   });
 
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {

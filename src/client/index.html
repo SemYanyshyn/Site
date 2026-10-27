@@ -144,13 +144,28 @@
                 <div><dt>Бюджет ітерацій</dt><dd id="job-budget"></dd></div>
               </dl>
               <div id="job-result" hidden>
-                <div class="result-heading"><p class="eyebrow">Найкращий знайдений маршрут</p><p id="job-result-length" class="result-length"></p><p class="unit-label">умовних одиниць</p></div>
+                <section class="initial-route" aria-labelledby="job-initial-title">
+                  <div class="result-heading"><h4 id="job-initial-title" class="route-comparison-title">Початковий маршрут — метод найближчого сусіда</h4><p id="job-initial-length" class="result-length"></p><p class="unit-label">умовних одиниць</p></div>
+                  <p id="job-initial-order" class="route-order" tabindex="0" aria-label="Послідовність початкового маршруту" hidden></p>
+                  <p id="job-initial-unavailable" class="quiet-note" hidden>Початкова послідовність недоступна: цей збережений результат містить лише початкову довжину.</p>
+                  <details id="job-initial-steps" class="initial-route-steps" hidden>
+                    <summary>Кроки побудови початкового маршруту</summary>
+                    <p class="quiet-note">Від поточної точки обирається найближча ще не відвідана доставка. Останній перехід — повернення на склад, а не вибір наступної доставки. Номери доставок відповідають рядкам збережених вхідних даних.</p>
+                    <div class="route-steps-scroll" tabindex="0" role="region" aria-label="Таблиця кроків початкового маршруту">
+                      <table class="route-steps-table">
+                        <caption class="visually-hidden">Переходи початкового маршруту</caption>
+                        <thead><tr><th scope="col">Крок</th><th scope="col">Звідки</th><th scope="col">Куди</th><th scope="col">Відстань переходу</th></tr></thead>
+                        <tbody id="job-initial-step-rows"></tbody>
+                      </table>
+                    </div>
+                  </details>
+                </section>
+                <div class="result-heading"><h4 class="route-comparison-title">Найкращий знайдений маршрут</h4><p id="job-result-length" class="result-length"></p><p class="unit-label">умовних одиниць</p></div>
+                <p id="job-route-order" class="route-order" tabindex="0" aria-label="Послідовність найкращого знайденого маршруту"></p>
                 <div id="route-diagram" class="route-diagram"></div>
                 <div class="diagram-legend"><span><i class="warehouse-key" aria-hidden="true"></i> Склад</span><span><i class="delivery-key" aria-hidden="true"></i> Точки доставки</span></div>
                 <p class="diagram-note">Спільний масштаб X/Y; напрямок Y — вгору. Збіги координат можуть накладатися.</p>
-                <p id="job-route-order" class="route-order"></p>
                 <dl class="result-metadata">
-                  <div><dt>Початкова довжина</dt><dd id="job-initial-length"></dd></div>
                   <div><dt>Виконано ітерацій</dt><dd id="job-result-iterations"></dd></div>
                   <div><dt>Час роботи алгоритму</dt><dd id="job-elapsed"></dd></div>
                 </dl>

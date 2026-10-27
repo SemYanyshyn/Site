@@ -87,6 +87,29 @@ function validResult(value: unknown, input: NormalizedRouteInput, elapsedMs: num
   const tolerance = Number.EPSILON * Math.max(length, value.initialLength) * Math.max(16, count * 8)
     + Number.MIN_VALUE * count;
   if (Math.abs(length - value.length) > tolerance || value.length > value.initialLength + tolerance) return false;
+  if (value.initialOrder !== undefined) {
+    if (!Array.isArray(value.initialOrder) || value.initialOrder.length !== count + 2
+      || value.initialOrder[0] !== 0 || value.initialOrder.at(-1) !== 0) return false;
+    const initialSeen = new Uint8Array(count + 1);
+    let initialLength = 0;
+    for (let position = 1; position <= count + 1; position += 1) {
+      const index: unknown = value.initialOrder[position];
+      const previousIndex: unknown = value.initialOrder[position - 1];
+      if (typeof index !== 'number' || !Number.isInteger(index) || index < 0 || index > count) return false;
+      if (position <= count) {
+        if (index === 0 || initialSeen[index]) return false;
+        initialSeen[index] = 1;
+      }
+      if (typeof previousIndex !== 'number') return false;
+      const current = locations[index];
+      const previous = locations[previousIndex];
+      if (!current || !previous) return false;
+      initialLength += Math.hypot(current.x - previous.x, current.y - previous.y);
+    }
+    const initialTolerance = Number.EPSILON * Math.max(initialLength, value.initialLength) * Math.max(16, count * 8)
+      + Number.MIN_VALUE * count;
+    if (Math.abs(initialLength - value.initialLength) > initialTolerance) return false;
+  }
   // Any valid initial closed route has this conservative geometric upper bound.
   const maxAbsoluteCoordinate = Math.max(...locations.flatMap((point) => [Math.abs(point.x), Math.abs(point.y)]));
   const maximumLength = (count + 1) * 2 * Math.SQRT2 * maxAbsoluteCoordinate;

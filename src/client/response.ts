@@ -152,6 +152,30 @@ export function isJobSummary(value: unknown): value is JobSummary {
   return value.error === undefined;
 }
 
+function closedRouteLength(
+  order: unknown,
+  savedInput: NormalizedRouteInput,
+): number | null {
+  if (!Array.isArray(order) || order.length !== savedInput.points.length + 2
+    || order[0] !== 0 || order.at(-1) !== 0) return null;
+  const seen = new Set<number>();
+  let previous = savedInput.warehouse;
+  let length = 0;
+  for (let index = 1; index < order.length; index++) {
+    const delivery: unknown = order[index];
+    if (!safeInteger(delivery, 0, savedInput.points.length)) return null;
+    if (index !== order.length - 1) {
+      if (delivery === 0 || seen.has(delivery)) return null;
+      seen.add(delivery);
+    }
+    const current = delivery === 0 ? savedInput.warehouse : savedInput.points[delivery - 1];
+    if (!current) return null;
+    length += Math.hypot(current.x - previous.x, current.y - previous.y);
+    previous = current;
+  }
+  return length;
+}
+
 function result(
   value: unknown,
   savedInput: NormalizedRouteInput,
@@ -175,22 +199,8 @@ function result(
     )
   )
     return false;
-  const seen = new Set<number>();
-  let previous = savedInput.warehouse;
-  let length = 0;
-  for (let index = 1; index < value.order.length; index++) {
-    const delivery: unknown = value.order[index];
-    if (!safeInteger(delivery, 0, savedInput.points.length)) return false;
-    if (index !== value.order.length - 1) {
-      if (delivery === 0 || seen.has(delivery)) return false;
-      seen.add(delivery);
-    }
-    const current =
-      delivery === 0 ? savedInput.warehouse : savedInput.points[delivery - 1];
-    if (!current) return false;
-    length += Math.hypot(current.x - previous.x, current.y - previous.y);
-    previous = current;
-  }
+  const length = closedRouteLength(value.order, savedInput);
+  if (length === null) return false;
   const tolerance =
     Number.EPSILON *
       Math.max(length, value.initialLength) *
@@ -201,6 +211,10 @@ function result(
     value.length > value.initialLength + tolerance
   )
     return false;
+  if (value.initialOrder !== undefined) {
+    const initialLength = closedRouteLength(value.initialOrder, savedInput);
+    if (initialLength === null || Math.abs(initialLength - value.initialLength) > tolerance) return false;
+  }
   if (value.terminationReason === "budget_exhausted")
     return value.iterationsCompleted === savedInput.iterations;
   if (value.iterationsCompleted !== 0) return false;

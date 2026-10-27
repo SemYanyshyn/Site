@@ -84,6 +84,7 @@ export function calculateRoute(input: NormalizedRouteInput, onProgress?: (progre
   const count = input.points.length;
   const distances = buildDistances(coordinates);
   const current = nearestNeighbor(distances, size);
+  const initialOrder = current.slice();
   const initialLength = routeLength(current, distances, size);
   let currentLength = initialLength;
   let best = current.slice();
@@ -166,6 +167,7 @@ export function calculateRoute(input: NormalizedRouteInput, onProgress?: (progre
     order: best,
     length: routeLength(best, distances, size),
     initialLength,
+    initialOrder,
     seed: input.seed,
     iterationsRequested: totalIterations,
     iterationsCompleted: completedIterations,

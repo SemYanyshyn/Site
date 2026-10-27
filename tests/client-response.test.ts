@@ -87,6 +87,7 @@ test('runtime detail parser keeps truthful zero-iteration trivial and coincident
   trivial.input.points = [{ x: 3, y: 4 }];
   assert.ok(trivial.result);
   trivial.result.order = [0, 1, 0];
+  trivial.result.initialOrder = [0, 1, 0];
   trivial.result.length = 10;
   trivial.result.initialLength = 10;
   trivial.result.iterationsCompleted = 0;
@@ -100,4 +101,34 @@ test('runtime detail parser keeps truthful zero-iteration trivial and coincident
   coincident.result.initialLength = 0;
   coincident.result.terminationReason = 'zero_length';
   assert.equal(parseJobDetails(coincident).result?.length, 0);
+});
+
+test('saved initial nearest-neighbor sequence is distinct from best and survives JSON history reload', () => {
+  const job = clientJob(1, 'completed');
+  job.input.points = [{ x: 2, y: 1 }, { x: 3, y: 5 }, { x: 7, y: 2 }, { x: 8, y: 7 }, { x: 1, y: 8 }];
+  assert.ok(job.result);
+  job.result.order = [0, 1, 3, 4, 5, 2, 0];
+  job.result.length = 28.94167798686012;
+  job.result.initialOrder = [0, 1, 2, 5, 4, 3, 0];
+  job.result.initialLength = 29.41492209332022;
+  const loaded = parseJobDetails(JSON.parse(JSON.stringify(job)));
+  assert.deepEqual(loaded.result?.initialOrder, [0, 1, 2, 5, 4, 3, 0]);
+  assert.notDeepEqual(loaded.result?.initialOrder, loaded.result?.order);
+  const legacy = structuredClone(job);
+  assert.ok(legacy.result);
+  delete legacy.result.initialOrder;
+  assert.equal(parseJobDetails(legacy).result?.initialOrder, undefined);
+  assert.equal(parseJobDetails(legacy).result?.initialLength, job.result.initialLength);
+});
+
+test('runtime initial sequence rejects malformed, repeated, oversized and geometrically inconsistent values', () => {
+  for (const initialOrder of [null, '0,1,2,3,0', [], [0, 1, 2, 3], [0, 1, 1, 3, 0], [0, 1, 2, 4, 0],
+    [0, 0, 2, 3, 0], [1, 1, 2, 3, 0], [0, 1, 2, 3, 1], [0, 1, NaN, 3, 0], [0, 1, 2.5, 3, 0],
+    Array.from({ length: 10_000 }, () => 0), [0, 1, 3, 2, 0]]) {
+    assert.throws(() => parseJobDetails(altered(value => { record(value.result).initialOrder = initialOrder; })), InvalidResponseError);
+  }
+  const saved = clientJob(1, 'completed');
+  assert.ok(saved.result);
+  saved.result.initialOrder = [0, 1, 2, 3, 0];
+  assert.equal(parseJobDetails(saved).result?.initialOrder, saved.result.initialOrder);
 });

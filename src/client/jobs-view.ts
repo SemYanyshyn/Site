@@ -3,6 +3,7 @@ import type { JobsState } from "./jobs-controller.js";
 import type { RouteDraft } from "./route-input.js";
 import { formatProgress, projectRoute } from "./route-geometry.js";
 import { queueDisplay } from "./queue-display.js";
+import { initialRouteSteps, routeSequence } from "./initial-route.js";
 
 export interface JobsViewActions {
   submit(draft: RouteDraft): void;
@@ -124,6 +125,10 @@ export function createJobsView(actions: JobsViewActions): JobsView {
   const detailError = requireElement<HTMLElement>("#job-detail-error");
   const result = requireElement<HTMLElement>("#job-result");
   const diagram = requireElement<HTMLElement>("#route-diagram");
+  const initialOrder = requireElement<HTMLElement>("#job-initial-order");
+  const initialUnavailable = requireElement<HTMLElement>("#job-initial-unavailable");
+  const initialSteps = requireElement<HTMLDetailsElement>("#job-initial-steps");
+  const initialStepRows = requireElement<HTMLTableSectionElement>("#job-initial-step-rows");
   const activeList = requireElement<HTMLUListElement>("#active-jobs");
   const historyList = requireElement<HTMLUListElement>("#history-jobs");
   const activeMessage = requireElement<HTMLElement>("#active-message");
@@ -280,16 +285,23 @@ export function createJobsView(actions: JobsViewActions): JobsView {
     result.hidden = true;
     resultFingerprint = "";
     diagram.replaceChildren();
+    initialOrder.hidden = true;
+    initialUnavailable.hidden = true;
+    initialSteps.hidden = true;
+    initialSteps.open = false;
+    initialStepRows.replaceChildren();
     for (const id of [
       "job-result-length",
       "job-route-order",
       "job-initial-length",
+      "job-initial-order",
       "job-result-iterations",
       "job-elapsed",
       "job-termination",
     ])
       text(id, "");
     requireElement<HTMLElement>("#job-result-length").removeAttribute("title");
+    requireElement<HTMLElement>("#job-initial-length").removeAttribute("title");
   }
 
   function renderResult(job: JobDetails): void {
@@ -369,9 +381,34 @@ export function createJobsView(actions: JobsViewActions): JobsView {
         job.result.length,
       );
       text("job-initial-length", distance(job.result.initialLength));
+      requireElement<HTMLElement>("#job-initial-length").title = String(job.result.initialLength);
+      if (job.result.initialOrder) {
+        text("job-initial-order", `Порядок: ${routeSequence(job.result.initialOrder)}`);
+        const fragment = document.createDocumentFragment();
+        for (const step of initialRouteSteps(job.input, job.result.initialOrder)) {
+          const row = document.createElement("tr");
+          const values = [
+            String(step.step),
+            step.from === 0 ? "Склад" : String(step.from),
+            step.returnsToWarehouse ? "Склад (повернення)" : String(step.to),
+            distance(step.distance),
+          ];
+          for (const value of values) {
+            const cell = document.createElement("td");
+            cell.textContent = value;
+            row.append(cell);
+          }
+          fragment.append(row);
+        }
+        initialStepRows.replaceChildren(fragment);
+        initialOrder.hidden = false;
+        initialSteps.hidden = false;
+      } else {
+        initialUnavailable.hidden = false;
+      }
       text(
         "job-route-order",
-        `Порядок: ${job.result.order.map((index) => (index === 0 ? "Склад" : String(index))).join(" → ")}`,
+        `Порядок: ${routeSequence(job.result.order)}`,
       );
       text(
         "job-result-iterations",

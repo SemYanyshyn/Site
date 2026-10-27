@@ -25,6 +25,8 @@ export interface RouteResult {
   order: number[];
   length: number;
   initialLength: number;
+  /** Exact nearest-neighbor snapshot; absent only in older persisted results. */
+  initialOrder?: number[];
   seed: number;
   iterationsRequested: number;
   iterationsCompleted: number;

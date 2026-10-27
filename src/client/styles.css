@@ -118,6 +118,17 @@ dt { margin: 0 0 5px; color: #7b8773; font-size: 10px; }
 dd { margin: 0; color: #37533b; font-size: 12px; line-height: 1.65; overflow-wrap: anywhere; }
 .result-heading { padding-top: 24px; border-top: 1px solid var(--line); }
 .result-heading .eyebrow { font-size: 9px; margin-bottom: 8px; }
+.route-comparison-title { margin: 0 0 10px; font-size: 14px; font-weight: 650; line-height: 1.6; overflow-wrap: anywhere; }
+.initial-route { margin-bottom: 24px; }
+.initial-route-steps { margin: 16px 0 0; color: #536b4c; font-size: 12px; line-height: 1.8; }
+.initial-route-steps summary { max-width: 100%; overflow-wrap: anywhere; }
+.route-steps-scroll { margin-top: 8px; max-height: 320px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+.route-steps-table { width: 100%; border-collapse: collapse; font-size: 11px; line-height: 1.6; }
+.route-steps-table th, .route-steps-table td { padding: 9px 7px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+.route-steps-table th { font-weight: 650; background: #f2f4eb; }
+.route-steps-table tr:last-child td { border-bottom: 0; }
+.route-steps-table th:last-child, .route-steps-table td:last-child { text-align: right; }
+.route-steps-table td:last-child { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .result-length { margin: 0; font-size: 40px; font-weight: 550; letter-spacing: -.045em; line-height: 1.2; overflow-wrap: anywhere; }
 .unit-label { margin: 4px 0 23px; color: #75816f; font-size: 11px; }
 .route-diagram { background: #f2f4eb; border: 1px solid #e3e8d9; border-radius: 10px; overflow: hidden; }
@@ -131,7 +142,7 @@ dd { margin: 0; color: #37533b; font-size: 12px; line-height: 1.65; overflow-wra
 .diagram-legend i { display: block; width: 7px; height: 7px; background: #4c774b; border-radius: 50%; }
 .diagram-legend .warehouse-key { width: 8px; height: 8px; border-radius: 1px; background: #173f35; }
 .diagram-note { margin: 8px 0 17px; color: #7d8774; font-size: 10px; line-height: 1.7; }
-.route-order { padding: 12px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); font-size: 12px; color: #405c3d; line-height: 1.9; overflow-wrap: anywhere; }
+.route-order { max-height: 180px; overflow: auto; padding: 12px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); font-size: 12px; color: #405c3d; line-height: 1.9; overflow-wrap: anywhere; }
 .result-metadata { display: flex; flex-wrap: wrap; gap: 16px 26px; margin: 16px 0; }
 .approximation-note { margin: 20px 0; color: #6a785f; font-size: 11px; line-height: 1.75; }
 .saved-input { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line); color: #536b4c; font-size: 11px; line-height: 1.8; }

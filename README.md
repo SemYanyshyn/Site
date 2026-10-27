@@ -150,6 +150,10 @@ npm run db:status    # host PostgreSQL керується окремо
 npm run db:stop
 ```
 
+`npm run deploy:status` показує короткий український огляд: готові/потрібні копії застосунку, Traefik і PostgreSQL, поточні копії/межі/CPU/ціль HPA, доступність Metrics Server та CPU/RAM контейнера `app` кожної копії. Значення читаються з Kubernetes; відсутні компоненти, неготові pod й недоступні або застарілі метрики позначаються явно. CPU подано в mCPU, RAM — у MiB; метрики після перезапуску приймаються лише коли все їхнє вікно належить поточному контейнеру. Доступність адреси демо перевіряється окремим HTTPS GET `/api/ready` зі звичайною перевіркою локальної CA та hostname, а не лише наявністю URL. У короткому режимі неповний/неготовий стан дає код завершення `1`.
+
+Повні попередні таблиці Kubernetes, включно зі службовими подробицями та `kubectl top`, доступні через `npm run deploy:status -- --verbose`. Обидва режими лише читають стан: не запускають і не перезапускають компоненти, не створюють forwarding і не перезаписують kubeconfig чи іншу конфігурацію.
+
 ## Метрики та автоматичне розширення 2–4
 
 Metrics Server `0.9.0` узято з [офіційного стабільного release](https://github.com/kubernetes-sigs/metrics-server/releases/tag/v0.9.0); [матриця цієї версії](https://github.com/kubernetes-sigs/metrics-server/blob/v0.9.0/README.md#compatibility-matrix) підтримує Kubernetes `1.34+`. У [versions.json](deploy/versions.json) зафіксовано image index digest, окремий arm64 digest та SHA256 вихідного `components.yaml`; deploy застосовує tracked JSON і не завантажує `releases/latest`. Один Metrics Server достатній для single-node kind.

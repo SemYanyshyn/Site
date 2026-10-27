@@ -27,10 +27,13 @@ a { color: inherit; }
 .eyebrow { margin: 0 0 14px; color: #637868; font-size: 10px; font-weight: 750; letter-spacing: .15em; text-transform: uppercase; }
 h1 { margin: 0; font-size: clamp(36px, 5vw, 60px); font-weight: 550; line-height: 1.09; letter-spacing: -.045em; overflow-wrap: break-word; }
 .description { max-width: 610px; margin: 22px 0 0; font-size: 16px; line-height: 1.75; color: var(--muted); }
+.page:has(#user-state[hidden]) .intro { width: 100%; margin-inline: auto; text-align: center; }
+.page:has(#user-state[hidden]) .intro .description { margin-inline: auto; }
 h2, h3 { margin: 0; line-height: 1.4; font-weight: 650; letter-spacing: -.025em; }
 h2 { font-size: 23px; }
 h3 { font-size: 18px; }
 .auth-card { max-width: 600px; margin: 0 0 32px; padding: 26px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); }
+.auth-card:has(#user-state[hidden]) { width: 100%; margin-inline: auto; }
 .auth-card > h2, .auth-heading h2 { font-size: 20px; }
 .auth-card:has(#user-state:not([hidden])) { display: flex; align-items: center; justify-content: space-between; gap: 22px; max-width: none; padding: 20px 26px; }
 .auth-card:has(#user-state:not([hidden])) .auth-message { margin-bottom: 0; }

@@ -1,78 +1,180 @@
-import type { JobDetails, JobLimitsResponse, JobListResponse, JobSummary } from '../shared/jobs.js';
-import { QUEUE_LIMITS } from '../shared/jobs.js';
-import type { Coordinate, NormalizedRouteInput, RouteProgress, RouteResult } from '../shared/route.js';
+import type {
+  JobDetails,
+  JobLimitsResponse,
+  JobListResponse,
+  JobSummary,
+} from "../shared/jobs.js";
+import { QUEUE_LIMITS } from "../shared/jobs.js";
+import type {
+  Coordinate,
+  NormalizedRouteInput,
+  RouteProgress,
+  RouteResult,
+} from "../shared/route.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const STATUSES = new Set(['queued', 'running', 'completed', 'cancelled', 'failed']);
-const FAILURES = new Set(['timeout', 'worker_error', 'server_shutdown', 'database_unavailable', 'invalid_input', 'worker_lost']);
+const STATUSES = new Set([
+  "queued",
+  "running",
+  "completed",
+  "cancelled",
+  "failed",
+]);
+const FAILURES = new Set([
+  "timeout",
+  "worker_error",
+  "server_shutdown",
+  "database_unavailable",
+  "invalid_input",
+  "worker_lost",
+]);
 
 export class InvalidResponseError extends Error {
-  constructor() { super('Сервер повернув некоректні дані. Оновіть дані або спробуйте пізніше.'); }
+  constructor() {
+    super(
+      "Сервер повернув некоректні дані. Оновіть дані або спробуйте пізніше.",
+    );
+  }
 }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function safeInteger(value: unknown, minimum: number, maximum: number): value is number {
-  return typeof value === 'number' && Number.isSafeInteger(value) && value >= minimum && value <= maximum;
+function safeInteger(
+  value: unknown,
+  minimum: number,
+  maximum: number,
+): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isSafeInteger(value) &&
+    value >= minimum &&
+    value <= maximum
+  );
 }
 
-function finite(value: unknown, minimum: number, maximum = Number.MAX_VALUE): value is number {
-  return typeof value === 'number' && Number.isFinite(value) && value >= minimum && value <= maximum;
+function finite(
+  value: unknown,
+  minimum: number,
+  maximum = Number.MAX_VALUE,
+): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isFinite(value) &&
+    value >= minimum &&
+    value <= maximum
+  );
 }
 
 function date(value: unknown): value is string {
-  return typeof value === 'string' && value.length <= 40 && /^\d{4}-\d\d-\d\dT/.test(value) && Number.isFinite(Date.parse(value));
+  return (
+    typeof value === "string" &&
+    value.length <= 40 &&
+    /^\d{4}-\d\d-\d\dT/.test(value) &&
+    Number.isFinite(Date.parse(value))
+  );
 }
 
-function nullableDate(value: unknown): value is string | null { return value === null || date(value); }
+function nullableDate(value: unknown): value is string | null {
+  return value === null || date(value);
+}
 
 function coordinate(value: unknown): value is Coordinate {
-  return isRecord(value) && finite(value.x, -1_000_000, 1_000_000) && finite(value.y, -1_000_000, 1_000_000);
+  return (
+    isRecord(value) &&
+    finite(value.x, -1_000_000, 1_000_000) &&
+    finite(value.y, -1_000_000, 1_000_000)
+  );
 }
 
 function input(value: unknown): value is NormalizedRouteInput {
-  return isRecord(value) && coordinate(value.warehouse)
-    && Array.isArray(value.points) && value.points.length >= 1 && value.points.length <= 2_000
-    && value.points.every(coordinate) && safeInteger(value.iterations, 1, 200_000_000)
-    && safeInteger(value.seed, 0, 4_294_967_295);
+  return (
+    isRecord(value) &&
+    coordinate(value.warehouse) &&
+    Array.isArray(value.points) &&
+    value.points.length >= 1 &&
+    value.points.length <= 2_000 &&
+    value.points.every(coordinate) &&
+    safeInteger(value.iterations, 1, 200_000_000) &&
+    safeInteger(value.seed, 0, 4_294_967_295)
+  );
 }
 
 function progress(value: unknown, completed: boolean): value is RouteProgress {
-  if (!isRecord(value) || typeof value.stage !== 'string' || !['preparing', 'searching', 'finishing'].includes(value.stage)
-    || !safeInteger(value.totalIterations, 1, 200_000_000)
-    || !safeInteger(value.completedIterations, 0, value.totalIterations)
-    || !finite(value.percent, 0, 100)) return false;
-  if (completed) return value.percent === 100 && value.stage === 'finishing';
-  return value.percent < 100
-    && (value.stage !== 'preparing' || (value.completedIterations === 0 && value.percent === 0));
+  if (
+    !isRecord(value) ||
+    typeof value.stage !== "string" ||
+    !["preparing", "searching", "finishing"].includes(value.stage) ||
+    !safeInteger(value.totalIterations, 1, 200_000_000) ||
+    !safeInteger(value.completedIterations, 0, value.totalIterations) ||
+    !finite(value.percent, 0, 100)
+  )
+    return false;
+  if (completed) return value.percent === 100 && value.stage === "finishing";
+  return (
+    value.percent < 100 &&
+    (value.stage !== "preparing" ||
+      (value.completedIterations === 0 && value.percent === 0))
+  );
 }
 
 export function isJobSummary(value: unknown): value is JobSummary {
-  if (!isRecord(value) || typeof value.id !== 'string' || !UUID.test(value.id)
-    || typeof value.status !== 'string' || !STATUSES.has(value.status)
-    || !progress(value.progress, value.status === 'completed')
-    || typeof value.cancelRequested !== 'boolean' || !date(value.createdAt) || !date(value.updatedAt)
-    || !nullableDate(value.startedAt) || !nullableDate(value.finishedAt)
-    || !(value.executedBy === null || (typeof value.executedBy === 'string' && UUID.test(value.executedBy)))) return false;
-  const terminal = ['completed', 'cancelled', 'failed'].includes(value.status);
+  if (
+    !isRecord(value) ||
+    typeof value.id !== "string" ||
+    !UUID.test(value.id) ||
+    typeof value.status !== "string" ||
+    !STATUSES.has(value.status) ||
+    !progress(value.progress, value.status === "completed") ||
+    typeof value.cancelRequested !== "boolean" ||
+    !date(value.createdAt) ||
+    !date(value.updatedAt) ||
+    !nullableDate(value.startedAt) ||
+    !nullableDate(value.finishedAt) ||
+    !(
+      value.executedBy === null ||
+      (typeof value.executedBy === "string" && UUID.test(value.executedBy))
+    )
+  )
+    return false;
+  const terminal = ["completed", "cancelled", "failed"].includes(value.status);
   if (terminal !== (value.finishedAt !== null)) return false;
-  if (value.status === 'failed') return isRecord(value.error)
-    && typeof value.error.reason === 'string' && FAILURES.has(value.error.reason)
-    && typeof value.error.message === 'string' && value.error.message.length > 0 && value.error.message.length <= 2_000;
+  if (value.status === "failed")
+    return (
+      isRecord(value.error) &&
+      typeof value.error.reason === "string" &&
+      FAILURES.has(value.error.reason) &&
+      typeof value.error.message === "string" &&
+      value.error.message.length > 0 &&
+      value.error.message.length <= 2_000
+    );
   return value.error === undefined;
 }
 
-function result(value: unknown, savedInput: NormalizedRouteInput): value is RouteResult {
-  if (!isRecord(value) || !Array.isArray(value.order) || value.order.length !== savedInput.points.length + 2
-    || value.order[0] !== 0 || value.order.at(-1) !== 0
-    || !finite(value.length, 0) || !finite(value.initialLength, 0)
-    || value.seed !== savedInput.seed || value.iterationsRequested !== savedInput.iterations
-    || !safeInteger(value.iterationsCompleted, 0, savedInput.iterations)
-    || !finite(value.elapsedMs, 0) || value.approximate !== true
-    || typeof value.terminationReason !== 'string'
-    || !['budget_exhausted', 'trivial_input', 'zero_length'].includes(value.terminationReason)) return false;
+function result(
+  value: unknown,
+  savedInput: NormalizedRouteInput,
+): value is RouteResult {
+  if (
+    !isRecord(value) ||
+    !Array.isArray(value.order) ||
+    value.order.length !== savedInput.points.length + 2 ||
+    value.order[0] !== 0 ||
+    value.order.at(-1) !== 0 ||
+    !finite(value.length, 0) ||
+    !finite(value.initialLength, 0) ||
+    value.seed !== savedInput.seed ||
+    value.iterationsRequested !== savedInput.iterations ||
+    !safeInteger(value.iterationsCompleted, 0, savedInput.iterations) ||
+    !finite(value.elapsedMs, 0) ||
+    value.approximate !== true ||
+    typeof value.terminationReason !== "string" ||
+    !["budget_exhausted", "trivial_input", "zero_length"].includes(
+      value.terminationReason,
+    )
+  )
+    return false;
   const seen = new Set<number>();
   let previous = savedInput.warehouse;
   let length = 0;
@@ -83,55 +185,97 @@ function result(value: unknown, savedInput: NormalizedRouteInput): value is Rout
       if (delivery === 0 || seen.has(delivery)) return false;
       seen.add(delivery);
     }
-    const current = delivery === 0 ? savedInput.warehouse : savedInput.points[delivery - 1];
+    const current =
+      delivery === 0 ? savedInput.warehouse : savedInput.points[delivery - 1];
     if (!current) return false;
     length += Math.hypot(current.x - previous.x, current.y - previous.y);
     previous = current;
   }
-  const tolerance = Number.EPSILON * Math.max(length, value.initialLength) * Math.max(16, savedInput.points.length * 8)
-    + Number.MIN_VALUE * savedInput.points.length;
-  if (Math.abs(value.length - length) > tolerance || value.length > value.initialLength + tolerance) return false;
-  if (value.terminationReason === 'budget_exhausted') return value.iterationsCompleted === savedInput.iterations;
+  const tolerance =
+    Number.EPSILON *
+      Math.max(length, value.initialLength) *
+      Math.max(16, savedInput.points.length * 8) +
+    Number.MIN_VALUE * savedInput.points.length;
+  if (
+    Math.abs(value.length - length) > tolerance ||
+    value.length > value.initialLength + tolerance
+  )
+    return false;
+  if (value.terminationReason === "budget_exhausted")
+    return value.iterationsCompleted === savedInput.iterations;
   if (value.iterationsCompleted !== 0) return false;
-  return value.terminationReason === 'zero_length' ? value.length === 0 : savedInput.points.length <= 2;
+  return value.terminationReason === "zero_length"
+    ? value.length === 0
+    : savedInput.points.length <= 2;
 }
 
-export function parseJobDetails(value: unknown, requireQueue = false): JobDetails {
-  if (!isJobSummary(value) || !isRecord(value) || !input(value.input)
-    || value.progress.totalIterations !== value.input.iterations) throw new InvalidResponseError();
-  if (value.status === 'completed') {
-    if (!result(value.result, value.input) || value.progress.completedIterations !== value.result.iterationsCompleted) throw new InvalidResponseError();
+export function parseJobDetails(
+  value: unknown,
+  requireQueue = false,
+): JobDetails {
+  if (
+    !isJobSummary(value) ||
+    !isRecord(value) ||
+    !input(value.input) ||
+    value.progress.totalIterations !== value.input.iterations
+  )
+    throw new InvalidResponseError();
+  if (value.status === "completed") {
+    if (
+      !result(value.result, value.input) ||
+      value.progress.completedIterations !== value.result.iterationsCompleted
+    )
+      throw new InvalidResponseError();
   } else if (value.result !== undefined) throw new InvalidResponseError();
-  if (value.status !== 'queued') {
+  if (value.status !== "queued") {
     if (value.queue !== undefined) throw new InvalidResponseError();
   } else if (value.queue === undefined) {
     if (requireQueue) throw new InvalidResponseError();
   } else {
     const queue = value.queue;
-    if (!isRecord(queue) || !date(queue.calculatedAt)
-      || !safeInteger(queue.queuedAhead, 0, QUEUE_LIMITS.maxQueuedAhead)
-      || !safeInteger(queue.executorCount, 0, QUEUE_LIMITS.maxExecutors)
-      || typeof queue.basis !== 'string' || !['measured', 'mixed', 'timeout', 'unavailable'].includes(queue.basis)
-      || !(queue.estimatedWaitMs === null || safeInteger(queue.estimatedWaitMs, 0, QUEUE_LIMITS.maxWaitMs))
-      || (queue.basis === 'unavailable') !== (queue.estimatedWaitMs === null)
-      || (queue.executorCount === 0 && queue.estimatedWaitMs !== null)) throw new InvalidResponseError();
+    if (
+      !isRecord(queue) ||
+      !date(queue.calculatedAt) ||
+      !safeInteger(queue.queuedAhead, 0, QUEUE_LIMITS.maxQueuedAhead) ||
+      !safeInteger(queue.executorCount, 0, QUEUE_LIMITS.maxExecutors) ||
+      typeof queue.basis !== "string" ||
+      !["measured", "mixed", "timeout", "unavailable"].includes(queue.basis) ||
+      !(
+        queue.estimatedWaitMs === null ||
+        safeInteger(queue.estimatedWaitMs, 0, QUEUE_LIMITS.maxWaitMs)
+      ) ||
+      (queue.basis === "unavailable") !== (queue.estimatedWaitMs === null) ||
+      (queue.executorCount === 0 && queue.estimatedWaitMs !== null)
+    )
+      throw new InvalidResponseError();
   }
   return value as unknown as JobDetails;
 }
 
 export function parseJobList(value: unknown): JobListResponse {
-  if (!isRecord(value) || !safeInteger(value.limit, 1, 50) || !safeInteger(value.offset, 0, 1_000_000)
-    || !Array.isArray(value.jobs) || value.jobs.length > value.limit || !value.jobs.every(isJobSummary)
-    || new Set(value.jobs.map((job) => job.id)).size !== value.jobs.length) throw new InvalidResponseError();
+  if (
+    !isRecord(value) ||
+    !safeInteger(value.limit, 1, 50) ||
+    !safeInteger(value.offset, 0, 1_000_000) ||
+    !Array.isArray(value.jobs) ||
+    value.jobs.length > value.limit ||
+    !value.jobs.every(isJobSummary) ||
+    new Set(value.jobs.map((job) => job.id)).size !== value.jobs.length
+  )
+    throw new InvalidResponseError();
   return value as unknown as JobListResponse;
 }
 
 export function parseJobLimits(value: unknown): JobLimitsResponse {
-  if (!isRecord(value) || !isRecord(value.route)
-    || !safeInteger(value.route.maxPoints, 1, 2_000)
-    || !safeInteger(value.route.maxIterations, 1, 200_000_000)
-    || !safeInteger(value.route.timeoutMs, 1, 120_000)
-    || !safeInteger(value.route.maxCoordinate, 1, 1_000_000)
-    || !safeInteger(value.maxActivePerUser, 1, 100)) throw new InvalidResponseError();
+  if (
+    !isRecord(value) ||
+    !isRecord(value.route) ||
+    !safeInteger(value.route.maxPoints, 1, 2_000) ||
+    !safeInteger(value.route.maxIterations, 1, 200_000_000) ||
+    !safeInteger(value.route.timeoutMs, 1, 120_000) ||
+    !safeInteger(value.route.maxCoordinate, 1, 1_000_000) ||
+    !safeInteger(value.maxActivePerUser, 1, 100)
+  )
+    throw new InvalidResponseError();
   return value as unknown as JobLimitsResponse;
 }

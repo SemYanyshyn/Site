@@ -9,6 +9,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { appApplyPlan, assertObjectOwner, replicaHandoffPatch } from './deployment-autoscale.mjs';
 import { assertDeploymentDeadline, runDeploymentCommand, withoutDeploymentDeadline } from './deployment-command.mjs';
+import { collectDeploymentStatus, parseStatusArguments } from './deployment-status.mjs';
 export { withDeploymentDeadline, withoutDeploymentDeadline } from './deployment-command.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -651,14 +652,29 @@ async function main(command) {
     console.log(await assignDeploymentRole({ username: values.get('--username'), role: values.get('--role') }));
     return;
   }
-  const state = await clusterState({ create: command === 'up' });
-  const kubectl = kubectlFor('courier-route');
   if (command === 'status') {
-    console.log(await kubectl(['get', 'deployment,statefulset,pod,service,ingress,pvc,job,hpa', '-o', 'wide']));
-    console.log(await kubectl(['get', 'apiservice', 'v1beta1.metrics.k8s.io', '-o', 'wide']));
-    console.log(await kubectl(['top', 'pods', '--containers']));
+    const { verbose } = parseStatusArguments(process.argv.slice(3));
+    let state;
+    try { state = await readJson(statePath); }
+    catch { throw new Error('Локальний стан кластера не вдалося прочитати; статус не змінює конфігурацію.'); }
+    assert.ok(state?.cluster === cluster && state.context === context && /^[0-9a-f-]{36}$/u.test(state.ownerId),
+      'Локальний стан кластера відсутній або некоректний; статус не змінює конфігурацію.');
+    assert.ok((await stat(kubeconfig).catch(() => null))?.isFile(), 'Kubeconfig проєкту відсутній; статус не створює його.');
+    const kubectl = kubectlFor('courier-route');
+    if (verbose) {
+      console.log(await kubectl(['get', 'deployment,statefulset,pod,service,ingress,pvc,job,hpa', '-o', 'wide']));
+      console.log(await kubectl(['get', 'apiservice', 'v1beta1.metrics.k8s.io', '-o', 'wide']));
+      console.log(await kubectl(['top', 'pods', '--containers']));
+    } else {
+      const status = await collectDeploymentStatus({ kubectl, metricsKubectl: kubectlFor('courier-route-metrics'),
+        origin: `https://localhost:${port(state.httpsPort, 8443)}`, caPath: join(local, 'tls/ca.crt'), ownerId: state.ownerId });
+      console.log(status.text);
+      if (!status.ok) process.exitCode = 1;
+    }
     return;
   }
+  const state = await clusterState({ create: command === 'up' });
+  const kubectl = kubectlFor('courier-route');
   if (command === 'stop') {
     await stopNamespace(kubectl, 'courier-route', state.ownerId);
     console.log('HPA призупинено; застосунок, Traefik і PostgreSQL зупинено; кластер, Metrics Server та PVC збережено.'); return;

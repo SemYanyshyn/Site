@@ -124,6 +124,3 @@ export function adminRecord(value: unknown): value is Record<string, unknown> {
 export function adminTimestamp(value: unknown): value is string {
   return typeof value === 'string' && value.length <= 40 && Number.isFinite(Date.parse(value));
 }
-export function adminFinite(value: unknown, max = 1e15): value is number {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= max;
-}

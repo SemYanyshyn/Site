@@ -182,10 +182,6 @@ function result(
 ): value is RouteResult {
   if (
     !isRecord(value) ||
-    !Array.isArray(value.order) ||
-    value.order.length !== savedInput.points.length + 2 ||
-    value.order[0] !== 0 ||
-    value.order.at(-1) !== 0 ||
     !finite(value.length, 0) ||
     !finite(value.initialLength, 0) ||
     value.seed !== savedInput.seed ||

@@ -3,7 +3,7 @@ import { performance } from 'node:perf_hooks';
 import { Worker } from 'node:worker_threads';
 import type { WorkerOptions } from 'node:worker_threads';
 import type {
-  NormalizedRouteInput, RouteLimits, RouteOutcome, RouteProgress, RouteResult,
+  Coordinate, NormalizedRouteInput, RouteLimits, RouteOutcome, RouteProgress, RouteResult,
 } from '../../shared/route.js';
 import { readRouteConfig, validateRouteLimits } from './config.js';
 import { validateRouteInput } from './validation.js';
@@ -54,12 +54,33 @@ function finiteNonnegative(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0;
 }
 
+function closedRouteLength(order: unknown, locations: readonly Coordinate[]): number | null {
+  const count = locations.length - 1;
+  if (!Array.isArray(order) || order.length !== count + 2 || order[0] !== 0 || order.at(-1) !== 0) return null;
+  const seen = new Uint8Array(count + 1);
+  let length = 0;
+  for (let position = 1; position <= count + 1; position += 1) {
+    const index: unknown = order[position];
+    const previousIndex: unknown = order[position - 1];
+    if (!Number.isInteger(index) || typeof index !== 'number' || index < 0 || index > count) return null;
+    if (position <= count) {
+      if (index === 0 || seen[index]) return null;
+      seen[index] = 1;
+    }
+    if (typeof previousIndex !== 'number') return null;
+    const current = locations[index];
+    const previous = locations[previousIndex];
+    if (!current || !previous) return null;
+    length += Math.hypot(current.x - previous.x, current.y - previous.y);
+  }
+  return length;
+}
+
 /** Check the actual returned permutation and length independently of the solver. */
 function validResult(value: unknown, input: NormalizedRouteInput, elapsedMs: number): value is RouteResult {
-  if (!isRecord(value) || !Array.isArray(value.order)) return false;
+  if (!isRecord(value)) return false;
   const count = input.points.length;
   if (
-    value.order.length !== count + 2 || value.order[0] !== 0 || value.order.at(-1) !== 0 ||
     value.seed !== input.seed || value.iterationsRequested !== input.iterations ||
     !Number.isSafeInteger(value.iterationsCompleted) || typeof value.iterationsCompleted !== 'number' ||
     value.iterationsCompleted < 0 || value.iterationsCompleted > input.iterations ||
@@ -67,45 +88,15 @@ function validResult(value: unknown, input: NormalizedRouteInput, elapsedMs: num
     !finiteNonnegative(value.elapsedMs) || value.elapsedMs > elapsedMs + 2 || value.approximate !== true
   ) return false;
 
-  const seen = new Uint8Array(count + 1);
   const locations = [input.warehouse, ...input.points];
-  let length = 0;
-  for (let position = 1; position <= count + 1; position += 1) {
-    const index: unknown = value.order[position];
-    const previousIndex: unknown = value.order[position - 1];
-    if (!Number.isInteger(index) || typeof index !== 'number' || index < 0 || index > count) return false;
-    if (position <= count) {
-      if (index === 0 || seen[index]) return false;
-      seen[index] = 1;
-    }
-    if (typeof previousIndex !== 'number') return false;
-    const current = locations[index];
-    const previous = locations[previousIndex];
-    if (!current || !previous) return false;
-    length += Math.hypot(current.x - previous.x, current.y - previous.y);
-  }
+  const length = closedRouteLength(value.order, locations);
+  if (length === null) return false;
   const tolerance = Number.EPSILON * Math.max(length, value.initialLength) * Math.max(16, count * 8)
     + Number.MIN_VALUE * count;
   if (Math.abs(length - value.length) > tolerance || value.length > value.initialLength + tolerance) return false;
   if (value.initialOrder !== undefined) {
-    if (!Array.isArray(value.initialOrder) || value.initialOrder.length !== count + 2
-      || value.initialOrder[0] !== 0 || value.initialOrder.at(-1) !== 0) return false;
-    const initialSeen = new Uint8Array(count + 1);
-    let initialLength = 0;
-    for (let position = 1; position <= count + 1; position += 1) {
-      const index: unknown = value.initialOrder[position];
-      const previousIndex: unknown = value.initialOrder[position - 1];
-      if (typeof index !== 'number' || !Number.isInteger(index) || index < 0 || index > count) return false;
-      if (position <= count) {
-        if (index === 0 || initialSeen[index]) return false;
-        initialSeen[index] = 1;
-      }
-      if (typeof previousIndex !== 'number') return false;
-      const current = locations[index];
-      const previous = locations[previousIndex];
-      if (!current || !previous) return false;
-      initialLength += Math.hypot(current.x - previous.x, current.y - previous.y);
-    }
+    const initialLength = closedRouteLength(value.initialOrder, locations);
+    if (initialLength === null) return false;
     const initialTolerance = Number.EPSILON * Math.max(initialLength, value.initialLength) * Math.max(16, count * 8)
       + Number.MIN_VALUE * count;
     if (Math.abs(initialLength - value.initialLength) > initialTolerance) return false;

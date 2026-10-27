@@ -13,7 +13,6 @@ export interface JobClaim {
   id: string;
   claimToken: string;
   input: NormalizedRouteInput;
-  timeoutMs: number;
 }
 
 export interface JobListOptions {
@@ -36,7 +35,6 @@ interface SummaryRow {
   finished_at: Date | null;
   instance_id: string | null;
   failure_reason: JobFailureReason | null;
-  failure_message: string | null;
 }
 
 interface DetailsRow extends SummaryRow {
@@ -45,7 +43,7 @@ interface DetailsRow extends SummaryRow {
 }
 
 const SUMMARY_COLUMNS = `id, status, progress_stage, completed_iterations, total_iterations, progress_percent,
-  cancel_requested_at, created_at, updated_at, started_at, finished_at, instance_id, failure_reason, failure_message`;
+  cancel_requested_at, created_at, updated_at, started_at, finished_at, instance_id, failure_reason`;
 const DETAIL_COLUMNS = `${SUMMARY_COLUMNS}, input, result`;
 
 const FAILURE_MESSAGES: Readonly<Record<JobFailureReason, string>> = Object.freeze({
@@ -219,7 +217,7 @@ export class JobsRepository {
   async claim(instanceId: string, timeoutMs: number, graceMs: number): Promise<JobClaim | null> {
     return transaction(this.pool, async (client) => {
       const token = randomUUID();
-      const result = await client.query<{ id: string; claim_token: string; input: NormalizedRouteInput; timeout_ms: number }>(`
+      const result = await client.query<{ id: string; claim_token: string; input: NormalizedRouteInput }>(`
         WITH next_job AS (
           SELECT id FROM jobs WHERE status = 'queued'
           ORDER BY created_at, id FOR UPDATE SKIP LOCKED LIMIT 1
@@ -228,10 +226,10 @@ export class JobsRepository {
           started_at = clock_timestamp(), updated_at = clock_timestamp(), timeout_ms = $3,
           lost_after = clock_timestamp() + ($3::integer + $4::integer) * INTERVAL '1 millisecond'
         FROM next_job WHERE j.id = next_job.id AND j.status = 'queued'
-        RETURNING j.id, j.claim_token, j.input, j.timeout_ms
+        RETURNING j.id, j.claim_token, j.input
       `, [instanceId, token, timeoutMs, graceMs]);
       const row = result.rows[0];
-      return row ? { id: row.id, claimToken: row.claim_token, input: row.input, timeoutMs: row.timeout_ms } : null;
+      return row ? { id: row.id, claimToken: row.claim_token, input: row.input } : null;
     });
   }
 

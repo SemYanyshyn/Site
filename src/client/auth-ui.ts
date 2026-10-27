@@ -124,7 +124,7 @@ export function mountAuth(callbacks: AuthCallbacks): AuthHandle {
     path: string,
     method: "GET" | "POST",
     body?: unknown,
-  ): Promise<unknown> {
+  ): Promise<AuthResponse | null> {
     const response = await fetch(`/api/auth/${path}`, {
       method,
       credentials: "same-origin",
@@ -220,7 +220,7 @@ export function mountAuth(callbacks: AuthCallbacks): AuthHandle {
         try {
           const response = await send(action, "POST", credentials.value);
           if (destroyed || version !== generation) return;
-          if (!isAuthResponse(response))
+          if (response === null)
             throw new Error("Некоректна відповідь сервера.");
           password.value = "";
           username.value = response.user.username;
@@ -294,7 +294,7 @@ export function mountAuth(callbacks: AuthCallbacks): AuthHandle {
     try {
       const response = await send("me", "GET");
       if (destroyed || version !== generation) return;
-      if (!isAuthResponse(response))
+      if (response === null)
         throw new Error("Некоректна відповідь сервера.");
       user = response.user;
       callbacks.onAuthenticated(user);

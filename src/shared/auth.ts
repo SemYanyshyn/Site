@@ -40,8 +40,9 @@ export function validateCredentials(
   if (!USERNAME_PATTERN.test(enteredUsername)) {
     return { ok: false, message: 'Логін: 3–32 латинські літери, цифри, «_» або «-».' };
   }
-  const passwordLength = [...values.password].length;
-  if ([...values.password].some((symbol) => {
+  const passwordSymbols = [...values.password];
+  const passwordLength = passwordSymbols.length;
+  if (passwordSymbols.some((symbol) => {
     const code = symbol.codePointAt(0)!;
     return code >= 0xd800 && code <= 0xdfff;
   })) {

@@ -11,7 +11,6 @@ const PROGRESS_INTERVAL_MS = 150;
 const EXACT_LENGTH_INTERVAL = 32_768;
 const ACCEPTED_LENGTH_INTERVAL = 2_048;
 
-/** Compensated summation keeps full route lengths independent of accumulated deltas. */
 function routeLength(
   order: readonly number[],
   distances: Float64Array,
@@ -66,12 +65,6 @@ function nearestNeighbor(distances: Float64Array, size: number): number[] {
   return order;
 }
 
-/**
- * Pure route computation: no environment, database, global randomness or input mutation.
- * The validated service input bounds the O(N²) Float64 matrix (N includes warehouse).
- * Preparation is O(N²); a proposal's delta is O(1), accepted reversal O(segment length).
- * Exact length checks and best snapshots cost O(N); auxiliary route storage is O(N).
- */
 export function calculateRoute(
   input: NormalizedRouteInput,
   onProgress?: (progress: RouteProgress) => void,
@@ -85,7 +78,6 @@ export function calculateRoute(
       stage,
       completedIterations,
       totalIterations,
-      // The executor emits 100 only after validation and the worker's actual exit.
       percent: Math.min(99.9, (completedIterations / totalIterations) * 100),
     });
   };
@@ -109,8 +101,6 @@ export function calculateRoute(
     terminationReason = "trivial_input";
   } else {
     const random = createRandom(input.seed);
-    // Geometric cooling: T(k) = T0 * (Tend/T0)^(k / requested), Tend = T0/10000.
-    // A subnormal lower bound also makes tiny but valid coordinates safe.
     let temperature = Math.max((initialLength / size) * 0.25, Number.MIN_VALUE);
     const finalTemperature = Math.max(temperature * 0.0001, Number.MIN_VALUE);
     const cooling = Math.exp(
@@ -124,8 +114,6 @@ export function calculateRoute(
       let right = 1 + Math.floor(random() * (count - 1));
       if (right >= left) right += 1;
       if (left > right) [left, right] = [right, left];
-      // Reversing every delivery changes only the orientation of the same tour.
-      // Remap that proposal to a proper segment; count>=3 guarantees two positions.
       if (left === 1 && right === count) right -= 1;
 
       const before = current[left - 1]!;
@@ -145,7 +133,6 @@ export function calculateRoute(
         }
         currentLength += delta;
         acceptedSinceExact += 1;
-        // Never save a best route using a drifting incremental length estimate.
         if (
           currentLength < bestLength ||
           acceptedSinceExact >= ACCEPTED_LENGTH_INTERVAL
@@ -169,7 +156,6 @@ export function calculateRoute(
           best = current.slice();
         }
       }
-      // Checking a monotonic clock periodically does not delay or fabricate work.
       if ((completedIterations & 1_023) === 0) {
         const now = performance.now();
         if (now - lastProgress >= PROGRESS_INTERVAL_MS) {

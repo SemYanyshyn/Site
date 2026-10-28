@@ -43,8 +43,8 @@ export function replicaHandoffPatch(live) {
   ];
 }
 
-/** The only explicit replica writer is a new/stopped bootstrap (or the
- * deliberately static regression harness). Live HPA-managed apply omits it. */
+// задаю 2 копії лише для нового або зупиненого deployment чи static тесту
+// у живому autoscaling deployment прибираю replicas з apply щоб не заважати HPA
 export function appApplyPlan(manifest, live, { autoscaling, namespace, ownerId }) {
   const result = structuredClone(manifest);
   const deployment = result.items.find((item) => item.kind === 'Deployment' && item.metadata.name === 'app');

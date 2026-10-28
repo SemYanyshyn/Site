@@ -169,6 +169,7 @@ fieldset.input-group {
   color: var(--muted);
   font-size: 13px;
 }
+// довга послідовність має власний scroll без обрізання номерів доставок
 .route-order {
   max-height: 180px;
   overflow: auto;
@@ -442,6 +443,7 @@ fieldset.input-group {
   .best-route {
     padding: 16px;
   }
+  // на телефоні прибираю мінімальну ширину щоб усі чотири колонки помістилися
   .route-steps-table {
     min-width: 0;
     font-size: 12px;

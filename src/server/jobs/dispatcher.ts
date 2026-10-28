@@ -44,7 +44,7 @@ function failed(reason: 'server_shutdown' | 'database_unavailable' | 'invalid_in
   return { status: 'failed', reason, message: messages[reason] };
 }
 
-/** PostgreSQL owns the queue; this object reserves only its one actual claim. */
+// беру задачу зі спільної черги і передаю її одному локальному worker
 export class JobsDispatcher {
   readonly #executor: RouteExecutor;
   readonly #repository: JobsRepository;
@@ -159,7 +159,7 @@ export class JobsDispatcher {
     }
     if (!claim) return;
     const reservation: ActiveJob = { claim, lost: false };
-    // The reservation survives worker exit until its terminal DB state is agreed.
+    // worker стартує лише після commit claim а резервація лишається до узгодження кінцевого стану в БД
     this.#active = reservation;
     this.#event('claimed', reservation);
     if (this.#closing) {
@@ -212,7 +212,7 @@ export class JobsDispatcher {
     if (this.#closing || active.progressWrite || !active.latestProgress || active.lost || active.override) return;
     const progress = active.latestProgress;
     delete active.latestProgress;
-    // Exactly one SQL write and one replaceable snapshot; callbacks never enqueue.
+    // тримаю один SQL запис і лише найсвіжіший прогрес щоб callback не накопичували чергу записів
     active.progressWrite = this.#repository.saveProgress(active.claim, progress).then(async (saved) => {
       if (!saved) {
         active.lost = true;
@@ -256,8 +256,8 @@ export class JobsDispatcher {
       if (!this.#closing) void this.#registry.refresh();
       return;
     }
-    // A failed write keeps this reservation. The next poll is the bounded retry;
-    // no new job can start while this old terminal state is unresolved.
+    // тут слот ще зарезервований бо результат потрібно спочатку зберегти в БД
+    // якщо SQL падає наступний poll повторить спробу а нова задача поки не стартує
     const saved = await this.#repository.finish(active.claim, active.override ?? active.outcome, duringShutdown ? 500 : undefined);
     // The repository may give a committed user cancel precedence over this
     // proposed outcome, so this observation does not invent a final DB status.

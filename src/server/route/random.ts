@@ -1,4 +1,5 @@
-/** Mulberry32: deterministic 32-bit PRNG; seed=0 is an ordinary valid state. */
+// 32-бітний Mulberry32 дає ту саму послідовність для того самого seed включно з 0
+// повертаю функцію яка пам'ятає state і при виклику дає наступне число від 0 включно до 1 невключно
 export function createRandom(seed: number): () => number {
   let state = seed >>> 0;
   return () => {

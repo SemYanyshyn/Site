@@ -60,6 +60,7 @@ function validWork(job: QueueQueuedJob): boolean {
   return integer(job.pointCount, 1, 2_000) && integer(job.iterations, 1, 200_000_000);
 }
 
+// filter лишає тільки повністю завершені нетривіальні пошуки з коректним часом для оцінки швидкості
 function measuredSamples(samples: QueueDurationSample[]): QueueDurationSample[] {
   return samples.filter((sample) => sample.status === 'completed' && sample.terminationReason === 'budget_exhausted'
     && validWork(sample) && sample.pointCount > 2 && sample.iterationsCompleted === sample.iterations
@@ -68,7 +69,7 @@ function measuredSamples(samples: QueueDurationSample[]): QueueDurationSample[] 
 
 function cost(job: QueueQueuedJob): number { return job.iterations + job.pointCount * job.pointCount; }
 
-/** An in-place binary min heap keeps the simulation O((jobs + slots) log slots). */
+// min heap тримає зверху слот який звільниться найраніше без сортування всіх слотів для кожної задачі
 class SlotHeap {
   private readonly values: number[];
   constructor(values: number[]) {
@@ -91,11 +92,8 @@ class SlotHeap {
   }
 }
 
-/**
- * Estimate time until the target starts, never its own duration. Measurements
- * are net occupied-slot milliseconds (finished_at - started_at), not algorithm
- * elapsedMs. Only nearby point counts train the median normalized work rate.
- */
+// оцінюю час до старту цієї задачі без її власної тривалості і без обіцянки точного часу
+// беру зайнятість слота finished_at - started_at і медіанну швидкість задач близького розміру
 export function estimateQueue(snapshot: QueueSnapshot, options: QueueEstimateOptions): JobQueueInfo {
   const handoffMs = options.handoffMs ?? QUEUE_MODEL.handoffMs;
   const finalizationMs = options.finalizationMs ?? QUEUE_MODEL.finalizationMs;
@@ -106,6 +104,7 @@ export function estimateQueue(snapshot: QueueSnapshot, options: QueueEstimateOpt
   }
   const now = Date.parse(snapshot.calculatedAt);
   if (!Number.isFinite(now)) throw new RangeError('Некоректний час знімка черги.');
+  // враховую лише виконавців які приймають задачі й мають чинний TTL на час знімка БД
   const executors = snapshot.executors.filter((executor) => executor.acceptingClaims
     && Number.isFinite(Date.parse(executor.expiresAt)) && Date.parse(executor.expiresAt) > now);
   const result: JobQueueInfo = {
@@ -178,6 +177,7 @@ export function estimateQueue(snapshot: QueueSnapshot, options: QueueEstimateOpt
     // or an agreed terminal. A busy slot always retains a positive allowance.
     slots.push(Math.max(1, remaining + finalizationMs));
   }
+  // по черзі додаю задачі попереду до найраніше вільного слота і так отримую очікування цільової
   const heap = new SlotHeap(slots);
   for (const job of snapshot.queuedAhead) heap.replaceFirst(Math.min(QUEUE_LIMITS.maxWaitMs, heap.first + duration(job)));
   result.estimatedWaitMs = Math.min(QUEUE_LIMITS.maxWaitMs, Math.max(0, Math.ceil(heap.first)));

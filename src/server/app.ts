@@ -27,6 +27,7 @@ interface AppOptions {
   adminService?: AdminService;
 }
 
+// підключаю HTTP маршрути й готові файли клієнта але сам порт відкривається в index.ts
 export function createApp({
   config, pool, instanceId = randomUUID(), routeLimits = readRouteConfig(), jobsConfig = readJobsConfig(),
   jobsRepository = new JobsRepository(pool),
@@ -39,8 +40,7 @@ export function createApp({
   const clientDirectory = fileURLToPath(new URL('../client', import.meta.url));
   app.disable('x-powered-by');
   app.use('/api', (_request, response, next) => {
-    // This value belongs to the handler process. Never echo client/forwarded
-    // headers: the response must identify the actual backend chosen by Traefik.
+    // заголовок містить UUID фактичного процесу обраного Traefik а не значення від клієнта
     response.set('X-Instance-Id', instanceId);
     next();
   });
@@ -50,6 +50,7 @@ export function createApp({
     response.set('Cache-Control', 'no-store').json(health);
   });
 
+  // readiness перевіряє також готовність БД і схеми а health лише відповідає від живого HTTP процесу
   app.get('/api/ready', async (_request, response) => {
     response.set('Cache-Control', 'no-store');
     if (!await isDatabaseReady(pool)) {
@@ -71,6 +72,7 @@ export function createApp({
     sendError(response, 404, 'NOT_FOUND', 'Сторінку не знайдено.');
   });
 
+  // спільний обробник перетворює помилки на API відповіді без внутрішніх даних і секретів
   const handleError: ErrorRequestHandler = (error: unknown, _request, response, next) => {
     if (response.headersSent) {
       next(error);

@@ -16,7 +16,7 @@ export interface RouteProjection {
   scale: number;
 }
 
-/** The warehouse is index 0; delivery indices begin at 1, as in RouteResult. */
+// переношу збережені точки у SVG з однаковим масштабом X і Y та номерами 0 для складу і 1..N для доставок
 export function projectRoute(
   input: { warehouse: Coordinate; points: readonly Coordinate[] },
   order: readonly number[],

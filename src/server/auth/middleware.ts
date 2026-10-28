@@ -4,8 +4,8 @@ import type { PublicUser } from '../../shared/auth.js';
 import { sendError } from './errors.js';
 import { findSessionUser, readSessionToken } from './sessions.js';
 
-// Future APIs can reuse this middleware, then use response.locals.user. The
-// validity of each request comes from PostgreSQL, including its expiry time.
+// перед захищеним маршрутом перевіряю сесію в PostgreSQL і передаю користувача через response.locals
+// next віддає запит наступному обробнику лише після перевірки
 export function requireAuth(pool: Pool,
   lookup: (token: string, response: Response) => Promise<PublicUser | null> = (token) => findSessionUser(pool, token),
 ): RequestHandler {

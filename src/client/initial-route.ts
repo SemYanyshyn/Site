@@ -8,7 +8,7 @@ export interface InitialRouteStep {
   returnsToWarehouse: boolean;
 }
 
-/** Explain a saved route; no delivery selection or nearest-neighbor search occurs here. */
+// розписую переходи збереженого initialOrder без повторного пошуку найближчого сусіда в UI
 export function initialRouteSteps(
   input: { warehouse: Coordinate; points: readonly Coordinate[] },
   order: readonly number[],

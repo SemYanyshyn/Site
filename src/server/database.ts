@@ -2,6 +2,7 @@ import pg from 'pg';
 import type { Pool } from 'pg';
 import { REQUIRED_MIGRATIONS } from './db/migrate.js';
 
+// пул повторно використовує обмежену кількість з'єднань замість нового на кожний HTTP запит
 export function createDatabasePool(databaseUrl: string): Pool {
   const pool = new pg.Pool({
     connectionString: databaseUrl,

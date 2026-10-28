@@ -197,8 +197,8 @@ export class KubernetesProvider {
   async #request(path: string): Promise<unknown> {
     if (this.#closed) throw new Error('Джерело зупинено.');
     if (this.transport) return this.transport.request(path);
-    // Read the current projected token for every refresh. Neither token nor CA
-    // ever crosses the DTO boundary, and the server hostname is fixed.
+    // щоразу читаю оновлюваний токен ServiceAccount і перевіряю cluster CA без передачі секретів у DTO
+    // адреса API фіксована щоб токен не потрапив на сторонній сервер
     const started = performance.now(), controller = new AbortController();
     this.#credentialReads.add(controller);
     const timer = setTimeout(() => controller.abort(), ADMIN_LIMITS.providerMs);

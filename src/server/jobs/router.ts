@@ -79,6 +79,7 @@ export function createJobsRouter(
       throw error;
     }
     const user = response.locals.user as PublicUser;
+    // HTTP 202 означає що задачу прийнято в чергу а не що маршрут уже обчислено
     const job = await repository.create(user.id, input, jobsConfig);
     response.location(`/api/jobs/${job.id}`).status(202).json(job);
   });

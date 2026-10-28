@@ -45,7 +45,7 @@ function emptyState(visible = true): AdminState {
   };
 }
 
-/** One panel cycle owns both reads; abort and three generations fence late success. */
+// один цикл читає огляд і задачі а номери сеансу панелі й фільтра захищають від старих відповідей
 export class AdminController {
   private value = emptyState();
   private session = 0;
@@ -95,6 +95,7 @@ export class AdminController {
     this.value = { ...this.value, ...patch };
     for (const listener of this.listeners) listener(this.value);
   }
+  // polling потрібний лише адміну з відкритою панеллю у видимій вкладці
   private active(): boolean {
     return this.value.allowed && this.value.open && this.value.visible;
   }

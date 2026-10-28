@@ -84,6 +84,7 @@ function details(row: DetailsRow): JobDetails {
   return value;
 }
 
+// operation виконує кілька запитів на одному з'єднанні і вони або всі підтверджуються або відкочуються
 async function transaction<T>(pool: Pool, operation: (client: PoolClient) => Promise<T>): Promise<T> {
   let client: PoolClient | undefined;
   try {
@@ -104,14 +105,14 @@ async function transaction<T>(pool: Pool, operation: (client: PoolClient) => Pro
   }
 }
 
-/** PostgreSQL is the only user-visible state and admission/claim authority. */
+// тут читаю й змінюю спільний стан задач у PostgreSQL без окремої черги в пам'яті
 export class JobsRepository {
   constructor(private readonly pool: Pool) {}
 
   async create(userId: string, input: NormalizedRouteInput, config: JobsConfig): Promise<JobDetails> {
     return transaction(this.pool, async (client) => {
-      // All writers use this short transaction lock. Terminal transitions only
-      // lower the counts, so they do not need to serialize with admission.
+      // advisory lock серіалізує створення задач щоб два сервери не обійшли ліміти одночасно
+      // завершення лише зменшує лічильники тому цього блокування не потребує
       await client.query('SELECT pg_advisory_xact_lock($1, $2)', [18024, 4]);
       const counts = await client.query<{ personal: string; outstanding: string }>(`
         SELECT COUNT(*) FILTER (WHERE user_id = $1)::text AS personal, COUNT(*)::text AS outstanding
@@ -124,6 +125,7 @@ export class JobsRepository {
       if (Number(current.outstanding) >= config.maxOutstanding) {
         throw new HttpError(503, 'SYSTEM_OUTSTANDING_LIMIT', 'Спільна черга заповнена. Спробуйте пізніше.');
       }
+      // нова задача отримує queued за замовчуванням у БД а її запуск відбудеться після commit
       const inserted = await client.query<DetailsRow>(`
         INSERT INTO jobs(id, user_id, input, total_iterations) VALUES ($1, $2, $3::jsonb, $4)
         RETURNING ${DETAIL_COLUMNS}
@@ -198,8 +200,8 @@ export class JobsRepository {
 
   async cancel(userId: string, id: string): Promise<JobDetails | null> {
     try {
-      // UPDATE locks/rechecks the latest row. Terminal fields are retained,
-      // while queued claim/cancel and running finish/cancel serialize here.
+      // queued скасовую одразу а running лише отримує прапорець для фізичної зупинки worker
+      // UPDATE блокує рядок і узгоджує cancel з claim або завершенням не змінюючи вже кінцеві дані
       const result = await this.pool.query<DetailsRow>(`
         UPDATE jobs SET
           status = CASE WHEN status = 'queued' THEN 'cancelled' ELSE status END,
@@ -214,6 +216,7 @@ export class JobsRepository {
     }
   }
 
+  // SKIP LOCKED пропускає вже захоплені рядки а новий claim token позначає право саме цього запуску
   async claim(instanceId: string, timeoutMs: number, graceMs: number): Promise<JobClaim | null> {
     return transaction(this.pool, async (client) => {
       const token = randomUUID();
@@ -233,6 +236,7 @@ export class JobsRepository {
     });
   }
 
+  // id і claim token не дають старому виконавцю перезаписати прогрес чужого або вже завершеного запуску
   async saveProgress(claim: JobClaim, progress: RouteProgress): Promise<boolean> {
     const stage = { preparing: 0, searching: 1, finishing: 2 } as const;
     if (!Object.hasOwn(stage, progress.stage)
@@ -267,6 +271,7 @@ export class JobsRepository {
     }
   }
 
+  // зберігаю кінцевий стан і результат а вже прийнятий cancel у БД має пріоритет
   async finish(claim: JobClaim, terminal: JobTerminal, queryTimeoutMs?: number): Promise<boolean> {
     if (queryTimeoutMs !== undefined && (!Number.isSafeInteger(queryTimeoutMs) || queryTimeoutMs < 1 || queryTimeoutMs > 1_000)) {
       throw new RangeError('Некоректний бюджет фінального запису задачі.');
@@ -308,6 +313,7 @@ export class JobsRepository {
     }
   }
 
+  // після збереженого lost_after позначаю втрачений running як failed без автоматичного повтору
   async recoverLost(): Promise<number> {
     try {
       const result = await this.pool.query(`

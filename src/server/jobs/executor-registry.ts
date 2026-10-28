@@ -13,7 +13,7 @@ function same(left: ExecutorRegistrationState, right: ExecutorRegistrationState)
   return left.acceptingClaims === right.acceptingClaims && left.busy === right.busy && left.currentJobId === right.currentJobId;
 }
 
-/** One actual process, one slot, one SQL in flight and one replaceable state snapshot. */
+// heartbeat записує живий процес і його один слот з TTL без черги паралельних SQL записів
 export class ExecutorRegistry {
   readonly #pool: Pool;
   readonly #instanceId: string;
@@ -115,8 +115,7 @@ export class ExecutorRegistry {
         await this.#write(state);
         if (this.#stopping) return false;
         this.#confirmed = true;
-        // A local monotonic bound is only a self-admission guard. All public
-        // freshness comparisons and persisted timestamps use the database clock.
+        // локальний час лише забороняє собі новий claim після TTL а публічну свіжість визначає час БД
         this.#lastConfirmedUntil = issuedAt + this.#config.leaseTtlMs;
         if (same(state, this.#state())) return true;
       }

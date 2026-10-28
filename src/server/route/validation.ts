@@ -52,6 +52,7 @@ function coordinate(value: unknown, maximum: number, label: string): Coordinate 
   return item as unknown as Coordinate;
 }
 
+// перевіряю зовнішній вхід і ліміти до копіювання даних та створення worker
 export function validateRouteInput(input: unknown, configuredLimits: RouteLimits): NormalizedRouteInput {
   const limits = validateRouteLimits(configuredLimits);
   const value = record(input, 'Вхід маршруту');

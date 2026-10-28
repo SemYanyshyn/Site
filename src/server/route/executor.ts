@@ -116,7 +116,7 @@ function validResult(value: unknown, input: NormalizedRouteInput, elapsedMs: num
     value.iterationsCompleted === input.iterations;
 }
 
-/** One bounded computation slot per HTTP process; this is deliberately no queue. */
+// керую одним worker цього HTTP процесу а спільна черга живе окремо в PostgreSQL
 export class RouteExecutor {
   readonly #limits: RouteLimits;
   readonly #options: ExecutorOptions;
@@ -141,7 +141,7 @@ export class RouteExecutor {
       runId: randomUUID(), input: normalized, startedAt: performance.now(), result, resolve, onProgress,
       lastCompleted: 0, lastPercent: 0, lastStage: 0, settled: false, terminating: false, threadId: 0,
     };
-    // Lock synchronously, before worker construction or any Promise continuation.
+    // займаю слот до створення worker і до асинхронних продовжень щоб не запустити другий одночасно
     this.#active = active;
     const run: RouteRun = { runId: active.runId, threadId: 0, result };
     try {
@@ -149,6 +149,7 @@ export class RouteExecutor {
         ? new URL('./dev-worker.mjs', import.meta.url)
         : new URL('./worker.js', import.meta.url));
       const factory = this.#options.workerFactory ?? ((url, options) => new Worker(url, options));
+      // worker отримує лише вхід і runId без паролів БД та аргументів запуску основного процесу
       const worker = factory(workerUrl, {
         workerData: { runId: active.runId, input: normalized },
         env: {}, execArgv: [],
@@ -182,6 +183,7 @@ export class RouteExecutor {
     return run;
   }
 
+  // чекаю фактичної зупинки потоку а не лише записую бажання скасувати
   async cancel(runId?: string): Promise<void> {
     const active = this.#active;
     if (!active || (runId !== undefined && runId !== active.runId)) return;
@@ -194,6 +196,7 @@ export class RouteExecutor {
     await this.cancel();
   }
 
+  // після дедлайну ставлю failed з причиною timeout і через stop фізично зупиняю worker
   #expire(active: ActiveRun): boolean {
     if (active.settled || active.outcome) return false;
     const remaining = this.#limits.timeoutMs - (performance.now() - active.startedAt);
@@ -232,8 +235,7 @@ export class RouteExecutor {
       }
       active.lastStage = stages[stage];
       active.lastCompleted = progress.completedIterations;
-      // Derive public percentages from real counters. Even a worker's final
-      // progress cannot announce success before validation and actual exit.
+      // відсоток беру з реальних ітерацій а 100 дозволяю тільки після перевірки результату й виходу worker
       const percent = Math.min(99.999, 100 * progress.completedIterations / active.input.iterations);
       this.#progress(active, { stage, completedIterations: progress.completedIterations,
         totalIterations: active.input.iterations, percent });
@@ -256,7 +258,7 @@ export class RouteExecutor {
 
   #stop(active: ActiveRun, outcome: RouteOutcome): void {
     if (active.settled || active.outcome) return;
-    // The first terminal decision wins, including cancellation before a result.
+    // перша кінцева причина лишається чинною включно зі скасуванням яке надійшло раніше за результат
     active.outcome = outcome;
     if (active.timer) clearTimeout(active.timer);
     const worker = active.worker;
@@ -264,7 +266,7 @@ export class RouteExecutor {
     if (active.terminating) return;
     active.terminating = true;
     void worker.terminate().then(() => {
-      // terminate's Promise, as well as 'exit', proves actual thread shutdown.
+      // Promise від terminate завершується після фізичної зупинки потоку як і подія exit
       this.#finish(active, active.outcome ?? outcome);
     }).catch(() => {
       if (worker.threadId === -1) this.#finish(active, active.outcome ?? outcome);

@@ -6,8 +6,7 @@ import { HttpError } from '../auth/errors.js';
 import { requireAuth } from '../auth/middleware.js';
 import { adminRead } from './budget.js';
 
-/** Same persisted session contract as requireAuth; deliberately no role cache.
- * Its lookup participates in the admin request's pre-auth absolute deadline. */
+// перевіряю сесію й поточну роль через requireAuth без кешу ролей у межах спільного deadline запиту
 export function requireAdmin(pool: Pool): RequestHandler {
   const authenticated = requireAuth(pool, (token, response) =>
     adminRead(pool, Number(response.locals.adminDeadline), response.locals.adminSignal as AbortSignal, async (query) => {

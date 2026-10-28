@@ -10,6 +10,7 @@
   background: var(--paper);
   box-shadow: var(--card-shadow);
 }
+// auto з обох боків центрує картку лише поки блок користувача прихований
 .auth-card:has(#user-state[hidden]) {
   margin-inline: auto;
 }

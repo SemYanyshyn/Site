@@ -43,7 +43,7 @@ export interface ServerRuntime {
   shutdown: (signal?: string) => Promise<void>;
 }
 
-/** A single calculation service belongs to the same process as this HTTP server. */
+// збираю HTTP сервер пул БД і один обчислювальний слот цього процесу
 export function startServer(config: AppConfig = readConfig(), routeLimits: RouteLimits = readRouteConfig(),
   jobsConfig: JobsConfig = readJobsConfig(), options: ServerOptions = {}): ServerRuntime {
   validateJobsConfig(jobsConfig);
@@ -70,6 +70,7 @@ export function startServer(config: AppConfig = readConfig(), routeLimits: Route
     return run;
   };
   const app = createApp({ config, pool, instanceId, routeLimits, jobsConfig, jobsRepository, adminService });
+  // callback зі стрілкою виконається коли сервер почне слухати порт
   const server = app.listen(config.port, config.host, () => {
     const address = server.address();
     const port = address && typeof address !== 'string' ? address.port : config.port;
@@ -91,8 +92,7 @@ export function startServer(config: AppConfig = readConfig(), routeLimits: Route
     }, 5_000);
     timeout.unref();
     try {
-      // Stop admission and the CPU worker together; an in-flight HTTP request
-      // must not postpone cancellation until the route's 30-second deadline.
+      // паралельно закриваю HTTP і зупиняю обчислення щоб активний запит не затримав shutdown
       await Promise.all([
         new Promise<void>((done, reject) => {
           server.close((error) => {
@@ -134,7 +134,7 @@ export function startServer(config: AppConfig = readConfig(), routeLimits: Route
   return { server, executor, dispatcher, registry, pool, instanceId, shutdown };
 }
 
-// Test harnesses import startServer without accidentally opening another server.
+// імпорт дає доступ до startServer а порт відкриваю лише при прямому запуску цього файлу
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try { startServer(); } catch (error: unknown) {
     // Configuration errors never include the supplied environment values.

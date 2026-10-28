@@ -1,3 +1,4 @@
+// кожен @use підключає окрему частину оформлення а Vite збирає їх у готовий CSS
 @use "styles/tokens";
 @use "styles/base";
 @use "styles/layout";

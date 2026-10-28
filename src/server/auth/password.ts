@@ -3,6 +3,7 @@ import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 const PARAMETERS = { N: 32768, r: 8, p: 3, maxmem: 64 * 1024 * 1024 } as const;
 const KEY_LENGTH = 64;
 
+// Promise представляє майбутній результат scrypt а resolve або reject завершують його з ключем або помилкою
 function deriveKey(password: string, salt: Buffer): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     scrypt(password, salt, KEY_LENGTH, PARAMETERS, (error, key) => {
@@ -12,6 +13,8 @@ function deriveKey(password: string, salt: Buffer): Promise<Buffer> {
   });
 }
 
+// async повертає Promise а await чекає ключ тут не блокуючи обробку інших запитів сервером
+// випадкова salt дає різні хеші для однакових паролів а сам пароль у БД не записую
 export async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16);
   const key = await deriveKey(password, salt);
@@ -27,5 +30,6 @@ export async function verifyPassword(password: string, encoded: string): Promise
   const salt = Buffer.from(parts[6]!, 'hex');
   const expected = Buffer.from(parts[7]!, 'hex');
   const actual = await deriveKey(password, salt);
+  // порівнюю ключі без раннього виходу на першому відмінному байті
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }

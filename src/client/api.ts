@@ -33,7 +33,7 @@ function fallback(status: number): string {
   return 'Не вдалося виконати запит. Перевірте введення й спробуйте знову.';
 }
 
-/** All endpoints remain relative, including in Vite development mode. */
+// відносні API адреси працюють через той самий origin і у Vite і за Traefik
 export class ApiClient implements JobsApi {
   constructor(private readonly fetcher: FetchLike = (path, init) => fetch(path, init), private readonly timeoutMs = 10_000) {}
 
@@ -53,9 +53,11 @@ export class ApiClient implements JobsApi {
         throw new ApiRequestError(response.status, validError ? payload.code as string : 'HTTP_ERROR',
           validError ? payload.message as string : fallback(response.status));
       }
+      // JSON спочатку unknown а parse справді перевіряє поля під час роботи замість простого as
       return parse(payload);
     } catch (error) {
       if (error instanceof ApiRequestError) throw error;
+      // при втраті відповіді не повторюю POST бо задачу вже могли створити
       if (creating) throw new ApiRequestError(0, 'ACCEPTANCE_UNKNOWN',
         'Запит міг бути прийнятий. Оновіть історію перед повторним запуском.', true);
       if (error instanceof InvalidResponseError) throw error;

@@ -45,7 +45,7 @@ function emptyState(): JobsState {
 
 function pending(job: JobSummary | null): boolean { return job?.status === 'queued' || job?.status === 'running'; }
 
-/** Session and selection generations supplement abort, including already-resolved responses. */
+// номери сеансу й вибору відкидають запізнілі відповіді навіть коли abort уже не встиг їх зупинити
 export class JobsController {
   private value = emptyState();
   private generation = 0;
@@ -67,6 +67,7 @@ export class JobsController {
   private readonly pollMs: number;
 
   constructor(private readonly api: JobsApi = new ApiClient(), private readonly options: JobsControllerOptions = {}) {
+    // ?? бере запасний варіант лише для null або undefined на відміну від перевірки будь-якого falsy значення
     this.setTimer = options.setTimeout ?? ((callback, milliseconds) => globalThis.setTimeout(callback, milliseconds));
     this.clearTimer = options.clearTimeout ?? ((timer) => globalThis.clearTimeout(timer));
     this.pollMs = options.pollMs ?? 1_000;
@@ -105,6 +106,7 @@ export class JobsController {
     }
     return false;
   }
+  // запускаю наступне читання коли є активна задача або дані для повторного читання і немає поточного циклу
   private schedule(): void {
     this.stopTimer();
     if (!this.value.authenticated || this.cycle) return;
@@ -122,6 +124,7 @@ export class JobsController {
     await Promise.all([this.retryLimits(), this.refresh()]);
   }
 
+  // очищую приватний стан і старі HTTP запити але не скасовую прийняті сервером задачі
   endSession(): void {
     this.generation++;
     this.selection++;

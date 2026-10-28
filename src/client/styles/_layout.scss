@@ -12,6 +12,7 @@
 .intro { max-width: 850px; padding: 48px 0 32px; }
 .eyebrow { margin: 0 0 14px; color: var(--muted); font-size: 12px; font-weight: 700; line-height: 1.6; letter-spacing: .08em; text-transform: uppercase; }
 .description { max-width: 650px; margin: 20px 0 0; color: var(--muted); font-size: 16px; line-height: 1.8; }
+// :has перевіряє стан дочірнього блоку щоб центрувати вступ лише до входу
 .page:has(#user-state[hidden]) .intro { width: 100%; margin-inline: auto; padding-top: 52px; text-align: center; }
 .page:has(#user-state[hidden]) .description { margin-inline: auto; }
 .page:has(#user-state:not([hidden])) .intro { padding: 30px 0 26px; }
@@ -30,6 +31,7 @@ footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12
   .page { padding: 24px 28px; }
   .workspace-grid { grid-template-columns: minmax(310px, .95fr) minmax(0, 1fr); gap: 20px; }
 }
+// на вузькому екрані форма й результати стають в одну колонку
 @media (max-width: t.$stack) {
   .workspace-grid { grid-template-columns: minmax(0, 1fr); }
 }

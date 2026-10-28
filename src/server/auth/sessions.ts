@@ -44,6 +44,7 @@ export function clearSessionCookie(response: Response, config: AppConfig): void 
   }));
 }
 
+// браузер отримує випадковий токен у HttpOnly cookie а в БД зберігаю лише його хеш і строк дії
 export async function createSession(
   pool: Pool, userId: string, previousToken: string | null, ttlSeconds: number,
 ): Promise<{ token: string; expiresAt: Date }> {
@@ -75,6 +76,7 @@ export async function createSession(
   }
 }
 
+// за токеном шукаю чинну сесію разом з актуальною роллю користувача в спільній БД
 export async function findSessionUser(pool: Pool, token: string): Promise<PublicUser | null> {
   try {
     const result = await pool.query<UserRow>(`

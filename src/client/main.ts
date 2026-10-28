@@ -8,6 +8,7 @@ import { AdminController } from "./admin-controller.js";
 import { createAdminView } from "./admin-view.js";
 
 let auth: AuthHandle | undefined;
+// зв'язую події форм з контролерами а підписки нижче перемальовують UI з їхнього стану
 const jobs = new JobsController(undefined, {
   onUnauthorized: () => auth?.expireSession(),
 });
@@ -65,6 +66,7 @@ const view = createJobsView({
     void jobs.refresh();
   },
 });
+// subscribe викликає цю функцію після зміни стану і повертає функцію відписки
 const unsubscribe = jobs.subscribe((state) => {
   view.render(state);
   showWorkspace();

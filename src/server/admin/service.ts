@@ -8,8 +8,8 @@ import type { InfrastructureSnapshot } from './kubernetes.js';
 import { AdminRepository } from './repository.js';
 import type { AdminDatabaseSnapshot } from './repository.js';
 
-/** A process's identity must belong to the current pod/container lifetime.
- * Pending pods stay visible without a made-up executor or metric. */
+// з'єдную pod із процесом за UID і часом запуску контейнера а не тільки за назвою
+// pod без відповідного процесу лишається видимим без вигаданих виконавця чи метрик
 export function mergeAdminOverview(db: AdminDatabaseSnapshot, infra: InfrastructureSnapshot, now = Date.now()): AdminOverview {
   const used = new Set<string>();
   const servers: AdminServer[] = infra.pods.map((pod) => {
@@ -21,8 +21,7 @@ export function mergeAdminOverview(db: AdminDatabaseSnapshot, infra: Infrastruct
     const raw = infra.samples.find((entry) => entry.namespace === pod.namespace && entry.podName === pod.name
       && (entry.podUid === null || entry.podUid === pod.uid));
     const timestamp = raw ? Date.parse(raw.sample.timestamp) : NaN;
-    // A metrics sample names a pod, not a process. Requiring both the current
-    // container and process start prevents a restart from inheriting old CPU.
+    // після рестарту відкидаю метрики вікно яких почалося раніше за поточний контейнер або процес
     const windowStart = raw ? timestamp - metricWindowMs(raw.sample.window) : NaN;
     const metric = raw && pod.containerStartedAt && windowStart >= Date.parse(pod.containerStartedAt)
       && (!executor || windowStart >= Date.parse(executor.startedAt)) && timestamp <= now + 5_000
@@ -81,6 +80,7 @@ export class AdminService {
     for (const controller of this.#controllers) controller.abort();
     this.#controllers.clear(); this.provider.close();
   }
+  // читаю Kubernetes і спільну БД та збираю read-only огляд без зміни pod задач або HPA
   async overview(deadline: number, signal: AbortSignal): Promise<AdminOverview> {
     const infrastructure = await abortable(this.provider.read(), signal);
     const database = await this.repository.overview(deadline, signal, infrastructure.pods.map((pod) => pod.uid));

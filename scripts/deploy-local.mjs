@@ -356,6 +356,7 @@ async function stopNamespace(kubectl, namespace, ownerId) {
   await kubectl(['wait', '--for=delete', 'pod', '-l', 'app.kubernetes.io/component=database', '--timeout=60s'], { timeoutMs: 70_000 });
 }
 
+// готую власний namespace і конфігурацію потім PostgreSQL міграції застосунок та HTTPS через Traefik
 async function provision({ state, namespace, ownerId, httpPort, httpsPort, image, testing = false, autoscaling = !testing }) {
   assert.equal(typeof autoscaling, 'boolean');
   if (autoscaling) await ensureMetricsServer(state);
@@ -393,8 +394,8 @@ async function provision({ state, namespace, ownerId, httpPort, httpsPort, image
     const plan = appApplyPlan(await manifest('app'), live, { autoscaling, namespace, ownerId });
     if (plan.handoffPatch) await kubectl(['patch', 'deployment', 'app', '--type=json', '-p', JSON.stringify(plan.handoffPatch)]);
     await apply(plan.manifest);
-    // Bootstrap explicitly writes 2 once, then releases annotation ownership
-    // before HPA creation. Repeats omit replicas without writing current scale.
+    // для нового або зупиненого deployment починаю з 2 копій а далі кількістю керує HPA
+    // повторний apply не перезаписує поточний масштаб
     if (autoscaling && plan.bootstrap) await handoff(await kubectl(['get', 'deployment', 'app', '-o', 'json'], { json: true }));
     if (autoscaling) await apply(await manifest('hpa'));
   }
@@ -478,6 +479,7 @@ async function provision({ state, namespace, ownerId, httpPort, httpsPort, image
     + [database, secondDatabase].map((name) => `SELECT format('CREATE DATABASE %I OWNER courier_route', ${quote(name)}) WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname=${quote(name)})\\gexec\n`).join('')
     + "DO $$ BEGIN IF EXISTS (SELECT FROM pg_roles WHERE rolname='courier_route' AND (rolsuper OR rolcreatedb OR rolcreaterole)) THEN RAISE EXCEPTION 'Unsafe application role'; END IF; END $$;\n";
   await kubectl(['exec', '-i', 'postgres-0', '-c', 'postgres', '--', 'psql', '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1'], { input: bootstrap });
+  // чекаю успішних compiled міграцій перед rollout і повторно використовую вже успішний Job цього image
   const prior = await kubectl(['get', 'job', migrationName, '--ignore-not-found', '-o', 'json']);
   if (prior.trim()) {
     const job = JSON.parse(prior);
@@ -487,6 +489,7 @@ async function provision({ state, namespace, ownerId, httpPort, httpsPort, image
   } else await apply(await manifest('migrate'));
   await kubectl(['wait', '--for=condition=complete', `job/${migrationName}`, '--timeout=130s'], { timeoutMs: 140_000 });
   await applyApplication();
+  // Traefik приймає HTTPS і передає HTTP запити одному з app pod без повторення POST
   await apply(await manifest('traefik'));
   await apply(await manifest('ingress'));
   await kubectl(['rollout', 'status', 'deployment/app', '--timeout=180s'], { timeoutMs: 190_000 });

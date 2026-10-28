@@ -26,6 +26,7 @@ export function createAuthRouter(config: AppConfig, pool: Pool): express.Router 
   const router = express.Router();
   router.use(jsonMutationGuard(config, '16kb'));
 
+  // публічна реєстрація завжди створює звичайного user а не admin з тіла запиту
   router.post('/register', async (request, response) => {
     const credentials = validateCredentials(request.body);
     if (!credentials.ok) {
@@ -72,8 +73,7 @@ export function createAuthRouter(config: AppConfig, pool: Pool): express.Router 
     } catch {
       throw databaseUnavailable();
     }
-    // An unknown username also performs the password KDF. The public error is
-    // identical to the wrong-password error and no session is created.
+    // для невідомого логіна теж рахую scrypt і повертаю ту саму помилку що для неправильного пароля без створення сесії
     const validPassword = row
       ? await verifyPassword(password, row.password_hash)
       : (await hashPassword(password), false);

@@ -1,0 +1,108 @@
+@use "tokens" as t;
+
+.auth-card {
+  max-width: 560px;
+  width: 100%;
+  margin: 0 0 40px;
+  padding: 30px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--paper);
+  box-shadow: var(--card-shadow);
+}
+.auth-card:has(#user-state[hidden]) {
+  margin-inline: auto;
+}
+.auth-heading h2 {
+  font-size: 23px;
+}
+.auth-message {
+  margin: 10px 0 24px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.auth-message[data-state="error"] {
+  color: var(--danger);
+}
+.auth-message[data-state="success"] {
+  color: #286143;
+}
+.auth-modes {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 26px;
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface);
+}
+.auth-modes .mode-button {
+  flex: 1 1 120px;
+}
+#auth-submit {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 2px;
+}
+.user-summary {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.user-summary strong {
+  color: var(--green);
+}
+#user-state {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  min-width: 0;
+}
+.auth-card:has(#user-state:not([hidden])) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  max-width: none;
+  padding: 20px 24px;
+  margin-bottom: 24px;
+}
+.auth-card:has(#user-state:not([hidden])) .auth-heading h2 {
+  font-size: 18px;
+}
+.auth-card:has(#user-state:not([hidden])) .auth-message {
+  margin-bottom: 0;
+  font-size: 13px;
+}
+
+@media (max-width: t.$stack) {
+  .auth-card:has(#user-state:not([hidden])) {
+    align-items: flex-start;
+  }
+  #user-state {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+}
+@media (max-width: t.$phone) {
+  .auth-card {
+    padding: 24px 20px;
+  }
+  .auth-heading h2 {
+    font-size: 22px;
+  }
+  .auth-card:has(#user-state:not([hidden])) {
+    flex-direction: column;
+    gap: 16px;
+    padding: 20px;
+  }
+  #user-state {
+    width: 100%;
+    justify-content: space-between;
+  }
+}

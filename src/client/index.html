@@ -4,7 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#173f35" />
-    <meta name="description" content="Пошук короткого маршруту кур'єра на координатній площині: задачі, прогрес та особиста історія." />
+    <meta
+      name="description"
+      content="Пошук короткого маршруту кур'єра на координатній площині: задачі, прогрес та особиста історія."
+    />
     <title>Планувальник маршруту кур'єра</title>
     <link rel="icon" href="data:," />
     <script type="module" src="/main.ts"></script>
@@ -12,189 +15,643 @@
   <body>
     <main class="page">
       <header class="page-header">
-        <a class="brand" href="#page-title"><span class="brand-mark" aria-hidden="true">↗</span> Courier Route</a>
+        <a class="brand" href="#page-title"
+          ><span class="brand-mark" aria-hidden="true">↗</span> Courier Route</a
+        >
         <div class="status-card" data-state="checking">
           <span class="status-dot" aria-hidden="true"></span>
-          <p id="server-status" role="status" aria-live="polite">Перевіряємо доступність…</p>
+          <p id="server-status" role="status" aria-live="polite">
+            Перевіряємо доступність…
+          </p>
         </div>
       </header>
       <section class="intro" aria-labelledby="page-title">
         <p class="eyebrow">Склад → доставки → склад</p>
         <h1 id="page-title">Коротший шлях.<br />Зрозумілий маршрут.</h1>
-        <p class="description">Задайте точки на площині — шукайте короткий маршрут, стежте за обчисленням і повертайтеся до збережених результатів.</p>
+        <p class="description">
+          Задайте точки на площині — шукайте короткий маршрут, стежте за
+          обчисленням і повертайтеся до збережених результатів.
+        </p>
       </section>
       <section class="auth-card" aria-labelledby="auth-title" aria-busy="true">
         <div class="auth-heading">
           <h2 id="auth-title">Вхід до облікового запису</h2>
-          <p id="auth-message" class="auth-message" role="status" aria-live="polite" aria-atomic="true">Перевіряємо стан входу…</p>
+          <p
+            id="auth-message"
+            class="auth-message"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            Перевіряємо стан входу…
+          </p>
         </div>
         <div id="auth-forms" hidden>
-          <div class="auth-modes" role="group" aria-label="Дія з обліковим записом">
-            <button id="login-mode" class="mode-button" type="button" aria-pressed="true">Вхід</button>
-            <button id="register-mode" class="mode-button" type="button" aria-pressed="false">Реєстрація</button>
+          <div
+            class="auth-modes"
+            role="group"
+            aria-label="Дія з обліковим записом"
+          >
+            <button
+              id="login-mode"
+              class="mode-button"
+              type="button"
+              aria-pressed="true"
+            >
+              Вхід
+            </button>
+            <button
+              id="register-mode"
+              class="mode-button"
+              type="button"
+              aria-pressed="false"
+            >
+              Реєстрація
+            </button>
           </div>
           <form id="auth-form" novalidate>
             <fieldset id="auth-fields" disabled>
               <legend class="visually-hidden">Логін і пароль</legend>
               <label for="username">Логін</label>
-              <input id="username" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required aria-describedby="username-help" />
-              <p id="username-help" class="field-help">3–32 символи: латинські літери, цифри, _ та -. Регістр не має значення; крайні пробіли прибираються.</p>
+              <input
+                id="username"
+                name="username"
+                type="text"
+                autocomplete="username"
+                autocapitalize="none"
+                spellcheck="false"
+                required
+                aria-describedby="username-help"
+              />
+              <p id="username-help" class="field-help">
+                3–32 символи: латинські літери, цифри, _ та -. Регістр не має
+                значення; крайні пробіли прибираються.
+              </p>
               <label for="password">Пароль</label>
-              <input id="password" name="password" type="password" autocomplete="current-password" required aria-describedby="password-help" />
-              <p id="password-help" class="field-help">15–128 символів. Можна використовувати Unicode і пробіли. Пробіли та регістр зберігаються.</p>
-              <button id="auth-submit" class="primary-button" type="submit">Увійти</button>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autocomplete="current-password"
+                required
+                aria-describedby="password-help"
+              />
+              <p id="password-help" class="field-help">
+                15–128 символів. Можна використовувати Unicode і пробіли.
+                Пробіли та регістр зберігаються.
+              </p>
+              <button id="auth-submit" class="primary-button" type="submit">
+                Увійти
+              </button>
             </fieldset>
           </form>
         </div>
         <div id="user-state" hidden>
-          <p class="user-summary">Ви увійшли як <strong id="current-username"></strong>.</p>
-          <button id="logout" class="secondary-button" type="button">Вийти</button>
+          <p class="user-summary">
+            Ви увійшли як <strong id="current-username"></strong>.
+          </p>
+          <button id="logout" class="secondary-button" type="button">
+            Вийти
+          </button>
         </div>
       </section>
-      <nav id="workspace-navigation" class="workspace-navigation" aria-label="Робочий простір" hidden>
-        <button id="admin-close" class="mode-button" type="button" aria-pressed="true">Мої маршрути</button>
-        <button id="admin-open" class="mode-button" type="button" aria-pressed="false" hidden>Адміністрування</button>
+      <nav
+        id="workspace-navigation"
+        class="workspace-navigation"
+        aria-label="Робочий простір"
+        hidden
+      >
+        <button
+          id="admin-close"
+          class="mode-button"
+          type="button"
+          aria-pressed="true"
+        >
+          Мої маршрути
+        </button>
+        <button
+          id="admin-open"
+          class="mode-button"
+          type="button"
+          aria-pressed="false"
+          hidden
+        >
+          Адміністрування
+        </button>
       </nav>
-      <section id="admin-workspace" class="workspace admin-workspace" aria-labelledby="admin-title" hidden>
+      <section
+        id="admin-workspace"
+        class="workspace admin-workspace"
+        aria-labelledby="admin-title"
+        hidden
+      >
         <div class="workspace-heading">
-          <div><p class="eyebrow">Спостереження за застосунком</p><h2 id="admin-title">Адміністрування</h2></div>
-          <button id="admin-refresh" class="secondary-button" type="button">Оновити моніторинг</button>
+          <div>
+            <p class="eyebrow">Спостереження за застосунком</p>
+            <h2 id="admin-title">Адміністрування</h2>
+          </div>
+          <button id="admin-refresh" class="secondary-button" type="button">
+            Оновити моніторинг
+          </button>
         </div>
-        <p class="panel-description">Панель лише для читання. CPU та RAM належать контейнерам app разом із їхніми потоками. Ready, вільний обчислювальний слот і бажані HPA replicas — різні показники.</p>
-        <p id="admin-message" class="notice" role="status" aria-live="polite"></p>
-        <dl id="admin-summary" class="admin-summary" aria-label="Зведення системи"></dl>
-        <section class="panel admin-section" aria-labelledby="admin-sources-title">
+        <p class="panel-description">
+          Панель лише для читання. CPU та RAM належать контейнерам app разом із
+          їхніми потоками. Ready, вільний обчислювальний слот і бажані HPA
+          replicas — різні показники.
+        </p>
+        <p
+          id="admin-message"
+          class="notice"
+          role="status"
+          aria-live="polite"
+        ></p>
+        <dl
+          id="admin-summary"
+          class="admin-summary"
+          aria-label="Зведення системи"
+        ></dl>
+        <section
+          class="panel admin-section"
+          aria-labelledby="admin-sources-title"
+        >
           <h3 id="admin-sources-title">Джерела й автоматичне розширення</h3>
           <div id="admin-source-status" class="admin-sources"></div>
           <p id="admin-hpa" class="quiet-note"></p>
-          <p class="quiet-note">CPU — використані ядра за вказане вікно; 1000 мCPU = 1 ядро. RAM — working set у MiB (1048576 байт). Відсоток CPU обчислений від request і може перевищувати 100%. Невідоме значення не дорівнює нулю; сума має вказане покриття.</p>
+          <p class="quiet-note">
+            CPU — використані ядра за вказане вікно; 1000 мCPU = 1 ядро. RAM —
+            working set у MiB (1048576 байт). Відсоток CPU обчислений від
+            request і може перевищувати 100%. Невідоме значення не дорівнює
+            нулю; сума має вказане покриття.
+          </p>
         </section>
-        <section class="panel admin-section" aria-labelledby="admin-servers-title">
+        <section
+          class="panel admin-section"
+          aria-labelledby="admin-servers-title"
+        >
           <h3 id="admin-servers-title">Поточні app-сервери</h3>
-          <p class="panel-description">Pod UID — фізичний pod; process UUID — конкретний HTTP-процес та його єдиний worker-слот. Зайнятість визначає БД, а не CPU.</p>
+          <p class="panel-description">
+            Pod UID — фізичний pod; process UUID — конкретний HTTP-процес та
+            його єдиний worker-слот. Зайнятість визначає БД, а не CPU.
+          </p>
           <div id="admin-servers" class="admin-server-grid"></div>
-          <details class="admin-registry"><summary>Інші записи виконавців: попередні, недоступні або поза Kubernetes</summary><div id="admin-unmatched"></div></details>
+          <details class="admin-registry">
+            <summary>
+              Інші записи виконавців: попередні, недоступні або поза Kubernetes
+            </summary>
+            <div id="admin-unmatched"></div>
+          </details>
         </section>
         <section class="panel admin-section" aria-labelledby="admin-jobs-title">
-          <div class="workspace-heading"><div><h3 id="admin-jobs-title">Задачі всіх власників</h3><p class="quiet-note">Моніторинговий список не містить координат чи результатів і не скасовує чужі задачі.</p></div>
-            <div class="admin-filter"><label for="admin-status-filter">Стан задачі</label><select id="admin-status-filter"><option value="">Усі стани</option><option value="active">Усі активні</option><option value="queued">У черзі</option><option value="running">Обчислюються</option><option value="completed">Завершені</option><option value="cancelled">Скасовані</option><option value="failed">Помилки</option></select></div>
+          <div class="workspace-heading">
+            <div>
+              <h3 id="admin-jobs-title">Задачі всіх власників</h3>
+              <p class="quiet-note">
+                Моніторинговий список не містить координат чи результатів і не
+                скасовує чужі задачі.
+              </p>
+            </div>
+            <div class="admin-filter">
+              <label for="admin-status-filter">Стан задачі</label
+              ><select id="admin-status-filter">
+                <option value="">Усі стани</option>
+                <option value="active">Усі активні</option>
+                <option value="queued">У черзі</option>
+                <option value="running">Обчислюються</option>
+                <option value="completed">Завершені</option>
+                <option value="cancelled">Скасовані</option>
+                <option value="failed">Помилки</option>
+              </select>
+            </div>
           </div>
-          <p id="admin-jobs-message" class="list-message" role="status" aria-live="polite"></p>
+          <p
+            id="admin-jobs-message"
+            class="list-message"
+            role="status"
+            aria-live="polite"
+          ></p>
           <ol id="admin-jobs" class="admin-job-grid"></ol>
-          <nav class="pagination" aria-label="Сторінки всіх задач"><button id="admin-prev" class="secondary-button" type="button" aria-disabled="true">← Попередні</button><span id="admin-page"></span><button id="admin-next" class="secondary-button" type="button" aria-disabled="true">Наступні →</button></nav>
+          <nav class="pagination" aria-label="Сторінки всіх задач">
+            <button
+              id="admin-prev"
+              class="secondary-button"
+              type="button"
+              aria-disabled="true"
+            >
+              ← Попередні</button
+            ><span id="admin-page"></span
+            ><button
+              id="admin-next"
+              class="secondary-button"
+              type="button"
+              aria-disabled="true"
+            >
+              Наступні →
+            </button>
+          </nav>
         </section>
       </section>
-      <section id="jobs-workspace" class="workspace" aria-label="Планування маршрутів" hidden>
+      <section
+        id="jobs-workspace"
+        class="workspace"
+        aria-label="Планування маршрутів"
+        hidden
+      >
         <div class="workspace-heading">
-          <div><p class="eyebrow">Ваш робочий простір</p><h2>Планування маршрутів</h2></div>
-          <button id="jobs-refresh" class="secondary-button" type="button">Оновити задачі</button>
+          <div>
+            <p class="eyebrow">Ваш робочий простір</p>
+            <h2>Планування маршрутів</h2>
+          </div>
+          <button id="jobs-refresh" class="secondary-button" type="button">
+            Оновити задачі
+          </button>
         </div>
-        <p id="jobs-action-message" class="notice" role="status" aria-live="polite" aria-atomic="true" hidden></p>
+        <p
+          id="jobs-action-message"
+          class="notice"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          hidden
+        ></p>
         <div class="workspace-grid">
-          <section class="panel route-form-panel" aria-labelledby="new-route-title">
-            <div class="panel-heading"><span class="section-number" aria-hidden="true">01</span><h3 id="new-route-title">Новий маршрут</h3></div>
-            <p class="panel-description">Координати в умовних одиницях. Відстань — евклідова.</p>
+          <section
+            class="panel route-form-panel"
+            aria-labelledby="new-route-title"
+          >
+            <div class="panel-heading">
+              <span class="section-number" aria-hidden="true">01</span>
+              <h3 id="new-route-title">Новий маршрут</h3>
+            </div>
+            <p class="panel-description">
+              Координати в умовних одиницях. Відстань — евклідова.
+            </p>
             <div id="route-limits" class="limits-box" aria-live="polite">
               <p id="route-limits-message">Завантажуємо серверні ліміти…</p>
-              <button id="route-limits-retry" class="text-button" type="button" hidden>Повторити завантаження</button>
+              <button
+                id="route-limits-retry"
+                class="text-button"
+                type="button"
+                hidden
+              >
+                Повторити завантаження
+              </button>
             </div>
             <form id="route-form" novalidate>
-              <fieldset>
+              <fieldset class="input-group warehouse-group">
                 <legend>Склад</legend>
                 <div class="coordinate-fields">
-                  <div><label for="warehouse-x">Координата X</label><input id="warehouse-x" name="warehouseX" type="text" inputmode="decimal" value="0" required spellcheck="false" /></div>
-                  <div><label for="warehouse-y">Координата Y</label><input id="warehouse-y" name="warehouseY" type="text" inputmode="decimal" value="0" required spellcheck="false" /></div>
+                  <div>
+                    <label for="warehouse-x">Координата X</label
+                    ><input
+                      id="warehouse-x"
+                      name="warehouseX"
+                      type="text"
+                      inputmode="decimal"
+                      value="0"
+                      required
+                      spellcheck="false"
+                    />
+                  </div>
+                  <div>
+                    <label for="warehouse-y">Координата Y</label
+                    ><input
+                      id="warehouse-y"
+                      name="warehouseY"
+                      type="text"
+                      inputmode="decimal"
+                      value="0"
+                      required
+                      spellcheck="false"
+                    />
+                  </div>
                 </div>
               </fieldset>
-              <div class="field-heading"><label for="delivery-points">Точки доставки</label><button id="fill-square" class="text-button" type="button">Заповнити квадрат</button></div>
-              <textarea id="delivery-points" name="points" rows="6" required spellcheck="false" aria-describedby="points-help" placeholder="1 0&#10;1 1&#10;0 1"></textarea>
-              <p id="points-help" class="field-help">Одна точка на рядок: <code>x y</code>, пробіл або табуляція. Дроби — з крапкою, наприклад <code>-2.5 4</code>. Однакові точки зберігаються окремо.</p>
-              <label for="route-iterations">Бюджет ітерацій</label>
-              <input id="route-iterations" name="iterations" type="text" inputmode="numeric" required spellcheck="false" aria-describedby="iterations-help" />
-              <p id="iterations-help" class="field-help">Додатне ціле число. Більший бюджет дає пошуку більше спроб, але не гарантує кращий результат.</p>
-              <label for="route-seed">Seed <span class="optional">необов'язково</span></label>
-              <input id="route-seed" name="seed" type="text" inputmode="numeric" spellcheck="false" aria-describedby="seed-help" placeholder="Автоматичний" />
-              <p id="seed-help" class="field-help">Ціле 0–4294967295. Однакові точки, бюджет і seed дають відтворюваний пошук. Автоматичний seed буде в деталях.</p>
-              <p id="route-draft-error" class="form-error" role="alert" hidden></p>
-              <button id="route-submit" class="primary-button submit-route" type="submit" disabled>Знайти маршрут <span aria-hidden="true">↗</span></button>
-              <p class="quiet-note">Закриття сторінки чи вихід з облікового запису не скасовує прийняту задачу.</p>
+              <div class="input-group deliveries-group">
+                <div class="field-heading">
+                  <label for="delivery-points">Точки доставки</label
+                  ><button id="fill-square" class="text-button" type="button">
+                    Заповнити квадрат
+                  </button>
+                </div>
+                <textarea
+                  id="delivery-points"
+                  name="points"
+                  rows="6"
+                  required
+                  spellcheck="false"
+                  aria-describedby="points-help"
+                  placeholder="1 0&#10;1 1&#10;0 1"
+                ></textarea>
+                <p id="points-help" class="field-help">
+                  Одна точка на рядок: <code>x y</code>, пробіл або табуляція.
+                  Дроби — з крапкою, наприклад <code>-2.5 4</code>. Однакові
+                  точки зберігаються окремо.
+                </p>
+              </div>
+              <fieldset class="input-group computation-fields">
+                <legend>Параметри обчислення</legend>
+                <div class="form-field">
+                  <label for="route-iterations">Бюджет ітерацій</label>
+                  <input
+                    id="route-iterations"
+                    name="iterations"
+                    type="text"
+                    inputmode="numeric"
+                    required
+                    spellcheck="false"
+                    aria-describedby="iterations-help"
+                  />
+                  <p id="iterations-help" class="field-help">
+                    Додатне ціле число. Більший бюджет дає пошуку більше спроб,
+                    але не гарантує кращий результат.
+                  </p>
+                </div>
+                <div class="form-field">
+                  <label for="route-seed"
+                    >Seed <span class="optional">необов'язково</span></label
+                  >
+                  <input
+                    id="route-seed"
+                    name="seed"
+                    type="text"
+                    inputmode="numeric"
+                    spellcheck="false"
+                    aria-describedby="seed-help"
+                    placeholder="Автоматичний"
+                  />
+                  <p id="seed-help" class="field-help">
+                    Ціле 0–4294967295. Однакові точки, бюджет і seed дають
+                    відтворюваний пошук. Автоматичний seed буде в деталях.
+                  </p>
+                </div>
+              </fieldset>
+              <p
+                id="route-draft-error"
+                class="form-error"
+                role="alert"
+                hidden
+              ></p>
+              <button
+                id="route-submit"
+                class="primary-button submit-route"
+                type="submit"
+                disabled
+              >
+                Знайти маршрут <span aria-hidden="true">↗</span>
+              </button>
+              <p class="quiet-note">
+                Закриття сторінки чи вихід з облікового запису не скасовує
+                прийняту задачу.
+              </p>
             </form>
           </section>
-          <section class="panel detail-panel" aria-labelledby="selected-job-title">
-            <div class="panel-heading"><span class="section-number" aria-hidden="true">02</span><h3 id="selected-job-title">Деталі маршруту</h3></div>
-            <p id="job-detail-message" class="empty-state">Виберіть задачу зі списку або запустіть новий маршрут.</p>
-            <button id="job-detail-retry" class="secondary-button" type="button" hidden>Повторити читання</button>
+          <section
+            class="panel detail-panel"
+            aria-labelledby="selected-job-title"
+          >
+            <div class="panel-heading">
+              <span class="section-number" aria-hidden="true">02</span>
+              <h3 id="selected-job-title">Деталі маршруту</h3>
+            </div>
+            <p id="job-detail-message" class="empty-state">
+              Виберіть задачу зі списку або запустіть новий маршрут.
+            </p>
+            <button
+              id="job-detail-retry"
+              class="secondary-button"
+              type="button"
+              hidden
+            >
+              Повторити читання
+            </button>
             <div id="job-detail-content" hidden>
-              <div class="detail-status-row"><strong id="job-detail-status" class="status-badge"></strong><button id="job-detail-cancel" class="danger-button" type="button">Скасувати задачу</button></div>
+              <div class="detail-status-row">
+                <strong id="job-detail-status" class="status-badge"></strong
+                ><button
+                  id="job-detail-cancel"
+                  class="danger-button"
+                  type="button"
+                >
+                  Скасувати задачу
+                </button>
+              </div>
               <p id="job-detail-stage" class="detail-stage"></p>
-              <div id="job-queue" class="notice queue-notice" role="status" aria-live="polite" hidden>
+              <div
+                id="job-queue"
+                class="notice queue-notice"
+                role="status"
+                aria-live="polite"
+                hidden
+              >
                 <p id="job-queue-estimate"></p>
                 <p id="job-queue-explanation"></p>
                 <p id="job-queue-context" class="quiet-note"></p>
-                <p id="job-queue-stale" class="error" hidden>Оцінку не вдалося оновити. Показано попередню оцінку, яка могла змінитися.</p>
+                <p id="job-queue-stale" class="error" hidden>
+                  Оцінку не вдалося оновити. Показано попередню оцінку, яка
+                  могла змінитися.
+                </p>
               </div>
-              <progress id="job-detail-progress" max="100" value="0" aria-label="Прогрес обчислення"></progress>
+              <progress
+                id="job-detail-progress"
+                max="100"
+                value="0"
+                aria-label="Прогрес обчислення"
+              ></progress>
               <p id="job-detail-iterations" class="progress-caption"></p>
-              <p id="job-detail-cancel-note" class="notice" hidden>Скасування запитано. Очікуємо підтвердження зупинки.</p>
+              <p id="job-detail-cancel-note" class="notice" hidden>
+                Скасування запитано. Очікуємо підтвердження зупинки.
+              </p>
               <p id="job-detail-error" class="notice error" hidden></p>
               <dl class="job-metadata">
-                <div><dt>Створено</dt><dd id="job-created"></dd></div>
-                <div><dt>Доставок</dt><dd id="job-point-count"></dd></div>
-                <div><dt>Seed</dt><dd id="job-seed"></dd></div>
-                <div><dt>Бюджет ітерацій</dt><dd id="job-budget"></dd></div>
+                <div>
+                  <dt>Створено</dt>
+                  <dd id="job-created"></dd>
+                </div>
+                <div>
+                  <dt>Доставок</dt>
+                  <dd id="job-point-count"></dd>
+                </div>
+                <div>
+                  <dt>Seed</dt>
+                  <dd id="job-seed"></dd>
+                </div>
+                <div>
+                  <dt>Бюджет ітерацій</dt>
+                  <dd id="job-budget"></dd>
+                </div>
               </dl>
               <div id="job-result" hidden>
-                <section class="initial-route" aria-labelledby="job-initial-title">
-                  <div class="result-heading"><h4 id="job-initial-title" class="route-comparison-title">Початковий маршрут — метод найближчого сусіда</h4><p id="job-initial-length" class="result-length"></p><p class="unit-label">умовних одиниць</p></div>
-                  <p id="job-initial-order" class="route-order" tabindex="0" aria-label="Послідовність початкового маршруту" hidden></p>
-                  <p id="job-initial-unavailable" class="quiet-note" hidden>Початкова послідовність недоступна: цей збережений результат містить лише початкову довжину.</p>
-                  <details id="job-initial-steps" class="initial-route-steps" hidden>
+                <section
+                  class="initial-route"
+                  aria-labelledby="job-initial-title"
+                >
+                  <div class="result-heading">
+                    <h4 id="job-initial-title" class="route-comparison-title">
+                      Початковий маршрут — метод найближчого сусіда
+                    </h4>
+                    <p id="job-initial-length" class="result-length"></p>
+                    <p class="unit-label">умовних одиниць</p>
+                  </div>
+                  <p
+                    id="job-initial-order"
+                    class="route-order"
+                    tabindex="0"
+                    aria-label="Послідовність початкового маршруту"
+                    hidden
+                  ></p>
+                  <p id="job-initial-unavailable" class="quiet-note" hidden>
+                    Початкова послідовність недоступна: цей збережений результат
+                    містить лише початкову довжину.
+                  </p>
+                  <details
+                    id="job-initial-steps"
+                    class="initial-route-steps"
+                    hidden
+                  >
                     <summary>Кроки побудови початкового маршруту</summary>
-                    <p class="quiet-note">Від поточної точки обирається найближча ще не відвідана доставка. Останній перехід — повернення на склад, а не вибір наступної доставки. Номери доставок відповідають рядкам збережених вхідних даних.</p>
-                    <div class="route-steps-scroll" tabindex="0" role="region" aria-label="Таблиця кроків початкового маршруту">
+                    <p class="quiet-note">
+                      Від поточної точки обирається найближча ще не відвідана
+                      доставка. Останній перехід — повернення на склад, а не
+                      вибір наступної доставки. Номери доставок відповідають
+                      рядкам збережених вхідних даних.
+                    </p>
+                    <div
+                      class="route-steps-scroll"
+                      tabindex="0"
+                      role="region"
+                      aria-label="Таблиця кроків початкового маршруту"
+                    >
                       <table class="route-steps-table">
-                        <caption class="visually-hidden">Переходи початкового маршруту</caption>
-                        <thead><tr><th scope="col">Крок</th><th scope="col">Звідки</th><th scope="col">Куди</th><th scope="col">Відстань переходу</th></tr></thead>
+                        <caption class="visually-hidden">
+                          Переходи початкового маршруту
+                        </caption>
+                        <thead>
+                          <tr>
+                            <th scope="col">Крок</th>
+                            <th scope="col">Звідки</th>
+                            <th scope="col">Куди</th>
+                            <th scope="col">Відстань переходу</th>
+                          </tr>
+                        </thead>
                         <tbody id="job-initial-step-rows"></tbody>
                       </table>
                     </div>
                   </details>
                 </section>
-                <div class="result-heading"><h4 class="route-comparison-title">Найкращий знайдений маршрут</h4><p id="job-result-length" class="result-length"></p><p class="unit-label">умовних одиниць</p></div>
-                <p id="job-route-order" class="route-order" tabindex="0" aria-label="Послідовність найкращого знайденого маршруту"></p>
-                <div id="route-diagram" class="route-diagram"></div>
-                <div class="diagram-legend"><span><i class="warehouse-key" aria-hidden="true"></i> Склад</span><span><i class="delivery-key" aria-hidden="true"></i> Точки доставки</span></div>
-                <p class="diagram-note">Спільний масштаб X/Y; напрямок Y — вгору. Збіги координат можуть накладатися.</p>
-                <dl class="result-metadata">
-                  <div><dt>Виконано ітерацій</dt><dd id="job-result-iterations"></dd></div>
-                  <div><dt>Час роботи алгоритму</dt><dd id="job-elapsed"></dd></div>
-                </dl>
-                <p id="job-termination" class="quiet-note"></p>
-                <p class="approximation-note">Наближений пошук повертає найкращий знайдений маршрут. Глобальну оптимальність не доведено.</p>
+                <section
+                  class="best-route"
+                  aria-label="Найкращий знайдений маршрут"
+                >
+                  <div class="result-heading">
+                    <h4 class="route-comparison-title">
+                      Найкращий знайдений маршрут
+                    </h4>
+                    <p id="job-result-length" class="result-length"></p>
+                    <p class="unit-label">умовних одиниць</p>
+                  </div>
+                  <p
+                    id="job-route-order"
+                    class="route-order"
+                    tabindex="0"
+                    aria-label="Послідовність найкращого знайденого маршруту"
+                  ></p>
+                  <div id="route-diagram" class="route-diagram"></div>
+                  <div class="diagram-legend">
+                    <span
+                      ><i class="warehouse-key" aria-hidden="true"></i>
+                      Склад</span
+                    ><span
+                      ><i class="delivery-key" aria-hidden="true"></i> Точки
+                      доставки</span
+                    >
+                  </div>
+                  <p class="diagram-note">
+                    Спільний масштаб X/Y; напрямок Y — вгору. Збіги координат
+                    можуть накладатися.
+                  </p>
+                  <dl class="result-metadata">
+                    <div>
+                      <dt>Виконано ітерацій</dt>
+                      <dd id="job-result-iterations"></dd>
+                    </div>
+                    <div>
+                      <dt>Час роботи алгоритму</dt>
+                      <dd id="job-elapsed"></dd>
+                    </div>
+                  </dl>
+                  <p id="job-termination" class="quiet-note"></p>
+                  <p class="approximation-note">
+                    Наближений пошук повертає найкращий знайдений маршрут.
+                    Глобальну оптимальність не доведено.
+                  </p>
+                </section>
               </div>
-              <details id="saved-input" class="saved-input"><summary>Збережені координати</summary><p id="saved-warehouse"></p><ol id="saved-deliveries"></ol></details>
-              <p class="job-reference">Код задачі: <span id="job-reference"></span></p>
+              <details id="saved-input" class="saved-input">
+                <summary>Збережені координати</summary>
+                <p id="saved-warehouse"></p>
+                <ol id="saved-deliveries"></ol>
+              </details>
+              <p class="job-reference">
+                Код задачі: <span id="job-reference"></span>
+              </p>
             </div>
           </section>
         </div>
         <div class="lists-grid">
           <section class="panel" aria-labelledby="active-title">
-            <div class="panel-heading"><span class="section-number" aria-hidden="true">03</span><h3 id="active-title">Активні задачі</h3><span id="active-count" class="count-label"></span></div>
-            <p class="panel-description">У черзі або обчислюються. Орієнтовний час до початку дивіться в деталях задачі.</p>
-            <p id="active-message" class="list-message" role="status" aria-live="polite"></p>
+            <div class="panel-heading">
+              <span class="section-number" aria-hidden="true">03</span>
+              <h3 id="active-title">Активні задачі</h3>
+              <span id="active-count" class="count-label"></span>
+            </div>
+            <p class="panel-description">
+              У черзі або обчислюються. Орієнтовний час до початку дивіться в
+              деталях задачі.
+            </p>
+            <p
+              id="active-message"
+              class="list-message"
+              role="status"
+              aria-live="polite"
+            ></p>
             <ul id="active-jobs" class="job-list"></ul>
           </section>
           <section class="panel" aria-labelledby="history-title">
-            <div class="panel-heading"><span class="section-number" aria-hidden="true">04</span><h3 id="history-title">Ваша історія</h3></div>
-            <p class="panel-description">Усі ваші задачі, включно з активними. Відкриття результату не запускає обчислення.</p>
-            <p id="history-message" class="list-message" role="status" aria-live="polite"></p>
+            <div class="panel-heading">
+              <span class="section-number" aria-hidden="true">04</span>
+              <h3 id="history-title">Ваша історія</h3>
+            </div>
+            <p class="panel-description">
+              Усі ваші задачі, включно з активними. Відкриття результату не
+              запускає обчислення.
+            </p>
+            <p
+              id="history-message"
+              class="list-message"
+              role="status"
+              aria-live="polite"
+            ></p>
             <ul id="history-jobs" class="job-list"></ul>
-            <nav class="pagination" aria-label="Сторінки історії"><button id="history-prev" class="secondary-button" type="button">← Попередні</button><span id="history-page"></span><button id="history-next" class="secondary-button" type="button">Наступні →</button></nav>
+            <nav class="pagination" aria-label="Сторінки історії">
+              <button id="history-prev" class="secondary-button" type="button">
+                ← Попередні</button
+              ><span id="history-page"></span
+              ><button id="history-next" class="secondary-button" type="button">
+                Наступні →
+              </button>
+            </nav>
           </section>
         </div>
       </section>
-      <noscript><p class="noscript">Увімкніть JavaScript, щоб увійти й планувати маршрути.</p></noscript>
-      <footer><span>Courier Route</span><span>Умовні координати · Евклідова відстань</span></footer>
+      <noscript
+        ><p class="noscript">
+          Увімкніть JavaScript, щоб увійти й планувати маршрути.
+        </p></noscript
+      >
+      <footer>
+        <span>Courier Route</span
+        ><span>Умовні координати · Евклідова відстань</span>
+      </footer>
     </main>
   </body>
 </html>

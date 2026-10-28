@@ -125,54 +125,56 @@ function metricRows(
       ? `${((metric.cpuCores / request) * 100).toLocaleString("uk-UA", { maximumFractionDigits: 1 })}%`
       : "Невідомо",
   );
-  pair(
-    list,
-    "Метрика: час / вікно",
-    metric
-      ? `${date(metric.timestamp)} / ${metric.window}${metric.stale ? " · ЗАСТАРІЛА" : ""}`
-      : "Немає придатного sample для цього процесу",
-  );
 }
 function serverCard(server: AdminServer): HTMLElement {
   const node = element("article", undefined, "admin-server-card");
   node.dataset.podUid = server.uid;
   node.dataset.instanceId = server.executor?.instanceId ?? "";
   const heading = element("div", undefined, "admin-card-heading");
+  const status = element(
+    "span",
+    server.terminating ? "Завершується" : server.ready ? "Ready" : "Не Ready",
+    "status-badge",
+  );
+  status.dataset.state = server.terminating
+    ? "terminating"
+    : server.ready
+      ? "ready"
+      : "not-ready";
   heading.append(
     element("h4", server.name, "admin-identifier"),
-    element(
-      "span",
-      server.terminating ? "Завершується" : server.ready ? "Ready" : "Не Ready",
-      "status-badge",
-    ),
+    status,
   );
   node.append(heading);
-  const list = element("dl", undefined, "admin-details");
+  const section = (title: string): HTMLDListElement => {
+    const group = element("section", undefined, "admin-server-section");
+    const list = element("dl", undefined, "admin-details");
+    group.append(element("h5", title, "admin-server-section-title"), list);
+    node.append(group);
+    return list;
+  };
+  const identity = section("Ідентифікація");
   pair(
-    list,
+    identity,
     "Pod namespace / UID",
     `${server.namespace} / ${server.uid}`,
     true,
   );
   pair(
-    list,
-    "Фаза / перезапуски контейнера",
-    `${server.phase} / ${server.restarts}`,
-  );
-  pair(
-    list,
-    "Pod створено / контейнер запущено",
-    `${date(server.createdAt)} / ${date(server.containerStartedAt)}`,
-  );
-  pair(
-    list,
+    identity,
     "Process UUID",
     server.executor?.instanceId ?? "Немає зіставлення",
     true,
   );
-  pair(list, "Обчислювальний слот", slot(server.executor));
+  const availability = section("Стан і обчислення");
   pair(
-    list,
+    availability,
+    "Фаза / перезапуски контейнера",
+    `${server.phase} / ${server.restarts}`,
+  );
+  pair(availability, "Обчислювальний слот", slot(server.executor));
+  pair(
+    availability,
     "Поточна задача / running",
     server.executor
       ? [
@@ -186,25 +188,39 @@ function serverCard(server: AdminServer): HTMLElement {
       : "Невідомо",
     true,
   );
+  const resources = section("CPU та пам’ять");
+  metricRows(resources, server.metric, server.requests.cpuCores);
   pair(
-    list,
+    resources,
+    "Request: CPU / RAM",
+    `${cpu(server.requests.cpuCores)} / ${memory(server.requests.memoryBytes)}`,
+  );
+  pair(
+    resources,
+    "Limit: CPU / RAM",
+    `${cpu(server.limits.cpuCores)} / ${memory(server.limits.memoryBytes)}`,
+  );
+  const times = section("Часові дані");
+  pair(
+    times,
+    "Pod створено / контейнер запущено",
+    `${date(server.createdAt)} / ${date(server.containerStartedAt)}`,
+  );
+  pair(
+    times,
     "Lease: останній heartbeat / чинний до",
     server.executor
       ? `${date(server.executor.lastSeenAt)} / ${date(server.executor.expiresAt)}`
       : "Невідомо",
   );
-  metricRows(list, server.metric, server.requests.cpuCores);
+  const metric = server.metric;
   pair(
-    list,
-    "Request: CPU / RAM",
-    `${cpu(server.requests.cpuCores)} / ${memory(server.requests.memoryBytes)}`,
+    times,
+    "Метрика: час / вікно",
+    metric
+      ? `${date(metric.timestamp)} / ${metric.window}${metric.stale ? " · ЗАСТАРІЛА" : ""}`
+      : "Немає придатного sample для цього процесу",
   );
-  pair(
-    list,
-    "Limit: CPU / RAM",
-    `${cpu(server.limits.cpuCores)} / ${memory(server.limits.memoryBytes)}`,
-  );
-  node.append(list);
   return node;
 }
 function jobCard(job: AdminJob): HTMLElement {

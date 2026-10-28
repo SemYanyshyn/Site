@@ -1,0 +1,342 @@
+@use "tokens" as t;
+
+button {
+  min-height: 44px;
+  padding: 11px 16px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-small);
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.45;
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s;
+}
+button:disabled,
+button[aria-disabled="true"] {
+  opacity: 0.58;
+  cursor: default;
+}
+.primary-button {
+  color: #fff;
+  background: var(--green);
+}
+.primary-button:hover:not(:disabled) {
+  background: #183e32;
+}
+.secondary-button {
+  color: var(--green);
+  background: var(--paper);
+  border-color: #bfcfbd;
+}
+.secondary-button:hover:not(:disabled),
+.mode-button:hover:not(:disabled) {
+  background: var(--green-soft);
+  border-color: #bfcfbd;
+}
+.mode-button {
+  color: var(--muted);
+  background: transparent;
+}
+.mode-button[aria-pressed="true"] {
+  color: var(--green);
+  background: var(--green-soft);
+}
+.danger-button {
+  color: var(--danger);
+  border-color: #dfbfb4;
+  background: #fff9f6;
+}
+.danger-button:hover:not(:disabled) {
+  background: var(--danger-soft);
+}
+.text-button {
+  min-height: 40px;
+  padding: 5px 0;
+  color: var(--green);
+  background: transparent;
+  text-decoration: underline;
+  text-decoration-color: #92b298;
+  text-underline-offset: 4px;
+}
+.text-button:hover:not(:disabled) {
+  text-decoration-color: currentColor;
+}
+fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+legend {
+  margin: 0 0 16px;
+  padding: 0;
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--green);
+}
+label {
+  display: block;
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.55;
+}
+input,
+textarea,
+select {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 11px 13px;
+  border: 1px solid #b9cbb8;
+  border-radius: var(--radius-small);
+  color: var(--text);
+  background: var(--paper);
+  font-size: 16px;
+  line-height: 1.5;
+}
+input,
+select {
+  min-height: 48px;
+}
+textarea {
+  min-height: 148px;
+  resize: vertical;
+  font-family: t.$font-mono;
+  font-size: 14px;
+  line-height: 1.8;
+}
+input::placeholder,
+textarea::placeholder {
+  color: #647569;
+  opacity: 1;
+}
+input:disabled,
+textarea:disabled,
+select:disabled {
+  background: #edf1e9;
+}
+input[aria-invalid="true"],
+textarea[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+.field-help {
+  margin: 9px 0 24px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.75;
+}
+.optional {
+  margin-left: 5px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 400;
+}
+.panel {
+  min-width: 0;
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  box-shadow: var(--card-shadow);
+}
+.panel-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.section-number {
+  display: grid;
+  place-items: center;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.panel-description {
+  margin: 0 0 24px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.75;
+}
+.notice {
+  padding: 14px 16px;
+  border: 1px solid #cbdcc3;
+  border-radius: var(--radius-small);
+  color: var(--green);
+  background: var(--green-soft);
+  font-size: 14px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.notice.error,
+.notice[data-state="error"] {
+  color: var(--danger);
+  border-color: #e4c7bb;
+  background: var(--danger-soft);
+}
+.quiet-note {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+.form-error {
+  margin: 0 0 16px;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.empty-state {
+  max-width: 440px;
+  margin: 24px auto;
+  padding: 30px 20px;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  color: var(--muted);
+  background: var(--surface);
+  font-size: 15px;
+  text-align: center;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  flex-shrink: 0;
+  padding: 6px 10px;
+  border: 1px solid #dce4cf;
+  border-radius: 7px;
+  color: #53653d;
+  background: #f0f3e7;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.5;
+}
+.status-badge[data-status="running"],
+.status-badge[data-state="ready"] {
+  color: #20583b;
+  border-color: #c5ddc7;
+  background: #eaf4e9;
+}
+.status-badge[data-status="completed"] {
+  color: #205435;
+  border-color: #bcd9bf;
+  background: #e3f0e2;
+}
+.status-badge[data-status="failed"],
+.status-badge[data-state="not-ready"] {
+  color: var(--danger);
+  border-color: #e3c6bb;
+  background: var(--danger-soft);
+}
+.status-badge[data-status="cancelled"],
+.status-badge[data-state="terminating"] {
+  color: #615e51;
+  border-color: #dddcd1;
+  background: #f0efe8;
+}
+progress {
+  display: block;
+  appearance: none;
+  width: 100%;
+  height: 8px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 6px;
+  background: #e5eddf;
+  color: #4c8258;
+}
+progress::-webkit-progress-bar {
+  background: #e5eddf;
+  border-radius: 6px;
+}
+progress::-webkit-progress-value {
+  background: #4c8258;
+  border-radius: 6px;
+}
+progress::-moz-progress-bar {
+  background: #4c8258;
+  border-radius: 6px;
+}
+.progress-caption {
+  margin: 10px 0 22px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+summary {
+  width: fit-content;
+  max-width: 100%;
+  min-height: 40px;
+  padding: 8px 0;
+  cursor: pointer;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+summary::marker {
+  color: var(--green);
+}
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+.pagination button {
+  min-width: 0;
+  padding: 9px 12px;
+  font-size: 13px;
+}
+.pagination span {
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: t.$tablet) {
+  .panel {
+    padding: 24px;
+  }
+}
+@media (max-width: t.$phone) {
+  .panel {
+    padding: 20px 18px;
+  }
+  .panel-heading {
+    gap: 10px;
+  }
+  .panel-heading h3 {
+    font-size: 19px;
+  }
+  .pagination {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .pagination span {
+    order: 3;
+    flex: 0 0 100%;
+  }
+  .pagination button {
+    padding-inline: 10px;
+  }
+  .notice {
+    padding: 13px;
+  }
+}

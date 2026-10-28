@@ -360,6 +360,10 @@ SQL зберігається у `migrations/`. Runner обліковує вер�
 
 ## Збирання й запуск
 
+Авторські стилі — SCSS: [styles.scss](src/client/styles.scss) підключає модулі `styles/` для tokens/base/layout/components/auth/jobs/admin через `@use`. Vite компілює їх pinned devDependency `sass@1.106.1`; звичайний і Docker build видають готовий CSS у `dist/client/assets`, Sass у production runtime не потрібний. Інші залежності не оновлювалися.
+
+Шрифт — системний sans-serif (`-apple-system`, `BlinkMacSystemFont`, `Segoe UI`, system-ui); локальних файлів Inter не знайдено, шрифтових CDN-запитів немає. Для технічних ідентифікаторів використано системний monospace. У Vite збережено сумісний dev URL `/styles.css` через внутрішній SCSS pipeline/HMR для наявних перевірок; авторського CSS-файлу за ним немає, main імпортує `.scss`. Формат production asset URLs і API не змінюється. Деталі редизайну та візуальних перевірок — у [звіті](docs/redesign-report.md).
+
 ```sh
 npm run typecheck
 npm run build

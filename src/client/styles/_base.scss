@@ -1,0 +1,36 @@
+@use "tokens" as t;
+
+:root {
+  font-family: t.$font-sans;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  color: var(--text);
+  background: var(--canvas);
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; font-size: 15px; line-height: 1.65; }
+a { color: inherit; text-underline-offset: 4px; }
+h1, h2, h3, h4, h5 { color: var(--green); overflow-wrap: anywhere; }
+h1 { margin: 0; font-size: clamp(36px, 4.6vw, 58px); font-weight: 700; line-height: 1.13; letter-spacing: -.045em; }
+h2, h3, h4, h5 { margin: 0; font-weight: 650; line-height: 1.4; letter-spacing: -.02em; }
+h2 { font-size: 27px; }
+h3 { font-size: 20px; }
+h4 { font-size: 17px; }
+dl { margin: 0; }
+dt { margin: 0 0 6px; color: var(--muted); font-size: 13px; line-height: 1.55; }
+dd { margin: 0; color: var(--text); font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+code { font-family: t.$font-mono; font-size: .95em; }
+button, input, textarea, select { font: inherit; }
+button, input, textarea, select, summary, a { -webkit-tap-highlight-color: transparent; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+::selection { color: #173f35; background: #d6e8d0; }
+section { scroll-margin-top: 24px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.error, .form-error { color: var(--danger); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; }
+}

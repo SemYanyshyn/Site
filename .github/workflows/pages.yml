@@ -1,0 +1,94 @@
+name: Publish client to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the configured frontend; browser acceptance follows
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: read
+    outputs:
+      publish: ${{ steps.mode.outputs.publish }}
+    env:
+      VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+      PAGES_DEPLOYMENT_READY: ${{ vars.PAGES_DEPLOYMENT_READY }}
+      PAGES_BASE_PATH: /Site/
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Select the supported npm major
+        run: npm install --global npm@11.16.0
+      - name: Check supported toolchain
+        run: node -e "if (process.versions.node.split('.')[0] !== '24') process.exit(1)" && npm --version | grep '^11\.'
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test:client
+      - run: npm run test:pages
+      - name: Determine publication mode
+        id: mode
+        env:
+          PUBLISH: ${{ github.ref == 'refs/heads/main' && vars.PAGES_DEPLOYMENT_READY == 'true' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish)) }}
+        run: node -e "require('node:fs').appendFileSync(process.env.GITHUB_OUTPUT, 'publish=' + process.env.PUBLISH + '\n')"
+      - name: Configure Pages
+        id: pages
+        if: steps.mode.outputs.publish == 'true'
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - name: Verify public backend before publication
+        if: steps.mode.outputs.publish == 'true'
+        env:
+          PAGES_URL: ${{ steps.pages.outputs.base_url }}
+        run: node --import tsx scripts/check-pages-config.mjs
+      - name: Use actual Pages base (including a root/custom-domain site)
+        if: steps.mode.outputs.publish == 'true'
+        env:
+          ACTUAL_BASE: ${{ steps.pages.outputs.base_path }}
+        run: node -e "require('node:fs').appendFileSync(process.env.GITHUB_ENV, 'PAGES_BASE_PATH=' + process.env.ACTUAL_BASE + '\n')"
+      - name: Build only static client
+        run: npm run build:pages
+      - name: Verify client artifact and resource paths
+        run: node scripts/check-pages-artifact.mjs
+      - name: Upload only dist/client
+        if: steps.mode.outputs.publish == 'true'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: dist/client
+
+  deploy:
+    if: needs.build.outputs.publish == 'true'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy static client
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

@@ -5,6 +5,7 @@ export interface AppConfig {
   appOrigins: ReadonlySet<string>;
   sessionTtlSeconds: number;
   cookieSecure: boolean;
+  sessionCookieSameSite?: 'lax' | 'none';
 }
 
 export function readDatabaseUrl(value: string | undefined, label = 'DATABASE_URL'): string {
@@ -64,7 +65,12 @@ export function readConfig(): AppConfig {
   if (secureInput !== 'true' && secureInput !== 'false') {
     throw new Error('COOKIE_SECURE має бути true або false.');
   }
+  const sessionCookieSameSite = process.env.SESSION_COOKIE_SAME_SITE ?? 'lax';
+  if ((sessionCookieSameSite !== 'lax' && sessionCookieSameSite !== 'none') || (sessionCookieSameSite === 'none' && secureInput !== 'true')) {
+    throw new Error('SESSION_COOKIE_SAME_SITE має бути lax або none; none потребує COOKIE_SECURE=true.');
+  }
   return {
+    sessionCookieSameSite,
     host, port: Number(portInput), databaseUrl, appOrigins,
     sessionTtlSeconds: Number(ttlInput), cookieSecure: secureInput === 'true',
   };

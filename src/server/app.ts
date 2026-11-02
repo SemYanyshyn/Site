@@ -7,6 +7,7 @@ import type { HealthResponse } from '../shared/health.js';
 import type { AppConfig } from './config.js';
 import { isDatabaseReady } from './database.js';
 import { databaseUnavailable, HttpError, sendError } from './auth/errors.js';
+import { apiCors } from './http/cors.js';
 import { createAuthRouter } from './auth/router.js';
 import type { RouteLimits } from '../shared/route.js';
 import { readRouteConfig } from './route/config.js';
@@ -44,6 +45,8 @@ export function createApp({
     response.set('X-Instance-Id', instanceId);
     next();
   });
+
+  app.use('/api', apiCors(config));
 
   app.get('/api/health', (_request, response) => {
     const health: HealthResponse = { status: 'ok', instanceId };

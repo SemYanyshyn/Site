@@ -28,6 +28,12 @@ open https://localhost:8443/
 
 Фінальний **source ZIP** містить код, міграції, manifests, документацію, приклади, тести й lock. Він не містить `.git`, `dist`, `node_modules`, `.env`, VM/PVC/готову БД, credentials, local CA/ключі чи приватні PNG/logs. Чистий source smoke і повторне використання наявного PVC — різні сценарії; точні результати та межі наведено у звіті 10. Історичні результати блоків збережено внизу цього README й у незмінних звітах. Свіжий source smoke з `git archive ed87fc4` без головних `.env/.local/node_modules/dist/.git` пройшов `npm ci`, typecheck/build, TS/built CLI й production/Vite HTTP без БД; нову VM/повний кластер для цього вдруге не створювали.
 
+## Сторінка переходу GitHub Pages
+
+Окрема сторінка Courier Route: **https://semyanyshyn.github.io/Site/**. Вона містить опис і кнопку переходу на справжнє тимчасове демо. Авторизація та задачі працюють уже на сайті демо за одним origin. Pages не запускає backend і не містить форми входу.
+
+Публікація — тільки з гілки `pages/demo-entry`; основний застосунок і `main` не змінені. Єдине джерело адреси кнопки — `landing/demo-url.json` у цій гілці. [Точна дія оновлення і звіт](docs/pages-entry.md).
+
 ## Локальний HTTPS у Kubernetes
 
 Основний шлях — окремий Colima-профіль і kind-кластер на macOS arm64. Із чистого checkout потрібні Node.js 24/npm 11, Docker CLI, Colima з працюючим daemon, kind, kubectl та OpenSSL у `PATH`. Для браузерної перевірки потрібен наявний Google Chrome. Ресурс власної VM: **6 CPU та 8 GiB RAM**; перше завантаження образів потребує мережі й вільного диска. Наявний придатний Docker runtime не потрібно замінювати заради другого; використовуємо окремий Colima-профіль `courier-route`.

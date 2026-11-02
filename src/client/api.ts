@@ -1,3 +1,4 @@
+import { apiFetch } from './api-endpoint.js';
 import type { JobDetails, JobLimitsResponse, JobListResponse, JobStatus } from '../shared/jobs.js';
 import type { RouteInput } from '../shared/route.js';
 import { InvalidResponseError, isRecord, parseJobDetails, parseJobLimits, parseJobList } from './response.js';
@@ -33,9 +34,9 @@ function fallback(status: number): string {
   return 'Не вдалося виконати запит. Перевірте введення й спробуйте знову.';
 }
 
-// відносні API адреси працюють через той самий origin і у Vite і за Traefik
+// локально API відносний; Pages використовує спільний налаштований HTTPS transport
 export class ApiClient implements JobsApi {
-  constructor(private readonly fetcher: FetchLike = (path, init) => fetch(path, init), private readonly timeoutMs = 10_000) {}
+  constructor(private readonly fetcher: FetchLike = apiFetch, private readonly timeoutMs = 10_000) {}
 
   private async request<T>(path: string, method: 'GET' | 'POST', parse: (value: unknown) => T,
     body?: unknown, signal?: AbortSignal, creating = false): Promise<T> {

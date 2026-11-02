@@ -9,6 +9,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { appApplyPlan, assertObjectOwner, replicaHandoffPatch } from './deployment-autoscale.mjs';
 import { assertDeploymentDeadline, runDeploymentCommand, withoutDeploymentDeadline } from './deployment-command.mjs';
+import { deploymentAppOrigins } from './public-origins.mjs';
 import { collectDeploymentStatus, parseStatusArguments } from './deployment-status.mjs';
 export { withDeploymentDeadline, withoutDeploymentDeadline } from './deployment-command.mjs';
 
@@ -367,6 +368,7 @@ async function provision({ state, namespace, ownerId, httpPort, httpsPort, image
     __HTTP_PORT__: httpPort, __HTTPS_PORT__: httpsPort, __APP_IMAGE__: image,
     __POSTGRES_IMAGE__: versions.postgres.image, __TRAEFIK_IMAGE__: versions.traefik.image, __MIGRATION_JOB__: migrationName };
   const configData = replace((await readJson(join(root, 'deploy/k8s/config.json'))).data, tokens);
+  if (!testing) configData.APP_ORIGINS = deploymentAppOrigins(publicOrigin, process.env.COURIER_ADDITIONAL_APP_ORIGINS);
   if (testing && !autoscaling) configData.JOBS_MAX_OUTSTANDING = '4';
   const configChecksum = createHash('sha256').update(JSON.stringify(configData)).digest('hex');
   const labels = { 'app.kubernetes.io/part-of': 'courier-route', 'app.kubernetes.io/managed-by': managedLabel,

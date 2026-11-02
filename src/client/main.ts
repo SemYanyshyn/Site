@@ -1,3 +1,4 @@
+import { apiFetch } from "./api-endpoint.js";
 import "./styles.scss";
 import { mountAuth } from "./auth-ui.js";
 import type { AuthHandle } from "./auth-ui.js";
@@ -102,7 +103,7 @@ void (async () => {
   const card = document.querySelector<HTMLElement>(".status-card");
   if (!status || !card) return;
   try {
-    const response = await fetch("/api/health", {
+    const response = await apiFetch("/api/health", {
       credentials: "same-origin",
       cache: "no-store",
       signal: AbortSignal.any([lifecycle.signal, AbortSignal.timeout(5_000)]),

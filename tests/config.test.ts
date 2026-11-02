@@ -3,7 +3,7 @@ import test from 'node:test';
 import { normalizeOrigin, readConfig, readDatabaseUrl } from '../src/server/config.js';
 
 const configurationKeys = [
-  'HOST', 'PORT', 'DATABASE_URL', 'APP_ORIGINS', 'SESSION_TTL_SECONDS', 'COOKIE_SECURE',
+  'HOST', 'PORT', 'DATABASE_URL', 'APP_ORIGINS', 'SESSION_TTL_SECONDS', 'COOKIE_SECURE', 'SESSION_COOKIE_SAME_SITE',
 ] as const;
 const syntheticSecret = 'synthetic-secret-never-log';
 const validDatabaseUrl = `postgresql://courier:${syntheticSecret}@127.0.0.1:55432/courier_route`;
@@ -13,7 +13,7 @@ function withEnvironment(overrides: Partial<Record<typeof configurationKeys[numb
   const values = {
     HOST: '127.0.0.1', PORT: '3000', DATABASE_URL: validDatabaseUrl,
     APP_ORIGINS: 'http://127.0.0.1:5173,http://127.0.0.1:3000',
-    SESSION_TTL_SECONDS: '28800', COOKIE_SECURE: 'false', ...overrides,
+    SESSION_TTL_SECONDS: '28800', COOKIE_SECURE: 'false', SESSION_COOKIE_SAME_SITE: undefined, ...overrides,
   };
   try {
     for (const key of configurationKeys) {
@@ -118,4 +118,11 @@ test('listen configuration rejects arbitrary hostnames, addresses and malformed 
   for (const host of ['', ' ', 'localhost', '::', '::1', '192.168.1.2', '0.0.0.0:3000', ' 0.0.0.0', syntheticSecret]) {
     withEnvironment({ HOST: host }, () => rejectsSafely(readConfig, 'HOST'));
   }
+});
+
+test('cross-site session cookies require explicit None and Secure while local defaults stay Lax', () => {
+  withEnvironment({}, () => assert.equal(readConfig().sessionCookieSameSite, 'lax'));
+  withEnvironment({ SESSION_COOKIE_SAME_SITE: 'none', COOKIE_SECURE: 'true' }, () => assert.equal(readConfig().sessionCookieSameSite, 'none'));
+  for (const value of ['', 'strict', 'None', '*']) withEnvironment({ SESSION_COOKIE_SAME_SITE: value, COOKIE_SECURE: 'true' }, () => rejectsSafely(readConfig, 'SESSION_COOKIE_SAME_SITE'));
+  withEnvironment({ SESSION_COOKIE_SAME_SITE: 'none', COOKIE_SECURE: 'false' }, () => rejectsSafely(readConfig, 'SESSION_COOKIE_SAME_SITE'));
 });

@@ -15,6 +15,7 @@ const projectRoot = fileURLToPath(new URL('../', import.meta.url));
 const serverFile = fileURLToPath(new URL('../dist/server/index.js', import.meta.url));
 const migrationFile = fileURLToPath(new URL('../dist/server/db/migrate.js', import.meta.url));
 const schema = `courier_test_${randomUUID().replaceAll('-', '')}`;
+const pagesOrigin = 'https://semyanyshyn.github.io';
 const fixturePassword = 'Тестовий пароль для кур’єра 😀';
 let viteOrigin: string;
 let vitePort: number;
@@ -90,7 +91,7 @@ async function unusedPort(): Promise<number> {
   return port;
 }
 
-function appEnvironment(port: number, databaseUrl = isolatedDatabaseUrl, secure = false): NodeJS.ProcessEnv {
+function appEnvironment(port: number, databaseUrl = isolatedDatabaseUrl, secure = false, sameSite = 'lax'): NodeJS.ProcessEnv {
   return {
     ...process.env,
     NODE_ENV: 'production',
@@ -99,6 +100,7 @@ function appEnvironment(port: number, databaseUrl = isolatedDatabaseUrl, secure 
     APP_ORIGINS: allowedOrigins,
     SESSION_TTL_SECONDS: '3600',
     COOKIE_SECURE: String(secure),
+    SESSION_COOKIE_SAME_SITE: sameSite,
   };
 }
 
@@ -118,8 +120,8 @@ async function waitForHttp(origin: string, managed: ManagedProcess): Promise<Res
   assert.fail('Temporary server did not become available within twelve seconds.');
 }
 
-async function startServer(port: number, databaseUrl = isolatedDatabaseUrl, secure = false, cwd = projectRoot): Promise<RunningServer> {
-  const managed = manage(process.execPath, [serverFile], appEnvironment(port, databaseUrl, secure), false, cwd);
+async function startServer(port: number, databaseUrl = isolatedDatabaseUrl, secure = false, cwd = projectRoot, sameSite = 'lax'): Promise<RunningServer> {
+  const managed = manage(process.execPath, [serverFile], appEnvironment(port, databaseUrl, secure, sameSite), false, cwd);
   const origin = `http://127.0.0.1:${port}`;
   const response = await waitForHttp(origin, managed);
   const body = await response.json() as Record<string, unknown>;
@@ -225,7 +227,7 @@ describe('PostgreSQL authentication across independent HTTP processes', { concur
     do { portB = await unusedPort(); } while (portB === portA);
     do { vitePort = await unusedPort(); } while (vitePort === portA || vitePort === portB);
     viteOrigin = `http://127.0.0.1:${vitePort}`;
-    allowedOrigins = [`http://127.0.0.1:${portA}`, `http://127.0.0.1:${portB}`, viteOrigin].join(',');
+    allowedOrigins = [`http://127.0.0.1:${portA}`, `http://127.0.0.1:${portB}`, viteOrigin, pagesOrigin].join(',');
   });
 
   after(async () => {
@@ -535,4 +537,34 @@ describe('PostgreSQL authentication across independent HTTP processes', { concur
     const repeated = await fetch(`${appB.origin}/api/health`);
     assert.equal((await repeated.json() as Record<string, unknown>).instanceId, appB.instanceId);
   });
+
+  test('Pages-origin registration/login/session/logout use real shared PG with Secure None cookies and unchanged role gates', async () => {
+    const username = 'pages_origin_user';
+    const registered = await post(appA.origin, '/api/auth/register', { username, password: fixturePassword }, { origin: pagesOrigin });
+    const user = await userFrom(registered, 201); assert.equal(user.role, 'user');
+    assert.equal(registered.headers.get('access-control-allow-origin'), pagesOrigin);
+    const first = await startServer(await unusedPort(), isolatedDatabaseUrl, true, projectRoot, 'none');
+    const second = await startServer(await unusedPort(), isolatedDatabaseUrl, true, projectRoot, 'none');
+    const checkCors = (response: Response): void => {
+      assert.equal(response.headers.get('access-control-allow-origin'), pagesOrigin);
+      assert.equal(response.headers.get('access-control-allow-credentials'), 'true');
+    };
+    try {
+      const signedIn = await post(first.origin, '/api/auth/login', { username, password: fixturePassword }, { origin: pagesOrigin });
+      assert.equal((await userFrom(signedIn, 200)).id, user.id); checkCors(signedIn);
+      const rawCookie = signedIn.headers.get('set-cookie') ?? '';
+      assert.ok(/;\s*SameSite=None/i.test(rawCookie) && /;\s*Secure/i.test(rawCookie) && /;\s*HttpOnly/i.test(rawCookie), 'Cross-site session policy must retain all required security attributes.');
+      const cookie = cookieFrom(signedIn);
+      const restored = await fetch(`${second.origin}/api/auth/me`, { headers: { Origin: pagesOrigin, Cookie: cookie }, signal: AbortSignal.timeout(5_000) });
+      assert.equal((await userFrom(restored, 200)).id, user.id); checkCors(restored);
+      const denied = await fetch(`${second.origin}/api/admin/overview`, { headers: { Origin: pagesOrigin, Cookie: cookie }, signal: AbortSignal.timeout(5_000) });
+      assert.equal(denied.status, 403); checkCors(denied);
+      const signedOut = await post(second.origin, '/api/auth/logout', {}, { origin: pagesOrigin, cookie });
+      assert.equal(signedOut.status, 204); checkCors(signedOut);
+      assert.ok(/;\s*SameSite=None/i.test(signedOut.headers.get('set-cookie') ?? ''), 'Cookie clearing must keep the chosen SameSite policy.');
+      const expired = await fetch(`${first.origin}/api/auth/me`, { headers: { Origin: pagesOrigin, Cookie: cookie }, signal: AbortSignal.timeout(5_000) });
+      await errorFrom(expired, 401); checkCors(expired);
+    } finally { await Promise.all([stop(first, true), stop(second, true)]); }
+  });
+
 });

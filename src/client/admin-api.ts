@@ -1,3 +1,4 @@
+import { apiFetch } from './api-endpoint.js';
 import type { AdminJobsOptions, AdminJobsResponse, AdminOverview } from '../shared/admin.js';
 import { ApiRequestError } from './api.js';
 import type { FetchLike } from './api.js';
@@ -9,7 +10,7 @@ export interface AdminApi {
   jobs(query: AdminJobsOptions, signal?: AbortSignal): Promise<AdminJobsResponse>;
 }
 export class AdminApiClient implements AdminApi {
-  constructor(private readonly fetcher: FetchLike = (path, init) => fetch(path, init), private readonly timeoutMs = 10_000) {}
+  constructor(private readonly fetcher: FetchLike = apiFetch, private readonly timeoutMs = 10_000) {}
   private async read<T>(path: string, parse: (input: unknown) => T, signal?: AbortSignal): Promise<T> {
     try {
       const timeout = AbortSignal.timeout(this.timeoutMs);

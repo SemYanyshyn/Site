@@ -25,7 +25,7 @@
     "test:unit": "node --env-file-if-exists=.env --import tsx --test tests/password.test.ts tests/database-safety.test.ts tests/config.test.ts tests/bind-http.test.ts tests/deployment-safety.test.ts tests/autoscale-safety.test.ts",
     "test:integration": "node --env-file-if-exists=.env --import tsx --test tests/auth.integration.test.ts",
     "auth:check": "npm run test:integration",
-    "test": "npm run test:unit && npm run test:route && npm run test:integration && npm run test:jobs && npm run test:client && npm run test:queue && npm run test:admin",
+    "test": "npm run test:unit && npm run test:route && npm run test:integration && npm run test:jobs && npm run test:client && npm run test:queue && npm run test:admin && npm run test:pages",
     "route:demo": "node --env-file-if-exists=.env --import tsx src/server/route/cli.ts",
     "route:demo:built": "node --env-file-if-exists=.env dist/server/route/cli.js",
     "route:bench": "node --env-file-if-exists=.env dist/server/route/bench.js",
@@ -46,7 +46,12 @@
     "admin:role:built": "node --env-file-if-exists=.env dist/server/admin-role.js",
     "admin:role:deployment": "node scripts/deploy-local.mjs role",
     "test:admin": "node --env-file-if-exists=.env --import tsx --test --test-concurrency=1 tests/admin-deployment.test.ts tests/admin-backend.test.ts tests/admin-data.integration.test.ts tests/admin-api.integration.test.ts",
-    "test:admin:deployment": "node scripts/check-admin-deployment.mjs"
+    "test:admin:deployment": "node scripts/check-admin-deployment.mjs",
+    "build:pages": "vite build --mode pages",
+    "test:pages": "node --import tsx --test tests/pages-config.test.ts tests/client-api-endpoint.test.ts tests/cors-http.test.ts tests/public-demo.test.ts",
+    "demo:public": "node scripts/public-demo.mjs start",
+    "demo:public:status": "node scripts/public-demo.mjs status",
+    "demo:public:stop": "node scripts/public-demo.mjs stop"
   },
   "dependencies": {
     "cookie": "2.0.1",

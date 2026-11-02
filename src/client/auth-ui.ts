@@ -1,3 +1,4 @@
+import { apiFetch } from "./api-endpoint.js";
 import { validateCredentials } from "../shared/auth.js";
 import type { AuthResponse, PublicUser } from "../shared/auth.js";
 
@@ -125,7 +126,7 @@ export function mountAuth(callbacks: AuthCallbacks): AuthHandle {
     method: "GET" | "POST",
     body?: unknown,
   ): Promise<AuthResponse | null> {
-    const response = await fetch(`/api/auth/${path}`, {
+    const response = await apiFetch(`/api/auth/${path}`, {
       method,
       credentials: "same-origin",
       cache: "no-store",

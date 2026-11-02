@@ -31,7 +31,7 @@ export function hashSessionToken(token: string): string {
 export function setSessionCookie(response: Response, token: string, expiresAt: Date, config: AppConfig): void {
   response.setHeader('Set-Cookie', stringifySetCookie({
     name: SESSION_COOKIE, value: token,
-    path: '/', httpOnly: true, sameSite: 'lax', secure: config.cookieSecure,
+    path: '/', httpOnly: true, sameSite: config.sessionCookieSameSite ?? 'lax', secure: config.cookieSecure,
     maxAge: config.sessionTtlSeconds, expires: expiresAt,
   }));
 }
@@ -39,7 +39,7 @@ export function setSessionCookie(response: Response, token: string, expiresAt: D
 export function clearSessionCookie(response: Response, config: AppConfig): void {
   response.setHeader('Set-Cookie', stringifySetCookie({
     name: SESSION_COOKIE, value: '',
-    path: '/', httpOnly: true, sameSite: 'lax', secure: config.cookieSecure,
+    path: '/', httpOnly: true, sameSite: config.sessionCookieSameSite ?? 'lax', secure: config.cookieSecure,
     maxAge: 0, expires: new Date(0),
   }));
 }

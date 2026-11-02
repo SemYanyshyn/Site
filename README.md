@@ -28,6 +28,12 @@ open https://localhost:8443/
 
 Фінальний **source ZIP** містить код, міграції, manifests, документацію, приклади, тести й lock. Він не містить `.git`, `dist`, `node_modules`, `.env`, VM/PVC/готову БД, credentials, local CA/ключі чи приватні PNG/logs. Чистий source smoke і повторне використання наявного PVC — різні сценарії; точні результати та межі наведено у звіті 10. Історичні результати блоків збережено внизу цього README й у незмінних звітах. Свіжий source smoke з `git archive ed87fc4` без головних `.env/.local/node_modules/dist/.git` пройшов `npm ci`, typecheck/build, TS/built CLI й production/Vite HTTP без БД; нову VM/повний кластер для цього вдруге не створювали.
 
+## Публічний доступ для викладача
+
+Підготовлено тимчасове **справжнє demo з MacBook через HTTPS-тунель**: `npm run demo:public:status` показує фактичний URL; `npm run demo:public` запускає/відновлює, `npm run demo:public:stop` закриває тільки тунель. MacBook/інтернет/Colima/Kubernetes повинні залишатися увімкненими. Локальний `https://localhost:8443/` та PostgreSQL/PVC збережені.
+
+**GitHub Pages ще не опубліковано.** Окремі `npm run build:pages`, API-конфігурація й workflow готові; Pages є лише статичним frontend. Поточне demo віддає frontend і API з одного origin для звичайного cookie-входу. [Точні команди, API/CORS, умови Pages і обмеження](docs/github-pages.md), [звіт перевірок](docs/pages-report.md).
+
 ## Локальний HTTPS у Kubernetes
 
 Основний шлях — окремий Colima-профіль і kind-кластер на macOS arm64. Із чистого checkout потрібні Node.js 24/npm 11, Docker CLI, Colima з працюючим daemon, kind, kubectl та OpenSSL у `PATH`. Для браузерної перевірки потрібен наявний Google Chrome. Ресурс власної VM: **6 CPU та 8 GiB RAM**; перше завантаження образів потребує мережі й вільного диска. Наявний придатний Docker runtime не потрібно замінювати заради другого; використовуємо окремий Colima-профіль `courier-route`.

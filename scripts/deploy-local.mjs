@@ -9,6 +9,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { appApplyPlan, assertObjectOwner, replicaHandoffPatch } from './deployment-autoscale.mjs';
 import { assertDeploymentDeadline, runDeploymentCommand, withoutDeploymentDeadline } from './deployment-command.mjs';
+import { kindConfigWithoutNotes } from './kind-config.mjs';
 import { deploymentAppOrigins } from './public-origins.mjs';
 import { collectDeploymentStatus, parseStatusArguments } from './deployment-status.mjs';
 export { withDeploymentDeadline, withoutDeploymentDeadline } from './deployment-command.mjs';
@@ -162,7 +163,7 @@ async function clusterState({ create = false } = {}) {
     state ??= { cluster, context, ownerId: randomUUID(), httpPort, httpsPort };
     assert.equal(state.httpPort, httpPort); assert.equal(state.httpsPort, httpsPort);
     await privateFile(statePath, `${JSON.stringify(state, null, 2)}\n`);
-    const config = replace(await readJson(join(root, 'deploy/kind-config.json')), {
+    const config = replace(kindConfigWithoutNotes(await readJson(join(root, 'deploy/kind-config.json'))), {
       __HTTP_PORT__: httpPort, __HTTPS_PORT__: httpsPort, __KIND_NODE_IMAGE__: versions.kind.nodeImage,
     });
     const configPath = join(local, 'kind-config.json');

@@ -152,3 +152,6 @@ Autoscaling виконує HPA, а не load driver; один worker на про
 
 
 Окреме доручення **02.11.2026**: підготовка GitHub Pages і справжнього публічного доступу. Підтверджений remote — `SemYanyshyn/Site`, початковий main/c24d48b чистий. Користувач підтвердив відсутність зовнішнього backend/домену та обрав тимчасове HTTPS demo з MacBook. Додано opt-in Pages build `/Site/`/root тільки `dist/client`, спільний API transport, точний CORS/OPTIONS і cookie-конфігурацію, guarded офіційний workflow. Тимчасовий тунель веде на наявний TLS/Traefik/Kubernetes, зберігаючи localhost і дані; це не автономний хмарний сервер і не Pages deployment. Результати й точні межі перевірок — [pages-report](docs/pages-report.md), керування та подальша same-site схема — [інструкція](docs/github-pages.md). Історичне приймання блоків не переписано.
+
+
+Уточнення **03.11.2026 — коментарі Docker-сокета**: у scripts/deploy-local.mjs перекладено англомовні коментарі й пояснено dockerEnvironment/DOCKER_HOST, env, run(), Docker/kind і окреме підключення kubectl. Надісланий файл збігався з робочим; його попереднє незакомічене форматування збережено. Порівняння виконавчого коду без коментарів, syntax/typecheck/build PASS. Контейнерне середовище не запускали й не змінювали. [Пояснення та перевірки](docs/docker-socket-explanation.md).

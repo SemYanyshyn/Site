@@ -20,7 +20,11 @@ const statePath = join(local, 'cluster.json');
 const kubeconfig = join(local, 'kubeconfig');
 const context = 'kind-courier-route';
 const cluster = 'courier-route';
+// Підключення до Docker у профілі Colima courier-route.
+// Ці змінні передаються дочірнім командам; глобальні налаштування термінала не змінюються.
 const dockerEnvironment = { ...process.env,
+  // Власна адреса береться з COURIER_DOCKER_HOST; інакше використовується сокет профілю нижче.
+  // homedir() повертає домашню папку користувача, а unix:// означає локальний Unix-сокет.
   DOCKER_HOST: process.env.COURIER_DOCKER_HOST ?? `unix://${homedir()}/.colima/courier-route/docker.sock` };
 const managedLabel = 'courier-route-local';
 const hidden = new Set();
@@ -32,7 +36,9 @@ function safe(message) {
   return value.slice(-1600);
 }
 
-/** Input can contain credentials; it is never included in an error or command line. */
+/** Вхідні дані можуть містити секрети; вони не потрапляють у повідомлення помилок чи аргументи команд. */
+// Обгортка передає env у runDeploymentCommand(), де команда запускається через spawn().
+// Коли env дорівнює dockerEnvironment, Docker і kind отримують потрібний DOCKER_HOST.
 function run(command, args, { input, timeoutMs = 120_000, env = process.env, inherit = false } = {}) {
   return runDeploymentCommand(command, args, { cwd: root, input, timeoutMs, env, inherit, redact: safe });
 }
@@ -66,6 +72,8 @@ async function availablePort(value = 0) {
   return result;
 }
 
+// Перевіряємо доступність інструментів: docker version звертається до Docker через сокет Colima.
+// Саму Colima цей скрипт не запускає: профіль courier-route має вже працювати.
 export async function preflight() {
   assert.equal(Number(process.versions.node.split('.')[0]), 24, 'Node.js 24.x is required.');
   const commands = await Promise.all([
@@ -94,6 +102,8 @@ export async function imageName() {
   return `courier-route:block07-${hash.digest('hex').slice(0, 16)}`;
 }
 
+// Перевірка й збирання Docker-образу відбуваються в середовищі Colima.
+// Параметр env: dockerEnvironment нижче спрямовує команди image inspect і build до її сокета.
 export async function buildImage() {
   await preflight();
   const image = await imageName();
@@ -102,9 +112,9 @@ export async function buildImage() {
   const matches = (value) => value?.Config?.Labels?.[fingerprintLabel] === image
     && value.Config.User === 'node' && value.Config.Env?.includes(`NODE_VERSION=${versions.node.version}`);
   let existing;
-  try { existing = await inspect(); } catch { /* A missing local source tag must be built. */ }
-  // A source tag denotes one local artifact, not a request to rebuild layers
-  // with new timestamps. All actual Docker build inputs feed imageName().
+  try { existing = await inspect(); } catch { /* Якщо локального образу з таким тегом немає, його потрібно зібрати. */ }
+  // Тег позначає конкретний локальний образ; повторний запуск не перебудовує його без змін.
+  // Усі файли, що впливають на збирання Docker-образу, враховані в imageName().
   if (!matches(existing)) {
     await run('docker', ['build', '--tag', image, '--label', `${fingerprintLabel}=${image}`, '.'],
       { env: dockerEnvironment, timeoutMs: 900_000, inherit: true });
@@ -126,6 +136,8 @@ function replace(value, tokens) {
   return value;
 }
 
+// kind отримує той самий dockerEnvironment і керує контейнером вузла Kubernetes у Colima.
+// Наявний власний кластер повторно використовується; новий створюється лише за дозволеного create.
 async function clusterState({ create = false } = {}) {
   await preflight();
   await mkdir(local, { recursive: true, mode: 0o700 });
@@ -162,6 +174,8 @@ async function clusterState({ create = false } = {}) {
   return state;
 }
 
+// kubectl звертається до API Kubernetes через kubeconfig і context проєкту.
+// Тут доступ визначається параметрами Kubernetes, а не адресою Docker-сокета.
 function kubectlFor(namespace) {
   assert.ok(namespace === 'kube-system' || /^courier-route(?:-metrics|-test-[a-z0-9-]+)?$/u.test(namespace));
   return async (args, { input, timeoutMs = 120_000, json = false } = {}) => {
@@ -185,9 +199,9 @@ async function assertClusterOwnership(state) {
 }
 
 async function loadOwnedImage(state, image) {
-  // Docker's local image store and kind's containerd store are independent.
-  // Fail before creating a namespace if the exact built artifact is absent,
-  // then load it through only this project's already verified runtime.
+  // Docker і containerd усередині вузла kind мають окремі сховища образів.
+  // Спочатку перевіряємо наявність потрібного зібраного образу, а потім завантажуємо
+  // його у власний кластер через уже перевірене середовище Colima.
   await assertClusterOwnership(state);
   const metadata = JSON.parse(await run('docker', ['image', 'inspect', image], { env: dockerEnvironment }))[0];
   assert.equal(metadata?.Config?.Labels?.['courier-route.source-fingerprint'], image,
@@ -198,9 +212,9 @@ async function loadOwnedImage(state, image) {
     { env: dockerEnvironment, timeoutMs: 180_000, inherit: true });
 }
 
-/** Shared cluster add-on: check EVERY target before changing ANY target.
- * Disposable namespace cleanup never removes this installation. Foreign
- * add-ons are deliberately rejected rather than silently adopted/overwritten. */
+/** Перед зміною спільного доповнення кластера перевіряємо всі його ресурси.
+ * Очищення тестового простору імен не видаляє це доповнення.
+ * Чужі ресурси не перезаписуються і не привласнюються цьому проєкту. */
 async function ensureMetricsServer(state) {
   await assertClusterOwnership(state);
   const namespace = versions.metricsServer.namespace;
@@ -229,8 +243,8 @@ async function ensureMetricsServer(state) {
     });
   }
   const kubectl = kubectlFor(namespace);
-  // kubectl's explicit namespace must match each namespaced object; the
-  // kube-system auth-reader binding cannot share the add-on namespace flag.
+  // Простір імен у команді kubectl має відповідати простору імен кожного ресурсу.
+  // Прив’язка прав читання в kube-system застосовується окремо від ресурсів доповнення.
   for (const object of manifest.items) await kubectlFor(object.metadata.namespace ?? namespace)(
     ['apply', '-f', '-'], { input: JSON.stringify(object) });
   await kubectl(['rollout', 'status', 'deployment/metrics-server', '--timeout=180s'], { timeoutMs: 190_000 });
@@ -270,7 +284,7 @@ async function certificates() {
     await run('openssl', ['verify', '-CAfile', caPath, '-verify_hostname', 'localhost', cert]);
     await run('openssl', ['x509', '-in', cert, '-checkend', '86400', '-noout']);
     valid = true;
-  } catch { /* A short-lived leaf can be renewed under the same project CA. */ }
+  } catch { /* Серверний сертифікат можна оновити, зберігши ту саму проєктну CA. */ }
   if (!valid) {
     const csr = join(directory, 'localhost.csr');
     const extensions = join(directory, 'localhost.ext');
@@ -301,9 +315,9 @@ async function closeForwarding(namespace) {
 
 async function waitForPublicHttps(origin, caPath) {
   const deadline = Date.now() + 15_000;
-  // The helper command inherits the absolute acceptance deadline and is
-  // actually killed/reaped on timeout. This is a safe GET with normal TLS;
-  // TCP listening alone does not prove Traefik has learned the new endpoints.
+  // Допоміжна команда успадковує кінцевий строк перевірки й завершується після таймауту.
+  // Виконується GET зі звичайною перевіркою TLS; відкритий TCP-порт сам по собі
+  // ще не доводить, що Traefik уже маршрутизує запити до нових серверів.
   const source = `import https from 'node:https';import{readFile}from'node:fs/promises';
     let input='';for await(const chunk of process.stdin)input+=chunk;const{origin,caPath}=JSON.parse(input);
     const ca=await readFile(caPath);const ready=await new Promise(resolve=>{
@@ -345,19 +359,19 @@ async function stopNamespace(kubectl, namespace, ownerId) {
     assertObjectOwner(JSON.parse(hpa), { namespace, ownerId, kind: 'HorizontalPodAutoscaler', name: 'app' });
     await kubectl(['delete', 'hpa', 'app', '--wait=true', '--timeout=30s'], { timeoutMs: 40_000 });
   }
-  // A service port-forward pins one actual Traefik pod. It may keep its local
-  // socket open after that pod disappears, until the next HTTPS request fails.
-  // Explicit stop must reap it before start can create a fresh fixed-port one.
+  // Перенаправлення порту прив’язане до конкретного pod Traefik і може зберігати
+  // відкритий локальний сокет навіть після його зникнення. Під час зупинки
+  // завершуємо цей процес, щоб наступний запуск міг знову зайняти потрібний порт.
   await closeForwarding(namespace);
-  // Delete only the namespace's owned HPA BEFORE scale-to-zero. Leave the
-  // shared Metrics Server and every other namespace's autoscaler untouched.
+  // Перед зменшенням кількості копій до нуля видаляємо тільки власний HPA цього простору імен.
+  // Спільний Metrics Server і масштабування інших просторів імен зберігаються.
   await kubectl(['scale', 'deployment/app', 'deployment/traefik', '--replicas=0']);
   await kubectl(['wait', '--for=delete', 'pod', '-l', 'app.kubernetes.io/component in (app,ingress)', '--timeout=60s'], { timeoutMs: 70_000 });
   await kubectl(['scale', 'statefulset/postgres', '--replicas=0']);
   await kubectl(['wait', '--for=delete', 'pod', '-l', 'app.kubernetes.io/component=database', '--timeout=60s'], { timeoutMs: 70_000 });
 }
 
-// готую власний namespace і конфігурацію потім PostgreSQL міграції застосунок та HTTPS через Traefik
+// Готуємо власний простір імен, конфігурацію, PostgreSQL, міграції, застосунок і HTTPS через Traefik.
 async function provision({ state, namespace, ownerId, httpPort, httpsPort, image, testing = false, autoscaling = !testing }) {
   assert.equal(typeof autoscaling, 'boolean');
   if (autoscaling) await ensureMetricsServer(state);
@@ -396,8 +410,8 @@ async function provision({ state, namespace, ownerId, httpPort, httpsPort, image
     const plan = appApplyPlan(await manifest('app'), live, { autoscaling, namespace, ownerId });
     if (plan.handoffPatch) await kubectl(['patch', 'deployment', 'app', '--type=json', '-p', JSON.stringify(plan.handoffPatch)]);
     await apply(plan.manifest);
-    // для нового або зупиненого deployment починаю з 2 копій а далі кількістю керує HPA
-    // повторний apply не перезаписує поточний масштаб
+    // Для нового або зупиненого розгортання запускаємо дві копії; далі масштабуванням керує HPA.
+    // Повторне застосування конфігурації зберігає поточну кількість копій.
     if (autoscaling && plan.bootstrap) await handoff(await kubectl(['get', 'deployment', 'app', '-o', 'json'], { json: true }));
     if (autoscaling) await apply(await manifest('hpa'));
   }
@@ -417,8 +431,8 @@ async function provision({ state, namespace, ownerId, httpPort, httpsPort, image
   }
   await apply(await manifest('namespace'));
   const monitorRbac = await manifest('monitor-rbac');
-  // Preflight every existing target before changing any of these rights. A
-  // namespace label alone does not prove ownership of a pre-existing Role.
+  // Перед зміною прав перевіряємо кожний наявний ресурс окремо.
+  // Самої мітки простору імен недостатньо, щоб вважати наявну Role власністю проєкту.
   for (const object of monitorRbac.items) {
     const prior = await kubectl(['get', object.kind, object.metadata.name, '--ignore-not-found', '-o', 'json']);
     if (prior.trim()) assertObjectOwner(JSON.parse(prior), { namespace, ownerId, kind: object.kind, name: object.metadata.name });
@@ -436,8 +450,8 @@ async function provision({ state, namespace, ownerId, httpPort, httpsPort, image
   assert.equal(credentials.ownerId, ownerId);
   hidden.add(credentials.admin); hidden.add(credentials.app);
   async function secret(name, stringData, type = 'Opaque') {
-    // Server-side apply avoids a second plaintext copy in the client-side
-    // last-applied annotation. Secret values still travel only via stdin.
+    // Застосування на стороні сервера не додає відкриту копію секрету в анотацію
+    // попередньої конфігурації. Значення секретів передаються тільки через stdin.
     const data = Object.fromEntries(Object.entries(stringData).map(([key, value]) => [key, Buffer.from(value).toString('base64')]));
     for (const value of Object.values(stringData)) {
       hidden.add(value); hidden.add(JSON.stringify(value).slice(1, -1)); hidden.add(Buffer.from(value).toString('base64'));
@@ -459,8 +473,8 @@ async function provision({ state, namespace, ownerId, httpPort, httpsPort, image
   await apply(await manifest('config'));
   await apply(await manifest('postgres'));
   await kubectl(['rollout', 'status', 'statefulset/postgres', '--timeout=180s'], { timeoutMs: 190_000 });
-  // pg_isready can see the image's temporary init server. Bootstrap only after
-  // the entrypoint has exec'd the final PostgreSQL PID 1.
+  // pg_isready може побачити тимчасовий сервер початкового налаштування образу.
+  // Готуємо БД лише після запуску основного PostgreSQL як процесу PID 1.
   const postgresDeadline = Date.now() + 30_000;
   while (true) {
     try {
@@ -474,14 +488,14 @@ async function provision({ state, namespace, ownerId, httpPort, httpsPort, image
       await delay(200);
     }
   }
-  // Administrative bootstrap stays inside this namespace's PostgreSQL pod. The
-  // password travels only through stdin and is never given to the HTTP process.
+  // Адміністративне налаштування виконується всередині власного pod PostgreSQL.
+  // Пароль передається тільки через stdin і не потрапляє до HTTP-процесу.
   const quote = (value) => `'${value.replaceAll("'", "''")}'`;
   const bootstrap = `SET log_statement='none'; SET log_min_error_statement='panic';\nSELECT format('CREATE ROLE courier_route LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD %L', ${quote(credentials.app)}) WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname='courier_route')\\gexec\n`
     + [database, secondDatabase].map((name) => `SELECT format('CREATE DATABASE %I OWNER courier_route', ${quote(name)}) WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname=${quote(name)})\\gexec\n`).join('')
     + "DO $$ BEGIN IF EXISTS (SELECT FROM pg_roles WHERE rolname='courier_route' AND (rolsuper OR rolcreatedb OR rolcreaterole)) THEN RAISE EXCEPTION 'Unsafe application role'; END IF; END $$;\n";
   await kubectl(['exec', '-i', 'postgres-0', '-c', 'postgres', '--', 'psql', '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1'], { input: bootstrap });
-  // чекаю успішних compiled міграцій перед rollout і повторно використовую вже успішний Job цього image
+  // Перед оновленням застосунку чекаємо виконання зібраного коду міграцій; успішний Job цього образу використовуємо повторно.
   const prior = await kubectl(['get', 'job', migrationName, '--ignore-not-found', '-o', 'json']);
   if (prior.trim()) {
     const job = JSON.parse(prior);
@@ -491,7 +505,7 @@ async function provision({ state, namespace, ownerId, httpPort, httpsPort, image
   } else await apply(await manifest('migrate'));
   await kubectl(['wait', '--for=condition=complete', `job/${migrationName}`, '--timeout=130s'], { timeoutMs: 140_000 });
   await applyApplication();
-  // Traefik приймає HTTPS і передає HTTP запити одному з app pod без повторення POST
+  // Traefik приймає HTTPS і передає HTTP-запити одному з pod застосунку, не повторюючи POST.
   await apply(await manifest('traefik'));
   await apply(await manifest('ingress'));
   await kubectl(['rollout', 'status', 'deployment/app', '--timeout=180s'], { timeoutMs: 190_000 });
@@ -605,8 +619,8 @@ export async function provisionTestDeployment({ namespace, ownerId, httpPort, ht
   }
 }
 
-/** This is a local operator action, using the explicitly owned kubeconfig.
- * The HTTP ServiceAccount has no exec or role mutation permission. */
+/** Локальна адміністративна команда використовує власний файл kubeconfig проєкту.
+ * Обліковий запис HTTP-сервера не має прав на exec або зміну ролей. */
 export async function assignDeploymentRole({ namespace = 'courier-route', ownerId, username, role } = {}) {
   assert.match(username ?? '', /^[A-Za-z0-9_-]{3,32}$/u, 'Use a valid existing login.');
   assert.ok(role === 'admin' || role === 'user', 'Role must be admin or user.');

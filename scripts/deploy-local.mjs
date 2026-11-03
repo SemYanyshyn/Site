@@ -15,11 +15,17 @@ import { collectDeploymentStatus, parseStatusArguments } from './deployment-stat
 export { withDeploymentDeadline, withoutDeploymentDeadline } from './deployment-command.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
+// Тут тримаю службові файли свого локального розгортання у папці .local/deploy.
 const local = join(root, '.local/deploy');
 const versions = JSON.parse(await readFile(join(root, 'deploy/versions.json'), 'utf8'));
+// У cluster.json зберігаю назву кластера, його ідентифікатор власника та вибрані HTTP/HTTPS-порти.
 const statePath = join(local, 'cluster.json');
+// У цьому файлі зберігаю адресу API Kubernetes і налаштування доступу для kubectl.
 const kubeconfig = join(local, 'kubeconfig');
+// Це назва запису підключення всередині kubeconfig; так обираю саме свій кластер.
 const context = 'kind-courier-route';
+// Називаю свій кластер Kubernetes courier-route. Кластер керує запуском контейнерів застосунку.
+// У цьому проєкті kind створює для нього один вузол-контейнер у середовищі Colima.
 const cluster = 'courier-route';
 // Підключення до Docker у профілі Colima courier-route.
 // Ці змінні передаються дочірнім командам; глобальні налаштування термінала не змінюються.
@@ -142,41 +148,58 @@ function replace(value, tokens) {
 async function clusterState({ create = false } = {}) {
   await preflight();
   await mkdir(local, { recursive: true, mode: 0o700 });
+  // Читаю попередній запис про кластер, щоб використати його налаштування повторно.
   let state = await readJson(statePath);
+  // Командою kind get clusters отримую назви кластерів у вибраному середовищі Docker.
   const clusters = (await run('kind', ['get', 'clusters'], { env: dockerEnvironment })).trim().split('\n');
+  // Якщо courier-route вже є у списку, перевіряю його та використовую повторно.
   if (clusters.includes(cluster)) {
+    // Звіряю локальний запис: назва, контекст і ownerId мають належати моєму проєкту.
     assert.ok(state?.ownerId && state.cluster === cluster && state.context === context, 'Existing cluster has no project ownership record; refusing to adopt it.');
+    // Через Docker inspect перевіряю контейнер вузла courier-route-control-plane, його образ і мітки.
     const inspect = JSON.parse(await run('docker', ['inspect', `${cluster}-control-plane`], { env: dockerEnvironment }))[0];
     assert.equal(inspect.Config.Labels['io.x-k8s.kind.cluster'], cluster);
     assert.equal(inspect.Config.Image, versions.kind.nodeImage, 'The existing cluster must use the pinned kind node image.');
+    // Також перевіряю, що HTTP/HTTPS-порти вузла прив’язані до правильних локальних портів.
     for (const [containerPort, hostPort] of [['30080/tcp', state.httpPort], ['30443/tcp', state.httpsPort]]) {
       const mapping = inspect.HostConfig.PortBindings[containerPort]?.[0];
       assert.equal(mapping?.HostIp, '127.0.0.1');
       assert.equal(mapping?.HostPort, String(hostPort));
     }
   } else {
+    // Якщо кластера немає, створюю його тільки за дозволеного create=true.
     assert.ok(create, 'Project cluster is not running. Use npm run deploy:local.');
     const httpPort = port(process.env.COURIER_HTTP_PORT, state?.httpPort ?? 8080);
     const httpsPort = port(process.env.COURIER_HTTPS_PORT, state?.httpsPort ?? 8443);
     assert.notEqual(httpPort, httpsPort);
     await availablePort(httpPort); await availablePort(httpsPort);
+    // Для першого запуску записую налаштування й створюю ownerId — унікальний ідентифікатор цього розгортання.
     state ??= { cluster, context, ownerId: randomUUID(), httpPort, httpsPort };
     assert.equal(state.httpPort, httpPort); assert.equal(state.httpsPort, httpsPort);
     await privateFile(statePath, `${JSON.stringify(state, null, 2)}\n`);
+    // Ось де беру опис самого кластера: deploy/kind-config.json.
+    // Прибираю навчальні нотатки й підставляю реальні порти та образ вузла замість шаблонів.
     const config = replace(kindConfigWithoutNotes(await readJson(join(root, 'deploy/kind-config.json'))), {
       __HTTP_PORT__: httpPort, __HTTPS_PORT__: httpsPort, __KIND_NODE_IMAGE__: versions.kind.nodeImage,
     });
+    // Готову конфігурацію без шаблонів записую в .local/deploy/kind-config.json.
     const configPath = join(local, 'kind-config.json');
     await privateFile(configPath, JSON.stringify(config));
+    // Наступна команда kind create cluster фактично створює кластер.
+    // --name задає назву, --config передає готовий опис, --kubeconfig указує файл доступу.
+    // --wait 180s означає: чекаю готовності кластера до трьох хвилин.
     await run('kind', ['create', 'cluster', '--name', cluster, '--config', configPath,
       '--kubeconfig', kubeconfig, '--wait', '180s'], { env: dockerEnvironment, timeoutMs: 900_000, inherit: true });
   }
+  // І для нового, і для наявного кластера отримую його kubeconfig та зберігаю локально.
   await privateFile(kubeconfig, await run('kind', ['get', 'kubeconfig', '--name', cluster], { env: dockerEnvironment }));
   return state;
 }
 
 // kubectl звертається до API Kubernetes через kubeconfig і context проєкту.
 // Тут доступ визначається параметрами Kubernetes, а не адресою Docker-сокета.
+// Під час кожної команди явно передаю власні kubeconfig, context і namespace.
+// Namespace — окремий простір ресурсів усередині кластера, наприклад courier-route.
 function kubectlFor(namespace) {
   assert.ok(namespace === 'kube-system' || /^courier-route(?:-metrics|-test-[a-z0-9-]+)?$/u.test(namespace));
   return async (args, { input, timeoutMs = 120_000, json = false } = {}) => {
@@ -186,6 +209,7 @@ function kubectlFor(namespace) {
   };
 }
 
+// Переконуюся, що працюю зі своїм кластером: звіряю його назву, образ і вузол Kubernetes.
 async function assertClusterOwnership(state) {
   assert.equal(state?.cluster, cluster);
   assert.equal(state?.context, context);
@@ -693,6 +717,7 @@ async function main(command) {
     }
     return;
   }
+  // Тут викликаю пошук або створення кластера; створення дозволяю лише для команди up.
   const state = await clusterState({ create: command === 'up' });
   const kubectl = kubectlFor('courier-route');
   if (command === 'stop') {
@@ -702,6 +727,7 @@ async function main(command) {
   assert.equal(command, 'up', 'Commands: preflight, image, up, status, stop, role');
   const image = await buildImage();
   await loadOwnedImage(state, image);
+  // Кластер уже підготовлений; тепер розгортаю в ньому застосунок, PostgreSQL і Traefik.
   const deployment = await provision({ state, namespace: 'courier-route', ownerId: state.ownerId,
     httpPort: state.httpPort, httpsPort: state.httpsPort, image });
   console.log(JSON.stringify({ origin: deployment.httpsOrigin, redirect: deployment.httpOrigin,

@@ -1,4 +1,5 @@
 {
+  "_comment": "Використовую Traefik для приймання HTTPS-запитів і розподілу їх між серверами застосунку.",
   "apiVersion": "v1",
   "kind": "List",
   "items": [
@@ -116,6 +117,7 @@
     {
       "apiVersion": "v1",
       "kind": "Service",
+      "_comment": "Публікую порти HTTP/HTTPS через порти вузла 30080 і 30443.",
       "metadata": {
         "name": "traefik",
         "namespace": "__NAMESPACE__",
@@ -152,6 +154,7 @@
     {
       "apiVersion": "apps/v1",
       "kind": "Deployment",
+      "_comment": "Запускаю Traefik, який читає правила Ingress і передає запити потрібному сервісу.",
       "metadata": {
         "name": "traefik",
         "namespace": "__NAMESPACE__",

@@ -9,7 +9,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { appApplyPlan, assertObjectOwner, replicaHandoffPatch } from './deployment-autoscale.mjs';
 import { assertDeploymentDeadline, runDeploymentCommand, withoutDeploymentDeadline } from './deployment-command.mjs';
-import { kindConfigWithoutNotes } from './kind-config.mjs';
+import { readDeploymentConfig } from './deployment-config.mjs';
 import { deploymentAppOrigins } from './public-origins.mjs';
 import { collectDeploymentStatus, parseStatusArguments } from './deployment-status.mjs';
 export { withDeploymentDeadline, withoutDeploymentDeadline } from './deployment-command.mjs';
@@ -17,7 +17,7 @@ export { withDeploymentDeadline, withoutDeploymentDeadline } from './deployment-
 const root = fileURLToPath(new URL('../', import.meta.url));
 // Тут тримаю службові файли свого локального розгортання у папці .local/deploy.
 const local = join(root, '.local/deploy');
-const versions = JSON.parse(await readFile(join(root, 'deploy/versions.json'), 'utf8'));
+const versions = await readDeploymentConfig(join(root, 'deploy/versions.json'));
 // У cluster.json зберігаю назву кластера, його ідентифікатор власника та вибрані HTTP/HTTPS-порти.
 const statePath = join(local, 'cluster.json');
 // У цьому файлі зберігаю адресу API Kubernetes і налаштування доступу для kubectl.
@@ -179,7 +179,7 @@ async function clusterState({ create = false } = {}) {
     await privateFile(statePath, `${JSON.stringify(state, null, 2)}\n`);
     // Ось де беру опис самого кластера: deploy/kind-config.json.
     // Прибираю навчальні нотатки й підставляю реальні порти та образ вузла замість шаблонів.
-    const config = replace(kindConfigWithoutNotes(await readJson(join(root, 'deploy/kind-config.json'))), {
+    const config = replace(await readDeploymentConfig(join(root, 'deploy/kind-config.json')), {
       __HTTP_PORT__: httpPort, __HTTPS_PORT__: httpsPort, __KIND_NODE_IMAGE__: versions.kind.nodeImage,
     });
     // Готову конфігурацію без шаблонів записую в .local/deploy/kind-config.json.
@@ -244,7 +244,7 @@ async function ensureMetricsServer(state) {
   await assertClusterOwnership(state);
   const namespace = versions.metricsServer.namespace;
   assert.equal(namespace, 'courier-route-metrics');
-  const manifest = replace(await readJson(join(root, 'deploy/k8s/metrics-server.json')), {
+  const manifest = replace(await readDeploymentConfig(join(root, 'deploy/k8s/metrics-server.json')), {
     __CLUSTER_OWNER_ID__: state.ownerId, __METRICS_SERVER_IMAGE__: versions.metricsServer.image,
   });
   const resources = {
@@ -406,7 +406,7 @@ async function provision({ state, namespace, ownerId, httpPort, httpsPort, image
   const tokens = { __NAMESPACE__: namespace, __OWNER_ID__: ownerId, __PUBLIC_ORIGIN__: publicOrigin,
     __HTTP_PORT__: httpPort, __HTTPS_PORT__: httpsPort, __APP_IMAGE__: image,
     __POSTGRES_IMAGE__: versions.postgres.image, __TRAEFIK_IMAGE__: versions.traefik.image, __MIGRATION_JOB__: migrationName };
-  const configData = replace((await readJson(join(root, 'deploy/k8s/config.json'))).data, tokens);
+  const configData = replace((await readDeploymentConfig(join(root, 'deploy/k8s/config.json'))).data, tokens);
   if (!testing) configData.APP_ORIGINS = deploymentAppOrigins(publicOrigin, process.env.COURIER_ADDITIONAL_APP_ORIGINS);
   if (testing && !autoscaling) configData.JOBS_MAX_OUTSTANDING = '4';
   const configChecksum = createHash('sha256').update(JSON.stringify(configData)).digest('hex');
@@ -441,7 +441,7 @@ async function provision({ state, namespace, ownerId, httpPort, httpsPort, image
     if (autoscaling) await apply(await manifest('hpa'));
   }
   async function manifest(name) {
-    const value = replace(await readJson(join(root, `deploy/k8s/${name}.json`)), tokens);
+    const value = replace(await readDeploymentConfig(join(root, `deploy/k8s/${name}.json`)), tokens);
     if (name === 'config') value.data = configData;
     if (name === 'app') {
       const deployment = value.items.find((item) => item.kind === 'Deployment');

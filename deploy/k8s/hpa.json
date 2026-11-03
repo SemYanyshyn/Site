@@ -1,4 +1,5 @@
 {
+  "_comment": "Дозволяю Kubernetes автоматично змінювати кількість серверів застосунку від 2 до 4 за завантаженням CPU; ціль — 70% від запитаного CPU.",
   "apiVersion": "autoscaling/v2",
   "kind": "HorizontalPodAutoscaler",
   "metadata": {

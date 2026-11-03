@@ -1,4 +1,5 @@
 {
+  "_comment": "Описую одноразове завдання Job: виконую міграції PostgreSQL перед запуском оновленого застосунку.",
   "apiVersion": "batch/v1",
   "kind": "Job",
   "metadata": {

@@ -1,4 +1,5 @@
 {
+  "_comment": "Виділяю окремий простір імен, щоб ресурси Courier Route були згруповані разом.",
   "apiVersion": "v1",
   "kind": "Namespace",
   "metadata": {

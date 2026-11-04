@@ -34,7 +34,6 @@ function fallback(status: number): string {
   return 'Не вдалося виконати запит. Перевірте введення й спробуйте знову.';
 }
 
-// локально API відносний; Pages використовує спільний налаштований HTTPS transport
 export class ApiClient implements JobsApi {
   constructor(private readonly fetcher: FetchLike = apiFetch, private readonly timeoutMs = 10_000) {}
 

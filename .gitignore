@@ -13,3 +13,7 @@ dist/
 *.sql.gz
 cookies*.txt
 *.cookies
+
+# Generated CSS from local SCSS editor tooling.
+/css/styles.css
+/css/styles.css.map

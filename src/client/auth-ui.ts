@@ -321,8 +321,7 @@ export function mountAuth(callbacks: AuthCallbacks): AuthHandle {
     try {
       const response = await send("me", "GET");
       if (destroyed || version !== generation) return;
-      if (response === null)
-        throw new Error("Некоректна відповідь сервера.");
+      if (response === null) throw new Error("Некоректна відповідь сервера.");
       user = response.user;
       callbacks.onAuthenticated(user);
       say("Вхід відновлено.", "success");

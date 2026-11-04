@@ -179,3 +179,12 @@ Autoscaling виконує HPA, а не load driver; один worker на про
 
 
 Уточнення **04.11.2026 — коміт і push**: на явне доручення користувача підготовлено збережені локальні редагування Dockerfile, deploy/k8s/app.json, scripts/deploy-local.mjs та src/server/auth/router.ts. Порівняння через esbuild підтвердило незмінність виконуваного коду; JSON-конфігурація та інструкції Dockerfile незмінні. Typecheck/build і всі 54 unit-тести PASS. Публікується поточна гілка build/github-pages разом із попередніми локальними комітами; автоматичного злиття в main немає.
+
+
+Уточнення **04.11.2026 — Quick Tunnel**: за поточним дорученням виправлено хибний URL API з журналу, свіжий status/restart та перевірку публічної readiness до deployment. Typecheck/build, 29 Pages/public і 54 unit-тести PASS. Одна реальна спроба завершилася таймаутом Cloudflare API та exit 1, url=null; локальна readiness й CA збережені, deployment не запускався. Публічний доступ не підтверджений. Комітів і push немає. [Фактичний звіт і наступний крок](docs/public-demo-recovery.md).
+
+
+Уточнення **04.11.2026 — альтернативний public helper**: додано demo:ssh/status/stop через Pinggy Free без акаунта/токена (60 хвилин, одноразовий browser screening). localhost.run відхилено після фактичної ротації домену за приблизно п’ять хвилин. Одночасний frontend/API origin, CA-verified локальний HTTPS-адаптер, структурована подія адреси, свіжий status і точний Origin через штатний deployment. Typecheck/build, 39 Pages/SSH і 54 unit-тести PASS; публічні ресурси/guards, Chrome register/login/reload/одна completed задача/logout та фактичний stop/restart перевірені. PVC/CA збережені; Cloudflare-виправлення й сторонні зміни не відкидалися. Комітів/push немає. [Інструкція, умови й докази](docs/ssh-demo.md).
+
+
+Уточнення **05.11.2026 — публікація накопичених змін**: користувач явно доручив commit і push поточної гілки build/github-pages. Виправлення Cloudflare, окремий Pinggy helper та збережені користувацькі редагування підготовлено окремими змістовними комітами. Esbuild/Sass-порівняння підтвердили незмінність виконуваного коду та CSS у форматувальних змінах. Typecheck/build і 159 тестів (39 Pages/tunnels +54 unit +66 client) PASS. Згенерований css/styles.css залишено локально й виключено з Git; .local/credentials/ключі/стан тунелів не публікуються. Автоматичного злиття в main немає.

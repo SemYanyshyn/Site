@@ -48,10 +48,13 @@
     "test:admin": "node --env-file-if-exists=.env --import tsx --test --test-concurrency=1 tests/admin-deployment.test.ts tests/admin-backend.test.ts tests/admin-data.integration.test.ts tests/admin-api.integration.test.ts",
     "test:admin:deployment": "node scripts/check-admin-deployment.mjs",
     "build:pages": "vite build --mode pages",
-    "test:pages": "node --import tsx --test tests/pages-config.test.ts tests/client-api-endpoint.test.ts tests/cors-http.test.ts tests/public-demo.test.ts",
+    "test:pages": "node --import tsx --test tests/pages-config.test.ts tests/client-api-endpoint.test.ts tests/cors-http.test.ts tests/public-demo.test.ts tests/ssh-demo.test.ts",
     "demo:public": "node scripts/public-demo.mjs start",
     "demo:public:status": "node scripts/public-demo.mjs status",
-    "demo:public:stop": "node scripts/public-demo.mjs stop"
+    "demo:public:stop": "node scripts/public-demo.mjs stop",
+    "demo:ssh": "node scripts/ssh-demo.mjs start",
+    "demo:ssh:status": "node scripts/ssh-demo.mjs status",
+    "demo:ssh:stop": "node scripts/ssh-demo.mjs stop"
   },
   "dependencies": {
     "cookie": "2.0.1",

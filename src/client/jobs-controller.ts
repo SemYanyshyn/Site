@@ -1,8 +1,10 @@
+// Тут керую станом особистих задач на екрані: запитами, оновленням, історією та діями користувача.
 import type { JobDetails, JobLimitsResponse, JobSummary } from '../shared/jobs.js';
 import type { RouteInput } from '../shared/route.js';
 import { ApiClient, ApiRequestError, requestErrorMessage } from './api.js';
 import type { JobsApi } from './api.js';
 
+// Описую дані екрана та окремі ознаки завантаження й помилки кожного блоку.
 export interface JobsState {
   authenticated: boolean;
   limits: JobLimitsResponse | null;
@@ -33,6 +35,7 @@ export interface JobsControllerOptions {
   onUnauthorized?: () => void;
 }
 
+// Готую порожній стан для початку роботи та завершення сесії.
 function emptyState(): JobsState {
   return {
     authenticated: false, limits: null, limitsLoading: false, limitsError: '',
@@ -45,7 +48,7 @@ function emptyState(): JobsState {
 
 function pending(job: JobSummary | null): boolean { return job?.status === 'queued' || job?.status === 'running'; }
 
-// номери сеансу й вибору відкидають запізнілі відповіді навіть коли abort уже не встиг їх зупинити
+// Перевіряю номери сесії та вибору, щоб запізнілі відповіді не замінили актуальні дані.
 export class JobsController {
   private value = emptyState();
   private generation = 0;
@@ -67,7 +70,7 @@ export class JobsController {
   private readonly pollMs: number;
 
   constructor(private readonly api: JobsApi = new ApiClient(), private readonly options: JobsControllerOptions = {}) {
-    // ?? бере запасний варіант лише для null або undefined на відміну від перевірки будь-якого falsy значення
+    // Через ?? беру стандартні таймери та інтервал лише тоді, коли їх не передали в налаштуваннях.
     this.setTimer = options.setTimeout ?? ((callback, milliseconds) => globalThis.setTimeout(callback, milliseconds));
     this.clearTimer = options.clearTimeout ?? ((timer) => globalThis.clearTimeout(timer));
     this.pollMs = options.pollMs ?? 1_000;
@@ -76,6 +79,7 @@ export class JobsController {
 
   get state(): JobsState { return this.value; }
 
+  // Повідомляю підписникам про зміну стану, щоб інтерфейс оновився.
   subscribe(listener: (state: JobsState) => void): () => void {
     this.listeners.add(listener);
     listener(this.value);
@@ -97,6 +101,7 @@ export class JobsController {
     if (this.timer !== null) this.clearTimer(this.timer);
     this.timer = null;
   }
+  // При відповіді 401 завершую клієнтську сесію й повертаю користувача до входу.
   private unauthorized(error: unknown, generation: number): boolean {
     if (!this.current(generation)) return true;
     if (error instanceof ApiRequestError && error.status === 401) {
@@ -106,7 +111,7 @@ export class JobsController {
     }
     return false;
   }
-  // запускаю наступне читання коли є активна задача або дані для повторного читання і немає поточного циклу
+  // Планую наступне читання, поки є активні задачі або помилки, які потребують оновлення.
   private schedule(): void {
     this.stopTimer();
     if (!this.value.authenticated || this.cycle) return;
@@ -118,13 +123,14 @@ export class JobsController {
     }, this.pollMs);
   }
 
+  // Після входу одночасно завантажую серверні ліміти та списки задач.
   async startSession(): Promise<void> {
     this.endSession();
     this.update({ authenticated: true });
     await Promise.all([this.retryLimits(), this.refresh()]);
   }
 
-  // очищую приватний стан і старі HTTP запити але не скасовую прийняті сервером задачі
+  // Очищую приватний стан і зупиняю старі HTTP-запити; прийняті сервером задачі продовжують своє виконання.
   endSession(): void {
     this.generation++;
     this.selection++;
@@ -144,6 +150,7 @@ export class JobsController {
     for (const listener of this.listeners) listener(this.value);
   }
 
+  // Завантажую ліміти для форми та повторно використовую запит, якщо він уже виконується.
   retryLimits(): Promise<void> {
     if (!this.value.authenticated) return Promise.resolve();
     if (this.limitsRequest) return this.limitsRequest;
@@ -166,6 +173,7 @@ export class JobsController {
     return operation;
   }
 
+  // Читаю активні задачі, за потреби другу сторінку, та прибираю повторні ID.
   private async readActive(generation: number): Promise<void> {
     const controller = this.controller();
     this.update({ activeLoading: true });
@@ -185,6 +193,7 @@ export class JobsController {
     }
   }
 
+  // Читаю вибрану сторінку історії; при збої залишаю останню успішно отриману.
   private async readHistory(generation: number): Promise<void> {
     const historyGeneration = this.historyGeneration;
     const offset = this.value.historyOffset;
@@ -208,6 +217,7 @@ export class JobsController {
     }
   }
 
+  // Читаю деталі вибраної задачі та звіряю номер вибору й сесії перед оновленням екрана.
   private readDetail(generation: number): Promise<void> {
     const id = this.value.selectedId;
     if (!id || !this.current(generation)) return Promise.resolve();
@@ -239,6 +249,7 @@ export class JobsController {
     return operation;
   }
 
+  // Об’єдную оновлення списків і деталей в один цикл, щоб запити не накладалися без потреби.
   refresh(): Promise<void> {
     if (!this.value.authenticated) return Promise.resolve();
     this.stopTimer();
@@ -267,6 +278,7 @@ export class JobsController {
     return operation;
   }
 
+  // При виборі іншої задачі скасовую старе читання та завантажую її деталі.
   async selectJob(id: string): Promise<void> {
     if (!this.value.authenticated) return;
     if (this.value.selectedId !== id) {
@@ -280,6 +292,7 @@ export class JobsController {
     this.schedule();
   }
 
+  // Перемикаю сторінку історії й відкидаю відповіді від попередньої сторінки.
   async goToHistoryPage(offset: number): Promise<void> {
     if (!this.value.authenticated || !Number.isSafeInteger(offset) || offset < 0 || offset > 1_000_000 || offset % 20 !== 0) return;
     if (offset !== this.value.historyOffset) {
@@ -290,6 +303,7 @@ export class JobsController {
     await this.refresh();
   }
 
+  // Надсилаю нову задачу один раз, показую прийнятий сервером запис і оновлюю списки.
   async submit(input: RouteInput): Promise<void> {
     if (!this.value.authenticated || this.value.submitting) return;
     if (!this.value.limits || this.value.limitsLoading || this.value.limitsError) {
@@ -319,6 +333,7 @@ export class JobsController {
     }
   }
 
+  // Запитую скасування на сервері; показую його підтверджений стан і далі оновлюю дані.
   async cancel(id: string): Promise<void> {
     if (!this.value.authenticated || this.value.cancellingId !== null) return;
     const generation = this.generation;
@@ -329,7 +344,7 @@ export class JobsController {
       const detail = await this.api.cancel(id, controller.signal);
       if (!this.current(generation)) return;
       if (this.value.selectedId === id && selection === this.selection) {
-        // Invalidate a GET that started before cancellation acknowledgement.
+        // Відкидаю читання, почате ще до підтвердження скасування.
         this.selection++;
         this.detailUnavailable = false;
         this.detailRequest?.controller.abort();

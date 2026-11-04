@@ -1,3 +1,4 @@
+// Тут запускаю клієнт і зв’язую форми входу, особисті задачі та адмінпанель із HTML.
 import { apiFetch } from "./api-endpoint.js";
 import "./styles.scss";
 import { mountAuth } from "./auth-ui.js";
@@ -9,7 +10,7 @@ import { AdminController } from "./admin-controller.js";
 import { createAdminView } from "./admin-view.js";
 
 let auth: AuthHandle | undefined;
-// зв'язую події форм з контролерами а підписки нижче перемальовують UI з їхнього стану
+// Створюю контролери задач і моніторингу та обробляю завершення сесії або втрату ролі.
 const jobs = new JobsController(undefined, {
   onUnauthorized: () => auth?.expireSession(),
 });
@@ -17,6 +18,7 @@ const admin = new AdminController(undefined, {
   onUnauthorized: () => auth?.expireSession(),
   onForbidden: () => auth?.loseAdminRole(),
 });
+// Передаю дії кнопок адмінпанелі відповідному контролеру.
 const adminView = createAdminView({
   open: () => {
     void admin.open();
@@ -32,11 +34,13 @@ const adminView = createAdminView({
     void admin.goToPage(offset);
   },
 });
+// Перемикаю видимість особистих задач залежно від входу та відкритої адмінпанелі.
 function showWorkspace(): void {
   const workspace = document.querySelector<HTMLElement>("#jobs-workspace");
   if (workspace)
     workspace.hidden = !jobs.state.authenticated || admin.state.open;
 }
+// Підключаю форму маршруту: перевіряю введення й передаю дії користувача контролеру задач.
 const view = createJobsView({
   submit(draft) {
     const limits = jobs.state.limits;
@@ -67,7 +71,7 @@ const view = createJobsView({
     void jobs.refresh();
   },
 });
-// subscribe викликає цю функцію після зміни стану і повертає функцію відписки
+// Підписую інтерфейс на зміни стану контролерів; функції відписки зберігаю для очищення.
 const unsubscribe = jobs.subscribe((state) => {
   view.render(state);
   showWorkspace();
@@ -77,6 +81,7 @@ const unsubscribeAdmin = admin.subscribe((state) => {
   showWorkspace();
 });
 admin.setVisible(!document.hidden);
+// Після входу завантажую задачі користувача; після виходу очищую приватні дані на екрані.
 auth = mountAuth({
   onAuthenticated: (user) => {
     view.clearPrivate();
@@ -92,12 +97,14 @@ auth = mountAuth({
   },
 });
 
+// Пов’язую службові обробники зі сторінкою та повідомляю моніторингу, чи вкладка видима.
 const lifecycle = new AbortController();
 document.addEventListener(
   "visibilitychange",
   () => admin.setVisible(!document.hidden),
   { signal: lifecycle.signal },
 );
+// Окремим коротким запитом перевіряю /api/health для індикатора доступності сервера.
 void (async () => {
   const status = document.querySelector<HTMLElement>("#server-status");
   const card = document.querySelector<HTMLElement>(".status-card");
@@ -128,6 +135,7 @@ void (async () => {
   }
 })();
 
+// При залишенні сторінки зупиняю запити й підписки та очищую приватний інтерфейс.
 window.addEventListener(
   "pagehide",
   () => {
@@ -142,6 +150,7 @@ window.addEventListener(
   },
   { once: true },
 );
+// При відновленні сторінки з кешу браузера завантажую її заново для перевірки сесії.
 window.addEventListener("pageshow", (event) => {
   if (event.persisted) window.location.reload();
 });

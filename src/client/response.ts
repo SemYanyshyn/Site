@@ -1,3 +1,4 @@
+// Тут перевіряю JSON задач із сервера, перш ніж показувати його користувачу.
 import type {
   JobDetails,
   JobLimitsResponse,
@@ -12,6 +13,7 @@ import type {
   RouteResult,
 } from "../shared/route.js";
 
+// Задаю допустимі ідентифікатори, стани задач і причини помилок.
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const STATUSES = new Set([
   "queued",
@@ -29,6 +31,7 @@ const FAILURES = new Set([
   "worker_lost",
 ]);
 
+// Повертаю одну зрозумілу помилку, якщо структура відповіді не відповідає очікуваній.
 export class InvalidResponseError extends Error {
   constructor() {
     super(
@@ -37,6 +40,7 @@ export class InvalidResponseError extends Error {
   }
 }
 
+// Спочатку перевіряю прості типи: об’єкти, числа, дати й координати.
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -88,6 +92,7 @@ function coordinate(value: unknown): value is Coordinate {
   );
 }
 
+// Перевіряю збережений вхід задачі: склад, доставки, ітерації та seed.
 function input(value: unknown): value is NormalizedRouteInput {
   return (
     isRecord(value) &&
@@ -101,6 +106,7 @@ function input(value: unknown): value is NormalizedRouteInput {
   );
 }
 
+// Звіряю прогрес зі станом задачі: 100% має бути лише в успішно завершеної.
 function progress(value: unknown, completed: boolean): value is RouteProgress {
   if (
     !isRecord(value) ||
@@ -119,6 +125,7 @@ function progress(value: unknown, completed: boolean): value is RouteProgress {
   );
 }
 
+// Перевіряю коротку інформацію про задачу та узгодженість стану з датами й помилками.
 export function isJobSummary(value: unknown): value is JobSummary {
   if (
     !isRecord(value) ||
@@ -152,6 +159,7 @@ export function isJobSummary(value: unknown): value is JobSummary {
   return value.error === undefined;
 }
 
+// Перевіряю замкнений порядок точок і рахую його довжину за збереженими координатами.
 function closedRouteLength(
   order: unknown,
   savedInput: NormalizedRouteInput,
@@ -176,6 +184,7 @@ function closedRouteLength(
   return length;
 }
 
+// Звіряю отриманий результат із вхідними даними, довжиною маршруту та кількістю ітерацій.
 function result(
   value: unknown,
   savedInput: NormalizedRouteInput,
@@ -219,6 +228,7 @@ function result(
     : savedInput.points.length <= 2;
 }
 
+// Збираю перевірку повної задачі; відомості про чергу допускаю тільки для queued.
 export function parseJobDetails(
   value: unknown,
   requireQueue = false,
@@ -262,6 +272,7 @@ export function parseJobDetails(
   return value as unknown as JobDetails;
 }
 
+// Перевіряю сторінку списку: ліміт, зміщення, задачі та відсутність повторних ID.
 export function parseJobList(value: unknown): JobListResponse {
   if (
     !isRecord(value) ||
@@ -276,6 +287,7 @@ export function parseJobList(value: unknown): JobListResponse {
   return value as unknown as JobListResponse;
 }
 
+// Перевіряю серверні обмеження, якими потім користується форма маршруту.
 export function parseJobLimits(value: unknown): JobLimitsResponse {
   if (
     !isRecord(value) ||

@@ -1,3 +1,4 @@
+// Тут малюю адмінпанель: зведення, стан джерел, сервери, ресурси та загальний список задач.
 import type {
   AdminExecutor,
   AdminJob,
@@ -17,6 +18,7 @@ interface Actions {
   status(value: JobStatus | "active" | undefined): void;
   page(offset: number): void;
 }
+// Готую українські назви станів задач, джерел моніторингу та причин помилок.
 const stateLabels: Record<JobStatus, string> = {
   queued: "У черзі",
   running: "Обчислюється",
@@ -39,6 +41,7 @@ const failures: Record<JobFailureReason, string> = {
   invalid_input: "Некоректний вхід",
   worker_lost: "Втрачено виконавця",
 };
+// Створюю HTML-елементи через DOM і додаю текст через textContent.
 function element<K extends keyof HTMLElementTagNameMap>(
   tag: K,
   text?: string,
@@ -49,6 +52,7 @@ function element<K extends keyof HTMLElementTagNameMap>(
   if (className) node.className = className;
   return node;
 }
+// Форматую дати, кількість, CPU та пам’ять; відсутнє значення показую як «Невідомо».
 function date(value: string | null): string {
   return value
     ? new Date(value).toLocaleString("uk-UA", {
@@ -83,6 +87,7 @@ function pair(
   );
   list.append(row);
 }
+// Показую стан джерела даних і час його спостереження.
 function sourceCard(label: string, source: AdminSource): HTMLElement {
   const node = element("div", undefined, "admin-source");
   node.dataset.state = source.status;
@@ -126,6 +131,7 @@ function metricRows(
       : "Невідомо",
   );
 }
+// Збираю картку pod із виконавцем, зайнятістю та наявними метриками.
 function serverCard(server: AdminServer): HTMLElement {
   const node = element("article", undefined, "admin-server-card");
   node.dataset.podUid = server.uid;
@@ -223,6 +229,7 @@ function serverCard(server: AdminServer): HTMLElement {
   );
   return node;
 }
+// Збираю картку задачі для загального списку адміністратора.
 function jobCard(job: AdminJob): HTMLElement {
   const node = element("li", undefined, "admin-job-card");
   node.dataset.jobId = job.id;
@@ -286,7 +293,7 @@ function jobCard(job: AdminJob): HTMLElement {
   return node;
 }
 
-/** Static controls survive every render, preserving keyboard focus and selection. */
+// Залишаю елементи керування на місці під час оновлень, щоб зберігався фокус і вибір фільтра.
 export function createAdminView(actions: Actions): {
   render(state: AdminState): void;
   clearPrivate(): void;
@@ -297,6 +304,7 @@ export function createAdminView(actions: Actions): {
     if (!node) throw new Error(`Відсутній елемент: ${selector}`);
     return node;
   };
+  // Знаходжу навігацію, фільтр і блоки моніторингу, які оновлюватиму.
   const nav = find<HTMLElement>("#workspace-navigation"),
     routes = find<HTMLButtonElement>("#admin-close"),
     admin = find<HTMLButtonElement>("#admin-open");
@@ -317,6 +325,7 @@ export function createAdminView(actions: Actions): {
     page = find<HTMLElement>("#admin-page");
   const events = new AbortController();
   let state: AdminState | null = null;
+  // Пов’язую кнопки, фільтр і сторінки з діями контролера.
   admin.addEventListener("click", actions.open, { signal: events.signal });
   routes.addEventListener("click", actions.close, { signal: events.signal });
   refresh.addEventListener("click", actions.refresh, { signal: events.signal });
@@ -346,6 +355,7 @@ export function createAdminView(actions: Actions): {
     },
     { signal: events.signal },
   );
+  // При закритті панелі або втраті доступу очищую показані приватні дані.
   function clearPrivate(): void {
     summary.replaceChildren();
     sources.replaceChildren();
@@ -358,6 +368,7 @@ export function createAdminView(actions: Actions): {
     page.textContent = "";
     filter.value = "";
   }
+  // Заповнюю зведення, HPA, картки pod і записи виконавців, які не вдалося зіставити.
   function overview(snapshot: AdminOverview): void {
     const data = snapshot.summary,
       counts = snapshot.database.counts;
@@ -448,6 +459,7 @@ export function createAdminView(actions: Actions): {
       }),
     );
   }
+  // Оновлюю панель зі стану контролера та явно позначаю застарілі чи недоступні дані.
   function render(value: AdminState): void {
     state = value;
     nav.hidden = !value.allowed;

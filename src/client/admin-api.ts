@@ -1,3 +1,4 @@
+// Тут надсилаю запити читання для адмінпанелі: стан серверів і загальний список задач.
 import { apiFetch } from './api-endpoint.js';
 import type { AdminJobsOptions, AdminJobsResponse, AdminOverview } from '../shared/admin.js';
 import { ApiRequestError } from './api.js';
@@ -5,12 +6,14 @@ import type { FetchLike } from './api.js';
 import { parseAdminJobs, parseAdminOverview } from './admin-response.js';
 import { InvalidResponseError } from './response.js';
 
+// Описую доступні запити моніторингу, щоб контролер працював через один зрозумілий інтерфейс.
 export interface AdminApi {
   overview(signal?: AbortSignal): Promise<AdminOverview>;
   jobs(query: AdminJobsOptions, signal?: AbortSignal): Promise<AdminJobsResponse>;
 }
 export class AdminApiClient implements AdminApi {
   constructor(private readonly fetcher: FetchLike = apiFetch, private readonly timeoutMs = 10_000) {}
+  // Читаю API з таймаутом і відрізняю завершення сесії, втрату ролі та недоступність моніторингу.
   private async read<T>(path: string, parse: (input: unknown) => T, signal?: AbortSignal): Promise<T> {
     try {
       const timeout = AbortSignal.timeout(this.timeoutMs);
@@ -25,7 +28,9 @@ export class AdminApiClient implements AdminApi {
       throw new ApiRequestError(0, 'NETWORK_ERROR', 'Не вдалося оновити моніторинг. Показані попередні дані можуть бути застарілими.');
     }
   }
+  // Отримую знімок стану серверів, виконавців, метрик і кількості задач.
   overview(signal?: AbortSignal): Promise<AdminOverview> { return this.read('/api/admin/overview', parseAdminOverview, signal); }
+  // Передаю фільтр і сторінку задач та звіряю, що сервер повернув саме запитані дані.
   jobs(query: AdminJobsOptions, signal?: AbortSignal): Promise<AdminJobsResponse> {
     const parameters = new URLSearchParams({ limit: String(query.limit), offset: String(query.offset) });
     if (query.status) parameters.set('status', query.status);

@@ -1,5 +1,7 @@
+// Тут розміщую головні блоки сторінки: шапку, вступ, робочий простір, навігацію та підвал.
 @use "tokens" as t;
 
+// Обмежую ширину сторінки, центрую її та задаю відступи й мінімальну висоту екрана.
 .page {
   width: min(1440px, 100%);
   min-height: 100svh;
@@ -8,6 +10,7 @@
   display: flex;
   flex-direction: column;
 }
+// Розставляю логотип та індикатор сервера по краях шапки.
 .page-header {
   display: flex;
   align-items: center;
@@ -16,6 +19,7 @@
   padding: 4px 0 24px;
   border-bottom: 1px solid var(--line);
 }
+// Оформлюю назву Courier Route та квадратну позначку логотипа.
 .brand {
   display: flex;
   align-items: center;
@@ -38,6 +42,7 @@
   font-size: 27px;
   font-weight: 500;
 }
+// Задаю вигляд індикатора сервера; колір крапки залежить від data-state, який оновлює TypeScript.
 .status-card {
   display: flex;
   align-items: center;
@@ -69,6 +74,7 @@
   line-height: 1.55;
   overflow-wrap: anywhere;
 }
+// Оформлюю вступ: головний заголовок, короткий підпис і опис застосунку.
 .intro {
   max-width: 850px;
   padding: 48px 0 32px;
@@ -89,7 +95,7 @@
   font-size: 16px;
   line-height: 1.8;
 }
-// :has перевіряє стан дочірнього блоку щоб центрувати вступ лише до входу
+// Через :has центрую вступ, коли блок даних користувача прихований; після входу застосовую компактніший вигляд.
 .page:has(#user-state[hidden]) .intro {
   width: 100%;
   margin-inline: auto;
@@ -122,12 +128,14 @@
 .workspace-heading .eyebrow {
   margin-bottom: 6px;
 }
+// Розміщую форму маршруту та його деталі у двох колонках із різною шириною.
 .workspace-grid {
   display: grid;
   grid-template-columns: minmax(330px, 0.88fr) minmax(0, 1.3fr);
   align-items: start;
   gap: 24px;
 }
+// Оформлюю перемикач між особистими маршрутами й адмінпанеллю.
 .workspace-navigation {
   display: flex;
   flex-wrap: wrap;
@@ -143,6 +151,7 @@
 .workspace-navigation .mode-button {
   min-width: 130px;
 }
+// Розміщую текст підвала й дозволяю йому переноситися, коли місця мало.
 footer {
   display: flex;
   justify-content: space-between;
@@ -161,6 +170,7 @@ footer {
   font-size: 14px;
 }
 
+// На планшеті зменшую зовнішні відступи й ширину колонок.
 @media (max-width: t.$tablet) {
   .page {
     padding: 24px 28px;
@@ -170,12 +180,13 @@ footer {
     gap: 20px;
   }
 }
-// на вузькому екрані форма й результати стають в одну колонку
+// На вузькому екрані ставлю форму та результати в одну колонку.
 @media (max-width: t.$stack) {
   .workspace-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+// На телефоні дозволяю перенос шапки, зменшую відступи та розтягую навігацію по ширині.
 @media (max-width: t.$phone) {
   .page {
     padding: 20px 16px;

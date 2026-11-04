@@ -1,8 +1,10 @@
+// Тут оформлюю адмінпанель: зведення, джерела даних, сервери, ресурси й список задач.
 @use "tokens" as t;
 
 .admin-workspace {
   min-width: 0;
 }
+// Розкладаю основні показники у чотири картки в ряд.
 .admin-summary {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -35,6 +37,7 @@
 .admin-section > h3 {
   margin-bottom: 20px;
 }
+// Розміщую картки джерел моніторингу та виділяю застарілі чи неповні дані.
 .admin-sources {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -62,6 +65,7 @@
   border-color: #e6d1ad;
   background: var(--warning-soft);
 }
+// Окремо оформлюю рядок стану автомасштабування HPA.
 #admin-hpa {
   margin-top: 18px;
   padding: 16px;
@@ -72,6 +76,7 @@
   font-size: 13px;
   line-height: 1.85;
 }
+// Ставлю сервери й задачі у двоколонкові списки та задаю вигляд їхніх карток.
 .admin-server-grid,
 .admin-job-grid {
   display: grid;
@@ -89,6 +94,7 @@
   border-radius: 13px;
   background: #fcfdf9;
 }
+// Ділю серверну картку на секції; заголовок займає всю її ширину.
 .admin-server-card {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -117,12 +123,13 @@
   min-width: 0;
   font-size: 15px;
 }
-// довгі UUID переносяться повністю без скорочення через три крапки
+// Дозволяю довгим UUID переноситися на новий рядок, щоб їх можна було прочитати повністю.
 .admin-identifier {
   font-family: t.$font-mono;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
+// Відділяю групи даних сервера рамкою та розкладаю назви й значення параметрів.
 .admin-server-section {
   min-width: 0;
   padding: 16px 0 8px;
@@ -159,6 +166,7 @@
   font-size: 12px;
   line-height: 1.85;
 }
+// Задаю ширину та вигляд фільтра станів задач.
 .admin-filter {
   flex: 0 1 240px;
   min-width: 0;
@@ -169,6 +177,7 @@
 .admin-filter select {
   font-size: 14px;
 }
+// Оформлюю розгортаний список записів виконавців, які не зіставлені з поточними pod.
 .admin-registry {
   margin-top: 24px;
   padding-top: 18px;
@@ -191,7 +200,7 @@
   margin: 8px 0;
 }
 
-// зведення переходить з чотирьох колонок у дві а нижче для телефона в одну
+// На планшеті зменшую зведення до двох колонок і спрощую внутрішню сітку серверної картки.
 @media (max-width: t.$tablet) {
   .admin-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -200,6 +209,7 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+// На вужчому екрані ставлю джерела й списки в одну колонку та використовую ширину картки для її секцій.
 @media (max-width: t.$stack) {
   .admin-sources,
   .admin-server-grid,
@@ -210,6 +220,7 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+// На телефоні переводжу зведення й секції карток в одну колонку та зменшую відступи.
 @media (max-width: t.$phone) {
   .admin-summary,
   .admin-details,

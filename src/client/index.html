@@ -88,14 +88,25 @@
                 значення; крайні пробіли прибираються.
               </p>
               <label for="password">Пароль</label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autocomplete="current-password"
-                required
-                aria-describedby="password-help"
-              />
+              <div class="password-field">
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  autocomplete="current-password"
+                  required
+                  aria-describedby="password-help"
+                />
+                <button
+                  id="password-visibility"
+                  class="secondary-button password-visibility"
+                  type="button"
+                  aria-controls="password"
+                  aria-label="Показати пароль"
+                >
+                  Показати
+                </button>
+              </div>
               <p id="password-help" class="field-help">
                 15–128 символів. Можна використовувати Unicode і пробіли.
                 Пробіли та регістр зберігаються.

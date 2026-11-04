@@ -43,6 +43,19 @@
 .auth-modes .mode-button {
   flex: 1 1 120px;
 }
+.password-field {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+
+  input {
+    flex: 1;
+  }
+}
+.password-visibility {
+  flex: 0 0 auto;
+  min-width: 105px;
+}
 #auth-submit {
   width: 100%;
   min-height: 48px;

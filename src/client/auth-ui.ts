@@ -63,6 +63,7 @@ export function mountAuth(callbacks: AuthCallbacks): AuthHandle {
   const fields = element<HTMLFieldSetElement>("#auth-fields");
   const username = element<HTMLInputElement>("#username");
   const password = element<HTMLInputElement>("#password");
+  const passwordVisibility = element<HTMLButtonElement>("#password-visibility");
   const submit = element<HTMLButtonElement>("#auth-submit");
   const loginMode = element<HTMLButtonElement>("#login-mode");
   const registerMode = element<HTMLButtonElement>("#register-mode");
@@ -86,11 +87,27 @@ export function mountAuth(callbacks: AuthCallbacks): AuthHandle {
     message.dataset.state = state;
   }
 
+  // Перемикаю лише видимість введеного пароля; його значення не змінюю.
+  function setPasswordVisibility(visible: boolean): void {
+    password.type = visible ? "text" : "password";
+    passwordVisibility.textContent = visible ? "Приховати" : "Показати";
+    passwordVisibility.setAttribute(
+      "aria-label",
+      visible ? "Приховати пароль" : "Показати пароль",
+    );
+  }
+
+  function clearPassword(): void {
+    password.value = "";
+    setPasswordVisibility(false);
+  }
+
   function render(): void {
     card.setAttribute("aria-busy", String(busy));
     forms.hidden = !checked || user !== null;
     userState.hidden = user === null;
     fields.disabled = busy;
+    if (busy) setPasswordVisibility(false);
     loginMode.disabled = busy;
     registerMode.disabled = busy;
     logout.disabled = busy;
@@ -167,11 +184,20 @@ export function mountAuth(callbacks: AuthCallbacks): AuthHandle {
     busy = false;
     mode = "login";
     username.value = "";
-    password.value = "";
+    clearPassword();
     callbacks.onSignedOut();
     say("Сеанс завершився. Увійдіть знову.");
     render();
   }
+
+  passwordVisibility.addEventListener(
+    "click",
+    () => {
+      if (busy) return;
+      setPasswordVisibility(password.type === "password");
+    },
+    { signal: listeners.signal },
+  );
 
   for (const [button, nextMode] of [
     [loginMode, "login"],
@@ -182,7 +208,7 @@ export function mountAuth(callbacks: AuthCallbacks): AuthHandle {
       () => {
         if (busy) return;
         mode = nextMode;
-        password.value = "";
+        clearPassword();
         say(
           mode === "register"
             ? "Створіть обліковий запис, а потім увійдіть."
@@ -223,7 +249,7 @@ export function mountAuth(callbacks: AuthCallbacks): AuthHandle {
           if (destroyed || version !== generation) return;
           if (response === null)
             throw new Error("Некоректна відповідь сервера.");
-          password.value = "";
+          clearPassword();
           username.value = response.user.username;
           if (action === "register") {
             mode = "login";
@@ -267,7 +293,7 @@ export function mountAuth(callbacks: AuthCallbacks): AuthHandle {
           user = null;
           mode = "login";
           username.value = "";
-          password.value = "";
+          clearPassword();
           callbacks.onSignedOut();
           say("Ви вийшли з облікового запису.", "success");
         } catch (error) {
@@ -327,7 +353,7 @@ export function mountAuth(callbacks: AuthCallbacks): AuthHandle {
       destroyed = true;
       nextGeneration();
       listeners.abort();
-      password.value = "";
+      clearPassword();
     },
   };
 }

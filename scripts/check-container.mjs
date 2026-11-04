@@ -8,13 +8,14 @@ import { resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
+import { readDeploymentConfig } from './deployment-config.mjs';
 
 const projectRoot = fileURLToPath(new URL('../', import.meta.url));
 const dockerHost = process.env.DOCKER_HOST ?? `unix://${homedir()}/.colima/courier-route/docker.sock`;
 const image = process.argv[2] ?? process.env.COURIER_IMAGE ?? 'courier-route:block07-candidate';
 assert.match(dockerHost, /^unix:\/\/.+\/\.colima\/courier-route\/docker\.sock$/u, 'Use the isolated courier-route Colima socket explicitly.');
 assert.match(image, /^courier-route:[a-z0-9][a-z0-9._-]*$/u, 'Container checks use an explicit local courier-route image tag.');
-const versions = JSON.parse(await readFile(new URL('../deploy/versions.json', import.meta.url), 'utf8'));
+const versions = await readDeploymentConfig(new URL('../deploy/versions.json', import.meta.url));
 const owner = randomUUID();
 const prefix = `courier-container-${owner.slice(0, 8)}`;
 const label = `courier-route.container-test=${owner}`;

@@ -10,6 +10,8 @@ import { setTimeout as delay } from 'node:timers/promises';
 import pg from 'pg';
 import type { PublicUser } from '../src/shared/auth.js';
 import { assertSafeTestDatabase } from './database-safety.js';
+import { MIGRATION_COMMENT_UPDATES } from '../src/server/db/migration-comment-updates.js';
+import { REQUIRED_MIGRATIONS } from '../src/server/db/migrate.js';
 
 const projectRoot = fileURLToPath(new URL('../', import.meta.url));
 const serverFile = fileURLToPath(new URL('../dist/server/index.js', import.meta.url));
@@ -129,12 +131,12 @@ async function startServer(port: number, databaseUrl = isolatedDatabaseUrl, secu
   return Object.assign(managed, { origin, instanceId: body.instanceId });
 }
 
-async function runMigration(): Promise<void> {
+async function runMigration(expectedCode = 0): Promise<void> {
   const managed = manage(process.execPath, [migrationFile], appEnvironment(portA));
   const result = await Promise.race([managed.closed, delay(15000, undefined, { ref: false }).then(() => undefined)]);
   assert.ok(result, 'Migration runner must finish within fifteen seconds.');
   processes.delete(managed);
-  assert.equal(result.code, 0, 'Migration runner must finish successfully against the isolated real test schema.');
+  assert.equal(result.code, expectedCode, 'Migration runner must return the expected status against the isolated real test schema.');
 }
 
 interface RequestOptions {
@@ -565,6 +567,31 @@ describe('PostgreSQL authentication across independent HTTP processes', { concur
       const expired = await fetch(`${first.origin}/api/auth/me`, { headers: { Origin: pagesOrigin, Cookie: cookie }, signal: AbortSignal.timeout(5_000) });
       await errorFrom(expired, 401); checkCors(expired);
     } finally { await Promise.all([stop(first, true), stop(second, true)]); }
+  });
+
+  test('documented comments preserve legacy migration records and data while unknown checksums still fail', async () => {
+    const recorded = await pool.query<{ version: string; checksum: string; applied_at: Date }>(
+      'SELECT version,checksum,applied_at FROM schema_migrations ORDER BY version');
+    const data = async (): Promise<string> => JSON.stringify(await Promise.all(
+      ['users', 'sessions', 'jobs'].map(async (table) => (await pool.query(`SELECT to_jsonb(t) AS value FROM ${table} t ORDER BY to_jsonb(t)::text`)).rows)));
+    const before = await data();
+    try {
+      for (const version of REQUIRED_MIGRATIONS) {
+        const update = MIGRATION_COMMENT_UPDATES[version]; assert.ok(update);
+        await pool.query('UPDATE schema_migrations SET checksum=$1 WHERE version=$2', [update.before, version]);
+      }
+      const historical = JSON.stringify((await pool.query('SELECT version,checksum,applied_at FROM schema_migrations ORDER BY version')).rows);
+      await runMigration();
+      const after = JSON.stringify((await pool.query('SELECT version,checksum,applied_at FROM schema_migrations ORDER BY version')).rows);
+      assert.ok(after === historical, 'Compatible documented comments must not rewrite historical migration records.');
+      assert.ok(await data() === before, 'A repeated legacy migration must preserve existing accounts, sessions and jobs.');
+      await pool.query('UPDATE schema_migrations SET checksum=$1 WHERE version=$2', ['0'.repeat(64), REQUIRED_MIGRATIONS[0]]);
+      await runMigration(1);
+      assert.equal((await pool.query<{ checksum: string }>('SELECT checksum FROM schema_migrations WHERE version=$1', [REQUIRED_MIGRATIONS[0]])).rows[0]?.checksum, '0'.repeat(64));
+      assert.ok(await data() === before, 'Rejected migration checksums must not change application data.');
+    } finally {
+      for (const row of recorded.rows) await pool.query('UPDATE schema_migrations SET checksum=$1 WHERE version=$2', [row.checksum, row.version]);
+    }
   });
 
 });

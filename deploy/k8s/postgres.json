@@ -1,4 +1,5 @@
 {
+  "_comment": "Запускаю PostgreSQL і описую доступ до бази даних усередині кластера.",
   "apiVersion": "v1",
   "kind": "List",
   "items": [
@@ -34,6 +35,7 @@
     {
       "apiVersion": "apps/v1",
       "kind": "StatefulSet",
+      "_comment": "Зберігаю дані PostgreSQL в окремому томі PVC; звичайна зупинка не видаляє цей том.",
       "metadata": {
         "name": "postgres",
         "namespace": "__NAMESPACE__",

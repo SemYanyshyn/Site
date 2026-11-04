@@ -1,4 +1,5 @@
 {
+  "_comment": "Додаю збір показників CPU та пам’яті для автоматичного масштабування й моніторингу.",
   "apiVersion": "v1",
   "kind": "List",
   "items": [
@@ -265,6 +266,7 @@
     {
       "apiVersion": "apps/v1",
       "kind": "Deployment",
+      "_comment": "Запускаю сам Metrics Server, який збирає показники ресурсів вузла та pod.",
       "metadata": {
         "name": "metrics-server",
         "labels": {
@@ -404,6 +406,7 @@
     {
       "apiVersion": "apiregistration.k8s.io/v1",
       "kind": "APIService",
+      "_comment": "Підключаю зібрані показники до API Kubernetes, щоб їх могли читати HPA й адмінпанель.",
       "metadata": {
         "name": "v1beta1.metrics.k8s.io",
         "labels": {

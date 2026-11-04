@@ -1,4 +1,5 @@
 {
+  "_comment": "Даю серверу застосунку обмежений доступ для читання даних адмінпанелі.",
   "apiVersion": "v1",
   "kind": "List",
   "items": [
@@ -19,6 +20,7 @@
     {
       "apiVersion": "rbac.authorization.k8s.io/v1",
       "kind": "Role",
+      "_comment": "Дозволяю читати потрібні pod, метрики, Deployment і HPA у своєму просторі імен; не даю права змінювати ресурси або читати Secret.",
       "metadata": {
         "name": "courier-route-monitor",
         "namespace": "__NAMESPACE__",

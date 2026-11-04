@@ -1,10 +1,12 @@
 {
+  "_comment": "Запускаю сервери застосунку й описую внутрішній доступ до них.",
   "apiVersion": "v1",
   "kind": "List",
   "items": [
     {
       "apiVersion": "v1",
       "kind": "Service",
+      "_comment": "Service дає Traefik сталу адресу для звернення до копій застосунку.",
       "metadata": {
         "name": "app",
         "namespace": "__NAMESPACE__",
@@ -37,6 +39,7 @@
     {
       "apiVersion": "apps/v1",
       "kind": "Deployment",
+      "_comment": "Описую образ, порти, змінні та ресурси серверів; кількістю копій керує HPA.",
       "metadata": {
         "name": "app",
         "namespace": "__NAMESPACE__",
@@ -156,9 +159,7 @@
                   "allowPrivilegeEscalation": false,
                   "readOnlyRootFilesystem": true,
                   "capabilities": {
-                    "drop": [
-                      "ALL"
-                    ]
+                    "drop": ["ALL"]
                   }
                 },
                 "startupProbe": {

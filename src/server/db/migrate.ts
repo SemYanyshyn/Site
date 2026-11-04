@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { Pool } from 'pg';
+import { isDocumentedMigrationCommentUpdate } from './migration-comment-updates.js';
 
 export const REQUIRED_MIGRATIONS = ['001_auth', '002_jobs', '003_executor_registry', '004_executor_metadata'] as const;
 const migrationDirectory = new URL(
@@ -28,7 +29,9 @@ export async function migrate(pool: Pool): Promise<string[]> {
         'SELECT checksum FROM schema_migrations WHERE version = $1', [version],
       );
       if (previous.rows[0]) {
-        if (previous.rows[0].checksum !== checksum) {
+        // Приймаю лише відому пару контрольних сум для доданих пояснень; запис у БД не переписую.
+        if (previous.rows[0].checksum !== checksum
+          && !isDocumentedMigrationCommentUpdate(version, previous.rows[0].checksum, checksum)) {
           throw new Error('Застосовану міграцію змінено. Додайте нову версію.');
         }
         continue;

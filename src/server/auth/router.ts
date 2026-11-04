@@ -1,18 +1,23 @@
-import { randomUUID } from 'node:crypto';
-import express from 'express';
-import type { Pool } from 'pg';
-import { validateCredentials } from '../../shared/auth.js';
-import type { AuthResponse } from '../../shared/auth.js';
-import type { AppConfig } from '../config.js';
-import { isDatabaseReady } from '../database.js';
-import { databaseUnavailable, HttpError, sendError } from './errors.js';
-import { requireAuth } from './middleware.js';
-import { hashPassword, verifyPassword } from './password.js';
-import { jsonMutationGuard } from '../http/json.js';
+import { randomUUID } from "node:crypto";
+import express from "express";
+import type { Pool } from "pg";
+import { validateCredentials } from "../../shared/auth.js";
+import type { AuthResponse } from "../../shared/auth.js";
+import type { AppConfig } from "../config.js";
+import { isDatabaseReady } from "../database.js";
+import { databaseUnavailable, HttpError, sendError } from "./errors.js";
+import { requireAuth } from "./middleware.js";
+import { hashPassword, verifyPassword } from "./password.js";
+import { jsonMutationGuard } from "../http/json.js";
 import {
-  clearSessionCookie, createSession, hashSessionToken, publicUser, readSessionToken, setSessionCookie,
-} from './sessions.js';
-import type { UserRow } from './sessions.js';
+  clearSessionCookie,
+  createSession,
+  hashSessionToken,
+  publicUser,
+  readSessionToken,
+  setSessionCookie,
+} from "./sessions.js";
+import type { UserRow } from "./sessions.js";
 
 interface LoginRow extends UserRow {
   password_hash: string;
@@ -20,21 +25,24 @@ interface LoginRow extends UserRow {
 
 // Перед запитами до користувачів перевіряю, що БД доступна й необхідні міграції вже застосовані.
 async function assertDatabaseReady(pool: Pool): Promise<void> {
-  if (!await isDatabaseReady(pool)) throw databaseUnavailable();
+  if (!(await isDatabaseReady(pool))) throw databaseUnavailable();
 }
 
 // Тут описую реєстрацію, вхід, перевірку сесії та вихід; сервер підключає ці маршрути за /api/auth.
-export function createAuthRouter(config: AppConfig, pool: Pool): express.Router {
+export function createAuthRouter(
+  config: AppConfig,
+  pool: Pool,
+): express.Router {
   const router = express.Router();
   // Для POST перевіряю дозволений Origin, формат JSON і розмір тіла запиту до 16 КіБ.
-  router.use(jsonMutationGuard(config, '16kb'));
+  router.use(jsonMutationGuard(config, "16kb"));
 
   // При реєстрації завжди створюю звичайного user; роль admin із запиту не приймаю.
-  router.post('/register', async (request, response) => {
+  router.post("/register", async (request, response) => {
     // Спочатку перевіряю логін і пароль; неправильні дані повертаю клієнту з кодом 400.
     const credentials = validateCredentials(request.body);
     if (!credentials.ok) {
-      sendError(response, 400, 'VALIDATION_ERROR', credentials.message);
+      sendError(response, 400, "VALIDATION_ERROR", credentials.message);
       return;
     }
     await assertDatabaseReady(pool);
@@ -44,30 +52,42 @@ export function createAuthRouter(config: AppConfig, pool: Pool): express.Router 
     let row: UserRow | undefined;
     try {
       // Передаю значення через параметри $1–$4, щоб дані користувача не ставали частиною SQL-команди.
-      const result = await pool.query<UserRow>(`
+      const result = await pool.query<UserRow>(
+        `
         INSERT INTO users (id, username, normalized_username, password_hash, role)
         VALUES ($1, $2, $3, $4, 'user')
         RETURNING id, username, role, created_at
-      `, [randomUUID(), username, username.toLowerCase(), passwordHash]);
+      `,
+        [randomUUID(), username, username.toLowerCase(), passwordHash],
+      );
       row = result.rows[0];
     } catch (error: unknown) {
-      if (typeof error === 'object' && error !== null && 'code' in error && error.code === '23505') {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "23505"
+      ) {
         // Код PostgreSQL 23505 означає порушення унікальності: повідомляю, що логін уже зайнятий.
-        throw new HttpError(409, 'USERNAME_TAKEN', 'Цей логін уже зайнятий. Оберіть інший.');
+        throw new HttpError(
+          409,
+          "USERNAME_TAKEN",
+          "Цей логін уже зайнятий. Оберіть інший.",
+        );
       }
       throw databaseUnavailable();
     }
-    if (!row) throw new Error('Registration did not return a user.');
+    if (!row) throw new Error("Registration did not return a user.");
     // Повертаю тільки відкриті дані користувача. Реєстрація ще не створює сесію — після неї потрібно ввійти.
     const body: AuthResponse = { user: publicUser(row) };
     response.status(201).json(body);
   });
 
   // Під час входу знаходжу користувача й перевіряю пароль перед створенням сесії.
-  router.post('/login', async (request, response) => {
+  router.post("/login", async (request, response) => {
     const credentials = validateCredentials(request.body);
     if (!credentials.ok) {
-      sendError(response, 400, 'VALIDATION_ERROR', credentials.message);
+      sendError(response, 400, "VALIDATION_ERROR", credentials.message);
       return;
     }
     await assertDatabaseReady(pool);
@@ -75,10 +95,13 @@ export function createAuthRouter(config: AppConfig, pool: Pool): express.Router 
     let row: LoginRow | undefined;
     try {
       // Шукаю за нормалізованим логіном, тому великі й малі літери в ньому не розрізняю.
-      const result = await pool.query<LoginRow>(`
+      const result = await pool.query<LoginRow>(
+        `
         SELECT id, username, password_hash, role, created_at
         FROM users WHERE normalized_username = $1
-      `, [username.toLowerCase()]);
+      `,
+        [username.toLowerCase()],
+      );
       row = result.rows[0];
     } catch {
       throw databaseUnavailable();
@@ -89,11 +112,21 @@ export function createAuthRouter(config: AppConfig, pool: Pool): express.Router 
       ? await verifyPassword(password, row.password_hash)
       : (await hashPassword(password), false);
     if (!row || !validPassword) {
-      sendError(response, 401, 'INVALID_CREDENTIALS', 'Неправильний логін або пароль.');
+      sendError(
+        response,
+        401,
+        "INVALID_CREDENTIALS",
+        "Неправильний логін або пароль.",
+      );
       return;
     }
     // Після успішної перевірки створюю сесію у спільній PostgreSQL із заданим строком дії.
-    const session = await createSession(pool, row.id, readSessionToken(request), config.sessionTtlSeconds);
+    const session = await createSession(
+      pool,
+      row.id,
+      readSessionToken(request),
+      config.sessionTtlSeconds,
+    );
     // Передаю токен браузеру через HttpOnly-cookie; сам токен у JSON-відповідь не додаю.
     setSessionCookie(response, session.token, session.expiresAt, config);
     const body: AuthResponse = { user: publicUser(row) };
@@ -102,25 +135,43 @@ export function createAuthRouter(config: AppConfig, pool: Pool): express.Router 
 
   // Через GET /me браузер дізнається, хто зараз увійшов, зокрема після оновлення сторінки.
   // requireAuth перевіряє cookie й сесію та передає користувача через response.locals.user.
-  router.get('/me', async (_request, _response, next) => {
-    await assertDatabaseReady(pool);
-    next();
-  }, requireAuth(pool), (_request, response) => {
-    const body: AuthResponse = { user: response.locals.user };
-    response.json(body);
-  });
+  router.get(
+    "/me",
+    async (_request, _response, next) => {
+      await assertDatabaseReady(pool);
+      next();
+    },
+    requireAuth(pool),
+    (_request, response) => {
+      const body: AuthResponse = { user: response.locals.user };
+      response.json(body);
+    },
+  );
 
   // Через POST /logout завершую поточну сесію; клієнт має надіслати порожній JSON-об’єкт.
-  router.post('/logout', async (request, response) => {
-    if (typeof request.body !== 'object' || request.body === null || Array.isArray(request.body) || Object.keys(request.body).length !== 0) {
-      sendError(response, 400, 'VALIDATION_ERROR', 'Для виходу передайте порожній JSON-об’єкт.');
+  router.post("/logout", async (request, response) => {
+    if (
+      typeof request.body !== "object" ||
+      request.body === null ||
+      Array.isArray(request.body) ||
+      Object.keys(request.body).length !== 0
+    ) {
+      sendError(
+        response,
+        400,
+        "VALIDATION_ERROR",
+        "Для виходу передайте порожній JSON-об’єкт.",
+      );
       return;
     }
     await assertDatabaseReady(pool);
     // Читаю токен із cookie й видаляю відповідну сесію з БД за хешем токена.
     const token = readSessionToken(request);
     try {
-      if (token) await pool.query('DELETE FROM sessions WHERE token_hash = $1', [hashSessionToken(token)]);
+      if (token)
+        await pool.query("DELETE FROM sessions WHERE token_hash = $1", [
+          hashSessionToken(token),
+        ]);
     } catch {
       throw databaseUnavailable();
     }

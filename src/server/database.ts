@@ -1,8 +1,13 @@
+// Тут відкриваю спільний пул підключень до PostgreSQL і перевіряю готовність схеми
+// Пул повторно використовує кілька з’єднань замість нового підключення на кожен HTTP-запит
+
 import pg from 'pg';
 import type { Pool } from 'pg';
 import { REQUIRED_MIGRATIONS } from './db/migrate.js';
 
 // пул повторно використовує обмежену кількість з'єднань замість нового на кожний HTTP запит
+// Обмежую кількість з’єднань і час очікування, щоб база не зависала разом з усім сервером
+// SQL і очікування відповіді мають окремі таймаути, а помилки пулу записую без секретів
 export function createDatabasePool(databaseUrl: string): Pool {
   const pool = new pg.Pool({
     connectionString: databaseUrl,
@@ -19,10 +24,12 @@ export function createDatabasePool(databaseUrl: string): Pool {
   return pool;
 }
 
+// Підтверджую не лише доступність PostgreSQL, а й потрібні таблиці, колонки та версії міграцій
+// Якщо хоча б одна перевірка не пройшла, повертаю false для /api/ready
 export async function isDatabaseReady(pool: Pool): Promise<boolean> {
   try {
-    // Referencing all table shapes catches absent tables even when a migration
-    // record has been copied into an otherwise unprepared schema.
+    // Звертаюся до потрібних колонок усіх таблиць, щоб виявити відсутню або неповну схему
+    // Самого запису про застосовану міграцію для підтвердження готовності недостатньо
     const result = await pool.query<{ version: string }>(`
       WITH user_shape AS (
         SELECT id, username, normalized_username, password_hash, role, created_at

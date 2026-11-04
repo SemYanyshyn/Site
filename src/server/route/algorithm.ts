@@ -1,3 +1,7 @@
+// Тут виконую сам математичний пошук маршруту в окремому worker-потоці
+// Спочатку будую маршрут найближчого сусіда, потім покращую його перестановками 2-opt з охолодженням
+// Результат наближений, тому найкращий знайдений маршрут не оголошую доведено глобально оптимальним
+
 import { performance } from "node:perf_hooks";
 // import type потрібен лише typescript і зникає з готового JavaScript
 import type {
@@ -78,6 +82,8 @@ function nearestNeighbor(distances: Float64Array, size: number): number[] {
 }
 
 // з перевіреного входу будую початковий маршрут і наближено покращую його через 2-opt
+// Повертаю замкнений маршрут зі складу через усі доставки й назад
+// Зберігаю найкращий знайдений порядок окремо від поточного, який іноді може тимчасово погіршитися
 export function calculateRoute(
   input: NormalizedRouteInput,
   onProgress?: (progress: RouteProgress) => void,

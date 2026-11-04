@@ -1,3 +1,6 @@
+// Тут налаштовую heartbeat і TTL запису виконавця у спільному реєстрі
+// Heartbeat періодично підтверджує життя процесу, а TTL визначає строк чинності такого підтвердження
+
 export interface ExecutorConfig {
   heartbeatIntervalMs: number;
   leaseTtlMs: number;
@@ -9,7 +12,9 @@ export interface ExecutorPodMetadata {
   podNamespace: string | null;
 }
 
-/** Downward API identity is optional on a host, and must be complete in a pod. */
+/* На Mac поза кластером допускаю відсутність Downward API, а в pod вимагаю повний набір його ідентифікаторів */
+// Читаю UID, назву та namespace pod із Downward API Kubernetes
+// На звичайному запуску поза кластером ці значення можуть бути відсутніми
 export function readExecutorPodMetadata(env: NodeJS.ProcessEnv = process.env): ExecutorPodMetadata {
   const values = [env.POD_UID, env.POD_NAME, env.POD_NAMESPACE];
   if (values.every((value) => value === undefined)) return { podUid: null, podName: null, podNamespace: null };
@@ -31,6 +36,8 @@ export class ExecutorConfigurationError extends Error {
   readonly code = 'invalid_executor_config';
 }
 
+// Залишаю між heartbeat і завершенням TTL запас на затримки SQL
+// Відхиляю налаштування, через які виконавець міг би занадто рано стати застарілим
 export function validateExecutorConfig(config: ExecutorConfig): ExecutorConfig {
   if (!config || typeof config !== 'object' || Array.isArray(config)
     || !Number.isSafeInteger(config.heartbeatIntervalMs) || config.heartbeatIntervalMs < 100 || config.heartbeatIntervalMs > 5_000
@@ -41,6 +48,7 @@ export function validateExecutorConfig(config: ExecutorConfig): ExecutorConfig {
   return { heartbeatIntervalMs: config.heartbeatIntervalMs, leaseTtlMs: config.leaseTtlMs };
 }
 
+// Перетворюю параметри EXECUTOR із рядків середовища на перевірені числа
 export function readExecutorConfig(env: NodeJS.ProcessEnv = process.env): ExecutorConfig {
   const integer = (key: string, fallback: number): number => {
     const value = env[key];

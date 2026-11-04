@@ -1,3 +1,6 @@
+// Тут описую read-only HTTP-маршрути адміністратора для огляду інфраструктури та списку задач
+// Через ці GET-запити не змінюю задачі, pod чи правила автомасштабування
+
 import express from 'express';
 import { performance } from 'node:perf_hooks';
 import type { Pool } from 'pg';
@@ -9,6 +12,7 @@ import { requireAdmin } from './auth.js';
 import { ADMIN_LIMITS } from './config.js';
 import type { AdminService } from './service.js';
 
+// Приймаю лише погоджені фільтри й обмежену пагінацію, UUID виконавця перевіряю окремо
 export function parseAdminJobsOptions(query: Record<string, unknown>): AdminJobsOptions {
   if (Object.keys(query).some((key) => !['limit', 'offset', 'status', 'executedBy'].includes(key))) {
     throw new HttpError(400, 'INVALID_QUERY', 'Дозволені лише limit, offset, status та executedBy.');
@@ -33,6 +37,8 @@ export function parseAdminJobsOptions(query: Record<string, unknown>): AdminJobs
   return options;
 }
 
+// Перед перевіркою ролі встановлюю спільний дедлайн, сигнал скасування й Cache-Control no-store
+// При розриві з’єднання або завершенні запиту прибираю таймер і звільняю контролер
 export function createAdminRouter(pool: Pool, service: AdminService): express.Router {
   const router = express.Router();
   router.use((request, response, next) => {

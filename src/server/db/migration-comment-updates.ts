@@ -1,5 +1,8 @@
-// Сумісність лише для чотирьох перевірених змін коментарів від 04.11.2026.
-// Тут фіксую точні SHA256 до і після; довільні зміни SQL або коментарів не ігноруються.
+// Тут зберігаю точні пари старого й нового SHA-256 для погоджених правок лише коментарів міграцій
+// Це вузький виняток для конкретних файлів, а не дозвіл довільно міняти вже застосований SQL
+
+// Сумісність лише для чотирьох перевірених змін коментарів від 04.11.2026
+// Тут фіксую точні SHA256 до і після; довільні зміни SQL або коментарів не ігноруються
 export const MIGRATION_COMMENT_UPDATES: Readonly<Record<string, { before: string; after: string }>> = {
   "001_auth": {
     "before": "d624523d1c1f777145deda434061be9595bf01fd66d01c50a24063e080e4cf59",
@@ -19,6 +22,8 @@ export const MIGRATION_COMMENT_UPDATES: Readonly<Record<string, { before: string
   }
 };
 
+// Дозволяю розбіжність лише коли збіглися версія та обидва зафіксовані хеші
+// Невідому зміну міграції цей механізм не пропускає
 export function isDocumentedMigrationCommentUpdate(version: string, previous: string, current: string): boolean {
   const update = MIGRATION_COMMENT_UPDATES[version];
   return Boolean(update && previous === update.before && current === update.after);

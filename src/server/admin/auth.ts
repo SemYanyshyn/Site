@@ -1,3 +1,6 @@
+// Тут перевіряю право доступу до адміністративного API
+// Недостатньо просто ввійти, користувач повинен мати актуальну роль admin у PostgreSQL
+
 import type { RequestHandler } from 'express';
 import type { Pool } from 'pg';
 import type { UserRow } from '../auth/sessions.js';
@@ -7,6 +10,8 @@ import { requireAuth } from '../auth/middleware.js';
 import { adminRead } from './budget.js';
 
 // перевіряю сесію й поточну роль через requireAuth без кешу ролей у межах спільного deadline запиту
+// Знаходжу користувача через чинну сесію в межах спільного дедлайну адмінзапиту
+// Після успішної автентифікації окремо перевіряю роль і для user повертаю 403
 export function requireAdmin(pool: Pool): RequestHandler {
   const authenticated = requireAuth(pool, (token, response) =>
     adminRead(pool, Number(response.locals.adminDeadline), response.locals.adminSignal as AbortSignal, async (query) => {

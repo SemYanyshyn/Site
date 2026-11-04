@@ -1,3 +1,7 @@
+// Тут описую API задач для авторизованого користувача
+// HTTP-обробник перевіряє запит і викликає repository, а сам довгий пошук у ньому не виконую
+// Кожне читання та скасування обмежую власником задачі
+
 import express from 'express';
 import { performance } from 'node:perf_hooks';
 import type { PublicUser } from '../../shared/auth.js';
@@ -52,13 +56,15 @@ function notFound(): HttpError {
   return new HttpError(404, 'JOB_NOT_FOUND', 'Задачу не знайдено.');
 }
 
+// Підключаю перевірку JSON і сесії перед маршрутами задач
+// Прийняту задачу повертаю як 202 queued, а результат клієнт згодом читає окремими GET-запитами
 export function createJobsRouter(
   config: AppConfig, pool: Pool, repository: JobsRepository, routeLimits: RouteLimits, jobsConfig: JobsConfig,
 ): express.Router {
   const router = express.Router();
   router.use((_request, response, next) => {
-    // The detail's absolute budget includes authentication and its pool wait,
-    // rather than starting a new eight seconds after the session lookup.
+    // Відраховую час читання деталей ще перед авторизацією й очікуванням пулу
+    // Не починаю нові 8 с після пошуку сесії, бо весь запит має один спільний бюджет
     response.locals.queueReadDeadline = performance.now() + 8_000;
     next();
   });
@@ -70,6 +76,8 @@ export function createJobsRouter(
     response.json(body);
   });
 
+  // Перевіряю координати й ліміти на сервері навіть тоді, коли frontend уже їх перевірив
+  // Зберігаю задачу в PostgreSQL, щоб її не втратити після перезапуску HTTP-процесу
   router.post('/', async (request, response) => {
     let input;
     try {
@@ -90,6 +98,7 @@ export function createJobsRouter(
     response.json(await repository.list(user.id, options));
   });
 
+  // Читаю власну задачу й за потреби прогноз очікування в узгодженому знімку бази
   router.get('/:id', async (request, response) => {
     const id = jobId(request.params.id);
     const user = response.locals.user as PublicUser;
@@ -98,6 +107,8 @@ export function createJobsRouter(
     response.json(job);
   });
 
+  // Передаю скасування в PostgreSQL, а диспетчер побачить прапорець і зупинить worker
+  // Успіх цього запиту для running ще не означає, що потік уже фізично завершився
   router.post('/:id/cancel', async (request, response) => {
     const id = jobId(request.params.id);
     if (request.body === null || typeof request.body !== 'object' || Array.isArray(request.body)

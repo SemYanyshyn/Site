@@ -1,3 +1,6 @@
+// Тут читаю узгоджений набір даних для прогнозу часу очікування queued-задачі
+// З інших задач беру лише числові характеристики без чужих координат і результатів
+
 import { performance } from 'node:perf_hooks';
 import type { PoolClient, QueryResult, QueryResultRow } from 'pg';
 import { QUEUE_LIMITS } from '../../shared/jobs.js';
@@ -32,9 +35,10 @@ interface SampleRow extends WorkRow {
   status: QueueDurationSample['status'];
 }
 
-/** The owning HTTP read has one monotonic deadline, including setup/commit.
- * A failed read discards its read-only connection rather than adding an
- * unbounded rollback round trip. Server-side limits remain a second guard. */
+/* Використовую один монотонний дедлайн HTTP-читання разом із налаштуванням і commit
+ * При помилці закриваю read-only з’єднання без додаткового необмеженого очікування rollback
+ * Таймаути PostgreSQL залишаю другим рівнем захисту */
+// Кожний SQL-запит обмежую залишком спільного дедлайну, а не починаю новий повний таймаут
 export async function queryQueueSnapshot<Row extends QueryResultRow>(
   client: PoolClient, deadline: number, text: string, values?: unknown[],
 ): Promise<QueryResult<Row>> {
@@ -44,9 +48,11 @@ export async function queryQueueSnapshot<Row extends QueryResultRow>(
   return client.query<Row>(query);
 }
 
-/** Called only inside the owning detail's read-only REPEATABLE READ transaction.
- * Only the target detail contains coordinates; all global reads use scalars.
- * The supplied timestamp comes from that same transaction's first detail read. */
+/* Читаю знімок лише всередині read-only транзакції REPEATABLE READ запиту деталей
+ * Координати повертаю тільки для цільової задачі, а про інші читаю лише числові показники
+ * Час отримую з тієї самої транзакції під час першого читання деталей */
+// В одній транзакції читаю живих виконавців, поточні running, задачі попереду й історичні тривалості
+// Перевіряю межі розміру знімка та передаю його чистій функції estimateQueue
 export async function readQueueSnapshot(
   client: PoolClient, targetId: string, calculatedAt: string, timeoutMs: number, deadline = performance.now() + 8_000,
 ): Promise<JobQueueInfo> {

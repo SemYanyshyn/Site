@@ -1,5 +1,8 @@
-// The worker receives no parent preload arguments or environment. Register the
-// existing development loader explicitly so its .js imports resolve .ts files.
+// Це маленький завантажувач worker для запуску TypeScript під час розробки
+// У готовій збірці executor запускає worker.js напряму, тому цей файл не є другим алгоритмом
+
+// Не передаю worker аргументи завантаження й середовище основного процесу
+// Тому для розробки явно підключаю tsx, щоб імпорти з розширенням .js знаходили файли .ts
 import { register } from 'tsx/esm/api';
 
 register();

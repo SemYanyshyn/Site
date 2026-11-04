@@ -1,3 +1,7 @@
+// Тут збираю Express-застосунок, тобто правила обробки HTTP-запитів від браузера
+// Middleware для мене є проміжним обробником, який перевіряє запит і передає його далі через next
+// Порт тут не відкриваю, це робить index.ts після підготовки всіх ресурсів
+
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import express from "express";
@@ -29,6 +33,8 @@ interface AppOptions {
 }
 
 // підключаю HTTP маршрути й готові файли клієнта але сам порт відкривається в index.ts
+// Підключаю спільні перевірки, API авторизації, задач і адміністратора в погодженому порядку
+// Для /api спочатку перевіряю Origin, а невідомий API-шлях повертає JSON-помилку до роздавання HTML
 export function createApp({
   config,
   pool,
@@ -56,6 +62,8 @@ export function createApp({
 
   app.use("/api", apiCors(config));
 
+  // Тут перевіряю тільки те, що HTTP-процес живий і може відповісти
+  // Ця відповідь ще не означає готовність бази даних
   app.get("/api/health", (_request, response) => {
     const health: HealthResponse = { status: "ok", instanceId };
     response.set("Cache-Control", "no-store").json(health);
@@ -81,12 +89,16 @@ export function createApp({
   app.use("/api", (_request, response) => {
     sendError(response, 404, "NOT_FOUND", "API-маршрут не знайдено.");
   });
+  // Віддаю браузеру вже зібрані HTML, JavaScript і CSS із папки клієнта
+  // Серверні файли та налаштування бази через цю папку не публікую
   app.use(express.static(clientDirectory));
   app.use((_request, response) => {
     sendError(response, 404, "NOT_FOUND", "Сторінку не знайдено.");
   });
 
   // спільний обробник перетворює помилки на API відповіді без внутрішніх даних і секретів
+  // Збираю помилки в одному кінцевому обробнику Express
+  // Очікувані помилки повертаю з їхнім статусом, а внутрішні деталі приховую за безпечною відповіддю
   const handleError: ErrorRequestHandler = (
     error: unknown,
     _request,
@@ -137,8 +149,8 @@ export function createApp({
     ) {
       sendError(response, 400, "INVALID_REQUEST", "Некоректне тіло запиту.");
     } else {
-      // Error objects can contain SQL parameters, request bodies or credentials.
-      // Keep application logs and public responses free of those values.
+      // Пам’ятаю, що об’єкт помилки може містити SQL-параметри, тіло запиту або секрети
+      // Тому не передаю ці значення в журнал і публічну відповідь
       console.error("Внутрішня помилка HTTP-запиту.");
       sendError(response, 500, "INTERNAL_ERROR", "Внутрішня помилка сервера.");
     }

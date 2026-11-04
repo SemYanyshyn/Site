@@ -1,3 +1,6 @@
+// Тут перевіряю невідомі вхідні дані перед копіюванням і створенням worker
+// Тип TypeScript сам не перевіряє JSON із браузера, тому всі межі перевіряю під час виконання
+
 import { randomBytes } from 'node:crypto';
 import type { Coordinate, NormalizedRouteInput, RouteLimits } from '../../shared/route.js';
 import { validateRouteLimits } from './config.js';
@@ -11,6 +14,7 @@ export class RouteValidationError extends Error {
   }
 }
 
+// Приймаю тільки звичайний об’єкт, а не масив чи об’єкт із нестандартним прототипом
 function record(value: unknown, label: string): Record<string, unknown> {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
     throw new RouteValidationError(`${label} має бути об’єктом.`);
@@ -22,6 +26,7 @@ function record(value: unknown, label: string): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+// Перевіряю обов’язкові та зайві поля й відхиляю getter замість звичайного значення
 function fields(value: Record<string, unknown>, required: readonly string[], optional: readonly string[], label: string): void {
   for (const key of Reflect.ownKeys(value)) {
     if (typeof key !== 'string' || (!required.includes(key) && !optional.includes(key))) {
@@ -39,6 +44,7 @@ function fields(value: Record<string, unknown>, required: readonly string[], opt
   }
 }
 
+// Перевіряю x і y як скінченні числа в дозволених межах
 function coordinate(value: unknown, maximum: number, label: string): Coordinate {
   const item = record(value, label);
   fields(item, ['x', 'y'], [], label);
@@ -48,11 +54,13 @@ function coordinate(value: unknown, maximum: number, label: string): Coordinate 
       throw new RouteValidationError(`${label}.${key} має бути скінченним числом із модулем не більше ${maximum}.`);
     }
   }
-  // No copy here: all validation, including the array's size, precedes normalization.
+  // Поки не копіюю координату, бо спочатку маю перевірити весь вхід і розмір масиву
   return item as unknown as Coordinate;
 }
 
 // перевіряю зовнішній вхід і ліміти до копіювання даних та створення worker
+// Спочатку перевіряю форму входу, довжину масиву, координати, ітерації та seed
+// Після повної перевірки створюю власні копії координат і за потреби генерую seed
 export function validateRouteInput(input: unknown, configuredLimits: RouteLimits): NormalizedRouteInput {
   const limits = validateRouteLimits(configuredLimits);
   const value = record(input, 'Вхід маршруту');
@@ -65,7 +73,7 @@ export function validateRouteInput(input: unknown, configuredLimits: RouteLimits
   if (points.length < 1 || points.length > limits.maxPoints) {
     throw new RouteValidationError(`Кількість доставок має бути від 1 до ${limits.maxPoints}.`);
   }
-  // In particular, do not map, clone, enumerate or inspect entries of an oversized array.
+  // Завеликий масив відхиляю до обходу, копіювання й перевірки його елементів
   for (const key of Reflect.ownKeys(points)) {
     if (key === 'length') continue;
     if (typeof key !== 'string' || !/^(0|[1-9]\d*)$/.test(key) || Number(key) >= points.length) {

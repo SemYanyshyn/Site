@@ -1,5 +1,5 @@
 {
-  "_comment": "Запускаю PostgreSQL і описую доступ до бази даних усередині кластера.",
+  "_comment": "Запускаю PostgreSQL і описую доступ до бази даних усередині кластера",
   "apiVersion": "v1",
   "kind": "List",
   "items": [
@@ -29,13 +29,15 @@
             "port": 5432,
             "targetPort": "postgres"
           }
-        ]
-      }
+        ],
+        "_comment_ports": "port є портом сервісу, targetPort веде до порту контейнера, а nodePort за наявності відкриває порт вузла"
+      },
+      "_comment_purpose": "Об’єдную вибрані через selector pod під сталою мережевою адресою сервісу"
     },
     {
       "apiVersion": "apps/v1",
       "kind": "StatefulSet",
-      "_comment": "Зберігаю дані PostgreSQL в окремому томі PVC; звичайна зупинка не видаляє цей том.",
+      "_comment": "Зберігаю дані PostgreSQL в окремому томі PVC; звичайна зупинка не видаляє цей том",
       "metadata": {
         "name": "postgres",
         "namespace": "__NAMESPACE__",
@@ -81,7 +83,8 @@
               "fsGroupChangePolicy": "OnRootMismatch",
               "seccompProfile": {
                 "type": "RuntimeDefault"
-              }
+              },
+              "_comment": "Задаю користувача й обмеження для всього pod, це права всередині контейнерного середовища"
             },
             "containers": [
               {
@@ -124,7 +127,8 @@
                   "limits": {
                     "cpu": "1000m",
                     "memory": "512Mi"
-                  }
+                  },
+                  "_comment": "requests задають запит ресурсів для планування, limits обмежують споживання, 1000m CPU означає одне ядро"
                 },
                 "securityContext": {
                   "allowPrivilegeEscalation": false,
@@ -147,7 +151,8 @@
                   },
                   "periodSeconds": 3,
                   "timeoutSeconds": 3,
-                  "failureThreshold": 60
+                  "failureThreshold": 60,
+                  "_comment": "Даю контейнеру час стартувати, доки startup не успішна, звичайні liveness і readiness ще не виконуються"
                 },
                 "livenessProbe": {
                   "exec": {
@@ -161,7 +166,8 @@
                   },
                   "periodSeconds": 5,
                   "timeoutSeconds": 3,
-                  "failureThreshold": 6
+                  "failureThreshold": 6,
+                  "_comment": "Перевіряю життєздатність, повторні невдачі можуть спричинити перезапуск контейнера"
                 },
                 "readinessProbe": {
                   "exec": {
@@ -175,7 +181,8 @@
                   },
                   "periodSeconds": 3,
                   "timeoutSeconds": 3,
-                  "failureThreshold": 2
+                  "failureThreshold": 2,
+                  "_comment": "Перевіряю готовність обслуговувати запити, неготовий pod вилучається з готових endpoint сервісу"
                 },
                 "volumeMounts": [
                   {
@@ -199,7 +206,9 @@
                     "name": "shm",
                     "mountPath": "/dev/shm"
                   }
-                ]
+                ],
+                "_comment_image": "Вибираю конкретний образ, його значення-шаблон скрипт замінює до застосування маніфесту",
+                "_comment_mounts": "Приєдную до контейнера перелічені томи, readOnly забороняє запис через відповідне монтування"
               }
             ],
             "volumes": [
@@ -229,7 +238,8 @@
                   "sizeLimit": "128Mi"
                 }
               }
-            ]
+            ],
+            "_comment_runtime": "Описую контейнери одного pod, ресурси, перевірки готовності, доступ до файлів і права запуску"
           }
         },
         "volumeClaimTemplates": [
@@ -255,8 +265,10 @@
               }
             }
           }
-        ]
-      }
+        ],
+        "_comment_storage": "Створюю PVC для даних PostgreSQL, це збереження поза життєвим циклом окремого pod"
+      },
+      "_comment_purpose": "Запускаю PostgreSQL зі стабільною ідентичністю та окремим постійним томом"
     }
   ]
 }

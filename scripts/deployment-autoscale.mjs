@@ -1,3 +1,6 @@
+// Тут узгоджую повторне розгортання з автомасштабуванням, щоб kubectl apply не заважав HPA
+// Перед зміною ресурсу перевіряю його точну назву, namespace і мітки власника
+
 import assert from 'node:assert/strict';
 
 const ownerLabel = 'courier-route.local/owner-id';
@@ -5,7 +8,7 @@ const managedLabel = 'courier-route-local';
 const lastAppliedKey = 'kubectl.kubernetes.io/last-applied-configuration';
 const annotationPath = '/metadata/annotations/kubectl.kubernetes.io~1last-applied-configuration';
 
-/** Mutations require both the expected identity and the project's owner labels. */
+// Дозволяю зміну лише після збігу типу, назви, namespace і міток саме цього розгортання
 export function assertObjectOwner(object, { namespace, ownerId, kind, name }) {
   assert.match(ownerId, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu,
     'An explicit deployment owner UUID is required.');
@@ -20,10 +23,9 @@ export function assertObjectOwner(object, { namespace, ownerId, kind, name }) {
     'Refusing to change an object owned by another deployment.');
 }
 
-/** Kubernetes 1.36 declarative-config ownership handoff: remove the field from
- * the OLD annotation before omitting it from apply, so defaulting never writes
- * replicas=1. Preserve every other old field so genuine later removals work.
- * https://v1-36.docs.kubernetes.io/docs/tasks/manage-kubernetes-objects/declarative-config/#changing-the-owner-from-a-configuration-file-to-a-direct-imperative-writer */
+// Перед передаванням replicas під керування HPA прибираю це поле зі старої last-applied анотації
+// Решту попередніх полів зберігаю, щоб apply коректно розпізнавав їхнє справжнє видалення
+// Правило Kubernetes 1.36 описане в офіційній документації про changing-the-owner-from-a-configuration-file-to-a-direct-imperative-writer
 export function replicaHandoffPatch(live) {
   const encoded = live?.metadata?.annotations?.[lastAppliedKey];
   if (encoded === undefined) return null;
@@ -37,14 +39,16 @@ export function replicaHandoffPatch(live) {
   delete previous.spec.replicas;
   return [
     { op: 'test', path: annotationPath, value: encoded },
-    // kubectl serializes this annotation with a terminal newline. Keeping its
-    // exact format avoids a metadata/generation change on the next apply.
+    // Зберігаю кінцевий перенос рядка, який kubectl додає до анотації
+    // Так наступний apply не змінить metadata лише через інший формат
     { op: 'replace', path: annotationPath, value: `${JSON.stringify(previous)}\n` },
   ];
 }
 
 // задаю 2 копії лише для нового або зупиненого deployment чи static тесту
 // у живому autoscaling deployment прибираю replicas з apply щоб не заважати HPA
+// Створюю копію маніфесту, для нового чи зупиненого Deployment задаю дві репліки
+// У живому autoscaling-розгортанні не передаю replicas, залишаючи керування HPA
 export function appApplyPlan(manifest, live, { autoscaling, namespace, ownerId }) {
   const result = structuredClone(manifest);
   const deployment = result.items.find((item) => item.kind === 'Deployment' && item.metadata.name === 'app');

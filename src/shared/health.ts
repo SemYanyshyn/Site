@@ -4,6 +4,6 @@
 // status ok означає, що HTTP-процес відповідає, а instanceId називає саме цей процес
 // Готовність PostgreSQL і схеми перевіряю окремим /api/ready
 export interface HealthResponse {
-  status: 'ok';
+  status: "ok";
   instanceId: string;
 }

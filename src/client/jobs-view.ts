@@ -131,9 +131,13 @@ export function createJobsView(actions: JobsViewActions): JobsView {
   const result = requireElement<HTMLElement>("#job-result");
   const diagram = requireElement<HTMLElement>("#route-diagram");
   const initialOrder = requireElement<HTMLElement>("#job-initial-order");
-  const initialUnavailable = requireElement<HTMLElement>("#job-initial-unavailable");
+  const initialUnavailable = requireElement<HTMLElement>(
+    "#job-initial-unavailable",
+  );
   const initialSteps = requireElement<HTMLDetailsElement>("#job-initial-steps");
-  const initialStepRows = requireElement<HTMLTableSectionElement>("#job-initial-step-rows");
+  const initialStepRows = requireElement<HTMLTableSectionElement>(
+    "#job-initial-step-rows",
+  );
   const activeList = requireElement<HTMLUListElement>("#active-jobs");
   const historyList = requireElement<HTMLUListElement>("#history-jobs");
   const activeMessage = requireElement<HTMLElement>("#active-message");
@@ -390,11 +394,19 @@ export function createJobsView(actions: JobsViewActions): JobsView {
         job.result.length,
       );
       text("job-initial-length", distance(job.result.initialLength));
-      requireElement<HTMLElement>("#job-initial-length").title = String(job.result.initialLength);
+      requireElement<HTMLElement>("#job-initial-length").title = String(
+        job.result.initialLength,
+      );
       if (job.result.initialOrder) {
-        text("job-initial-order", `Порядок: ${routeSequence(job.result.initialOrder)}`);
+        text(
+          "job-initial-order",
+          `Порядок: ${routeSequence(job.result.initialOrder)}`,
+        );
         const fragment = document.createDocumentFragment();
-        for (const step of initialRouteSteps(job.input, job.result.initialOrder)) {
+        for (const step of initialRouteSteps(
+          job.input,
+          job.result.initialOrder,
+        )) {
           const row = document.createElement("tr");
           const values = [
             String(step.step),
@@ -415,10 +427,7 @@ export function createJobsView(actions: JobsViewActions): JobsView {
       } else {
         initialUnavailable.hidden = false;
       }
-      text(
-        "job-route-order",
-        `Порядок: ${routeSequence(job.result.order)}`,
-      );
+      text("job-route-order", `Порядок: ${routeSequence(job.result.order)}`);
       text(
         "job-result-iterations",
         `${number(job.result.iterationsCompleted)} із ${number(job.result.iterationsRequested)}`,

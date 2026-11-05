@@ -1,7 +1,3 @@
-// Тут виконую сам математичний пошук маршруту в окремому worker-потоці
-// Спочатку будую маршрут найближчого сусіда, потім покращую його перестановками 2-opt з охолодженням
-// Результат наближений, тому найкращий знайдений маршрут не оголошую доведено глобально оптимальним
-
 import { performance } from "node:perf_hooks";
 // import type потрібен лише typescript і зникає з готового JavaScript
 import type {
@@ -10,7 +6,6 @@ import type {
   RouteProgress,
   RouteResult,
 } from "../../shared/route.js";
-// пишу .js бо після збирання Node запускає саме JavaScript файли з такими шляхами
 import { createRandom } from "./random.js";
 
 const PROGRESS_INTERVAL_MS = 150;

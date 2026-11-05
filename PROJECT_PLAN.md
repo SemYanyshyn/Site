@@ -206,3 +206,6 @@ Autoscaling виконує HPA, а не load driver; один worker на про
 
 
 Уточнення **05.11.2026 — коментарі Docker і Kubernetes**: доповнено українські пояснення від першої особи без кінцевих крапок у Dockerfile, .dockerignore, шести deployment helper та 12 JSON-шаблонах deploy. Додано README для deploy і deploy/k8s. Код та інструкції незмінні, ефективні JSON після штатного очищення нотаток збігаються з початковими. Синтаксис, typecheck/build, 54 unit/safety тести та diff --check PASS. Кластер, контейнери, PVC, credentials і CA не змінювалися, фактичне розгортання не запускалося. [Мапа](deploy/README.md), [перевірки](docs/deployment-code-notes.md).
+
+
+Уточнення **05.11.2026 — commit і push пояснень**: на явне доручення користувача збережено поточні форматувальні правки src/client/jobs-view.ts і src/shared/health.ts та видалення окремих коментарів src/server/route/algorithm.ts. Esbuild підтвердив незмінний виконуваний JavaScript усіх трьох файлів, typecheck/build і 66 client-тестів PASS. Шість попередніх локальних комітів пояснень client/SCSS/server/shared/database/deploy та новий коміт цих редагувань підготовлено до звичайного push у build/github-pages без злиття в main.

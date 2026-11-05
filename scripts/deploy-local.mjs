@@ -1,3 +1,7 @@
+// Цим скриптом збираю Docker-образ і розгортаю Courier Route в локальному Kubernetes
+// Для себе розділяю рівні: Colima дає Docker-середовище, kind створює вузол кластера, kubectl керує його ресурсами
+// Стан, kubeconfig, credentials і TLS зберігаю локально в .local/deploy, а не в Git
+
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
@@ -37,24 +41,24 @@ export {
 } from "./deployment-command.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-// Тут тримаю службові файли свого локального розгортання у папці .local/deploy.
+// Тут тримаю службові файли свого локального розгортання у папці .local/deploy
 const local = join(root, ".local/deploy");
 const versions = await readDeploymentConfig(join(root, "deploy/versions.json"));
-// У cluster.json зберігаю назву кластера, його ідентифікатор власника та вибрані HTTP/HTTPS-порти.
+// У cluster.json зберігаю назву кластера, його ідентифікатор власника та вибрані HTTP/HTTPS-порти
 const statePath = join(local, "cluster.json");
-// У цьому файлі зберігаю адресу API Kubernetes і налаштування доступу для kubectl.
+// У цьому файлі зберігаю адресу API Kubernetes і налаштування доступу для kubectl
 const kubeconfig = join(local, "kubeconfig");
-// Це назва запису підключення всередині kubeconfig; так обираю саме свій кластер.
+// Це назва запису підключення всередині kubeconfig; так обираю саме свій кластер
 const context = "kind-courier-route";
-// Називаю свій кластер Kubernetes courier-route. Кластер керує запуском контейнерів застосунку.
-// У цьому проєкті kind створює для нього один вузол-контейнер у середовищі Colima.
+// Називаю свій кластер Kubernetes courier-route. Кластер керує запуском контейнерів застосунку
+// У цьому проєкті kind створює для нього один вузол-контейнер у середовищі Colima
 const cluster = "courier-route";
-// Підключення до Docker у профілі Colima courier-route.
-// Ці змінні передаються дочірнім командам; глобальні налаштування термінала не змінюються.
+// Підключення до Docker у профілі Colima courier-route
+// Ці змінні передаються дочірнім командам; глобальні налаштування термінала не змінюються
 const dockerEnvironment = {
   ...process.env,
-  // Власна адреса береться з COURIER_DOCKER_HOST; інакше використовується сокет профілю нижче.
-  // homedir() повертає домашню папку користувача, а unix:// означає локальний Unix-сокет.
+  // Власна адреса береться з COURIER_DOCKER_HOST; інакше використовується сокет профілю нижче
+  // homedir() повертає домашню папку користувача, а unix:// означає локальний Unix-сокет
   DOCKER_HOST:
     process.env.COURIER_DOCKER_HOST ??
     `unix://${homedir()}/.colima/courier-route/docker.sock`,
@@ -63,6 +67,7 @@ const managedLabel = "courier-route-local";
 const hidden = new Set();
 const forwardings = new Map();
 
+// Перед показом помилки приховую адреси бази та відомі секрети, залишаю лише обмежений фрагмент
 function safe(message) {
   let value = String(message).replace(
     /postgres(?:ql)?:\/\/\S+/giu,
@@ -72,9 +77,9 @@ function safe(message) {
   return value.slice(-1600);
 }
 
-/** Вхідні дані можуть містити секрети; вони не потрапляють у повідомлення помилок чи аргументи команд. */
-// Обгортка передає env у runDeploymentCommand(), де команда запускається через spawn().
-// Коли env дорівнює dockerEnvironment, Docker і kind отримують потрібний DOCKER_HOST.
+/** Вхідні дані можуть містити секрети; вони не потрапляють у повідомлення помилок чи аргументи команд */
+// Обгортка передає env у runDeploymentCommand(), де команда запускається через spawn()
+// Коли env дорівнює dockerEnvironment, Docker і kind отримують потрібний DOCKER_HOST
 function run(
   command,
   args,
@@ -90,12 +95,15 @@ function run(
   });
 }
 
+// Записую приватні службові файли з правами 0600, їхні папки створюю з правами 0700
 async function privateFile(path, value) {
   await mkdir(resolve(path, ".."), { recursive: true, mode: 0o700 });
   await writeFile(path, value, { mode: 0o600 });
   await chmod(path, 0o600);
 }
 
+// Читаю локальний стан або credentials, відсутній файл позначаю null
+// Не плутаю це з readDeploymentConfig, який прибирає навчальні нотатки з шаблонів deploy
 async function readJson(path) {
   try {
     return JSON.parse(await readFile(path, "utf8"));
@@ -109,6 +117,7 @@ async function readJson(path) {
   }
 }
 
+// Вимагаю цілий непривілейований порт, щоб не запускати команди від адміністратора
 function port(value, fallback) {
   const number = Number(value ?? fallback);
   assert.ok(
@@ -118,6 +127,8 @@ function port(value, fallback) {
   return number;
 }
 
+// Тимчасово пробую відкрити loopback-порт і одразу закриваю його
+// Ця перевірка показує доступність порту в цей момент, а не резервує його назавжди
 async function availablePort(value = 0) {
   const server = createServer();
   await new Promise((accept, reject) => {
@@ -129,8 +140,9 @@ async function availablePort(value = 0) {
   return result;
 }
 
-// Перевіряємо доступність інструментів: docker version звертається до Docker через сокет Colima.
-// Саму Colima цей скрипт не запускає: профіль courier-route має вже працювати.
+// Перевіряємо доступність інструментів: docker version звертається до Docker через сокет Colima
+// Саму Colima цей скрипт не запускає: профіль courier-route має вже працювати
+// Перед змінами перевіряю доступність Docker, kind, kubectl, OpenSSL та потрібні версії інструментів
 export async function preflight() {
   assert.equal(
     Number(process.versions.node.split(".")[0]),
@@ -174,6 +186,8 @@ export async function preflight() {
   };
 }
 
+// Хешую файли, що впливають на образ, і включаю короткий fingerprint у його тег
+// Навіть зміни коментарів у цих файлах дадуть новий тег під час наступного явного збирання
 export async function imageName() {
   const hash = createHash("sha256");
   async function add(path) {
@@ -208,8 +222,10 @@ export async function imageName() {
   return `courier-route:block07-${hash.digest("hex").slice(0, 16)}`;
 }
 
-// Перевірка й збирання Docker-образу відбуваються в середовищі Colima.
-// Параметр env: dockerEnvironment нижче спрямовує команди image inspect і build до її сокета.
+// Перевірка й збирання Docker-образу відбуваються в середовищі Colima
+// Параметр env: dockerEnvironment нижче спрямовує команди image inspect і build до її сокета
+// Повторно використовую образ лише після перевірки fingerprint, користувача node і версії runtime
+// Якщо він не підходить, запускаю docker build з обмеженням часу
 export async function buildImage() {
   await preflight();
   const image = await imageName();
@@ -228,10 +244,10 @@ export async function buildImage() {
   try {
     existing = await inspect();
   } catch {
-    /* Якщо локального образу з таким тегом немає, його потрібно зібрати. */
+    /* Якщо локального образу з таким тегом немає, його потрібно зібрати */
   }
-  // Тег позначає конкретний локальний образ; повторний запуск не перебудовує його без змін.
-  // Усі файли, що впливають на збирання Docker-образу, враховані в imageName().
+  // Тег позначає конкретний локальний образ; повторний запуск не перебудовує його без змін
+  // Усі файли, що впливають на збирання Docker-образу, враховані в imageName()
   if (!matches(existing)) {
     await run(
       "docker",
@@ -246,6 +262,8 @@ export async function buildImage() {
   return image;
 }
 
+// Підставляю значення замість токенів на кшталт __NAMESPACE__ рекурсивно в шаблоні
+// Ці позначки не мають потрапити до готових ресурсів Kubernetes
 function replace(value, tokens) {
   if (typeof value === "string") {
     if (Object.hasOwn(tokens, value)) return tokens[value];
@@ -262,27 +280,29 @@ function replace(value, tokens) {
   return value;
 }
 
-// kind отримує той самий dockerEnvironment і керує контейнером вузла Kubernetes у Colima.
-// Наявний власний кластер повторно використовується; новий створюється лише за дозволеного create.
+// kind отримує той самий dockerEnvironment і керує контейнером вузла Kubernetes у Colima
+// Наявний власний кластер повторно використовується; новий створюється лише за дозволеного create
+// Перевіряю локальний запис і фактичний вузол kind перед повторним використанням кластера
+// Без підтвердженого ownerId не привласнюю вже наявний кластер
 async function clusterState({ create = false } = {}) {
   await preflight();
   await mkdir(local, { recursive: true, mode: 0o700 });
-  // Читаю попередній запис про кластер, щоб використати його налаштування повторно.
+  // Читаю попередній запис про кластер, щоб використати його налаштування повторно
   let state = await readJson(statePath);
-  // Командою kind get clusters отримую назви кластерів у вибраному середовищі Docker.
+  // Командою kind get clusters отримую назви кластерів у вибраному середовищі Docker
   const clusters = (
     await run("kind", ["get", "clusters"], { env: dockerEnvironment })
   )
     .trim()
     .split("\n");
-  // Якщо courier-route вже є у списку, перевіряю його та використовую повторно.
+  // Якщо courier-route вже є у списку, перевіряю його та використовую повторно
   if (clusters.includes(cluster)) {
-    // Звіряю локальний запис: назва, контекст і ownerId мають належати моєму проєкту.
+    // Звіряю локальний запис: назва, контекст і ownerId мають належати моєму проєкту
     assert.ok(
       state?.ownerId && state.cluster === cluster && state.context === context,
       "Existing cluster has no project ownership record; refusing to adopt it.",
     );
-    // Через Docker inspect перевіряю контейнер вузла courier-route-control-plane, його образ і мітки.
+    // Через Docker inspect перевіряю контейнер вузла courier-route-control-plane, його образ і мітки
     const inspect = JSON.parse(
       await run("docker", ["inspect", `${cluster}-control-plane`], {
         env: dockerEnvironment,
@@ -294,7 +314,7 @@ async function clusterState({ create = false } = {}) {
       versions.kind.nodeImage,
       "The existing cluster must use the pinned kind node image.",
     );
-    // Також перевіряю, що HTTP/HTTPS-порти вузла прив’язані до правильних локальних портів.
+    // Також перевіряю, що HTTP/HTTPS-порти вузла прив’язані до правильних локальних портів
     for (const [containerPort, hostPort] of [
       ["30080/tcp", state.httpPort],
       ["30443/tcp", state.httpsPort],
@@ -304,7 +324,7 @@ async function clusterState({ create = false } = {}) {
       assert.equal(mapping?.HostPort, String(hostPort));
     }
   } else {
-    // Якщо кластера немає, створюю його тільки за дозволеного create=true.
+    // Якщо кластера немає, створюю його тільки за дозволеного create=true
     assert.ok(
       create,
       "Project cluster is not running. Use npm run deploy:local.",
@@ -320,13 +340,13 @@ async function clusterState({ create = false } = {}) {
     assert.notEqual(httpPort, httpsPort);
     await availablePort(httpPort);
     await availablePort(httpsPort);
-    // Для першого запуску записую налаштування й створюю ownerId — унікальний ідентифікатор цього розгортання.
+    // Для першого запуску записую налаштування й створюю ownerId — унікальний ідентифікатор цього розгортання
     state ??= { cluster, context, ownerId: randomUUID(), httpPort, httpsPort };
     assert.equal(state.httpPort, httpPort);
     assert.equal(state.httpsPort, httpsPort);
     await privateFile(statePath, `${JSON.stringify(state, null, 2)}\n`);
-    // Ось де беру опис самого кластера: deploy/kind-config.json.
-    // Прибираю навчальні нотатки й підставляю реальні порти та образ вузла замість шаблонів.
+    // Ось де беру опис самого кластера: deploy/kind-config.json
+    // Прибираю навчальні нотатки й підставляю реальні порти та образ вузла замість шаблонів
     const config = replace(
       await readDeploymentConfig(join(root, "deploy/kind-config.json")),
       {
@@ -335,12 +355,12 @@ async function clusterState({ create = false } = {}) {
         __KIND_NODE_IMAGE__: versions.kind.nodeImage,
       },
     );
-    // Готову конфігурацію без шаблонів записую в .local/deploy/kind-config.json.
+    // Готову конфігурацію без шаблонів записую в .local/deploy/kind-config.json
     const configPath = join(local, "kind-config.json");
     await privateFile(configPath, JSON.stringify(config));
-    // Наступна команда kind create cluster фактично створює кластер.
-    // --name задає назву, --config передає готовий опис, --kubeconfig указує файл доступу.
-    // --wait 180s означає: чекаю готовності кластера до трьох хвилин.
+    // Наступна команда kind create cluster фактично створює кластер
+    // --name задає назву, --config передає готовий опис, --kubeconfig указує файл доступу
+    // --wait 180s означає: чекаю готовності кластера до трьох хвилин
     await run(
       "kind",
       [
@@ -358,7 +378,7 @@ async function clusterState({ create = false } = {}) {
       { env: dockerEnvironment, timeoutMs: 900_000, inherit: true },
     );
   }
-  // І для нового, і для наявного кластера отримую його kubeconfig та зберігаю локально.
+  // І для нового, і для наявного кластера отримую його kubeconfig та зберігаю локально
   await privateFile(
     kubeconfig,
     await run("kind", ["get", "kubeconfig", "--name", cluster], {
@@ -368,10 +388,12 @@ async function clusterState({ create = false } = {}) {
   return state;
 }
 
-// kubectl звертається до API Kubernetes через kubeconfig і context проєкту.
-// Тут доступ визначається параметрами Kubernetes, а не адресою Docker-сокета.
-// Під час кожної команди явно передаю власні kubeconfig, context і namespace.
-// Namespace — окремий простір ресурсів усередині кластера, наприклад courier-route.
+// kubectl звертається до API Kubernetes через kubeconfig і context проєкту
+// Тут доступ визначається параметрами Kubernetes, а не адресою Docker-сокета
+// Під час кожної команди явно передаю власні kubeconfig, context і namespace
+// Namespace — окремий простір ресурсів усередині кластера, наприклад courier-route
+// Створюю обгортку kubectl із явними kubeconfig, context і namespace
+// Так команда не залежить від випадково вибраного глобального контексту термінала
 function kubectlFor(namespace) {
   assert.ok(
     namespace === "kube-system" ||
@@ -396,7 +418,8 @@ function kubectlFor(namespace) {
   };
 }
 
-// Переконуюся, що працюю зі своїм кластером: звіряю його назву, образ і вузол Kubernetes.
+// Переконуюся, що працюю зі своїм кластером: звіряю його назву, образ і вузол Kubernetes
+// Підтверджую належність саме нашого вузла й кластера перед операцією з образом
 async function assertClusterOwnership(state) {
   assert.equal(state?.cluster, cluster);
   assert.equal(state?.context, context);
@@ -424,10 +447,12 @@ async function assertClusterOwnership(state) {
   );
 }
 
+// Переношу перевірений образ зі сховища Docker у containerd вузла kind
+// Це потрібно, бо вузол Kubernetes не бачить автоматично всі образи з Docker на Mac
 async function loadOwnedImage(state, image) {
-  // Docker і containerd усередині вузла kind мають окремі сховища образів.
+  // Docker і containerd усередині вузла kind мають окремі сховища образів
   // Спочатку перевіряємо наявність потрібного зібраного образу, а потім завантажуємо
-  // його у власний кластер через уже перевірене середовище Colima.
+  // його у власний кластер через уже перевірене середовище Colima
   await assertClusterOwnership(state);
   const metadata = JSON.parse(
     await run("docker", ["image", "inspect", image], {
@@ -450,9 +475,11 @@ async function loadOwnedImage(state, image) {
   });
 }
 
-/** Перед зміною спільного доповнення кластера перевіряємо всі його ресурси.
- * Очищення тестового простору імен не видаляє це доповнення.
- * Чужі ресурси не перезаписуються і не привласнюються цьому проєкту. */
+/** Перед зміною спільного доповнення кластера перевіряємо всі його ресурси
+ * Очищення тестового простору імен не видаляє це доповнення
+ * Чужі ресурси не перезаписуються і не привласнюються цьому проєкту */
+// Готую спільне доповнення Metrics Server лише після перевірки власника всіх відповідних ресурсів
+// Його показники потрібні HPA й адмінпанелі, а не самому алгоритму маршруту
 async function ensureMetricsServer(state) {
   await assertClusterOwnership(state);
   const namespace = versions.metricsServer.namespace;
@@ -511,8 +538,8 @@ async function ensureMetricsServer(state) {
       });
   }
   const kubectl = kubectlFor(namespace);
-  // Простір імен у команді kubectl має відповідати простору імен кожного ресурсу.
-  // Прив’язка прав читання в kube-system застосовується окремо від ресурсів доповнення.
+  // Простір імен у команді kubectl має відповідати простору імен кожного ресурсу
+  // Прив’язка прав читання в kube-system застосовується окремо від ресурсів доповнення
   for (const object of manifest.items)
     await kubectlFor(object.metadata.namespace ?? namespace)(
       ["apply", "-f", "-"],
@@ -561,6 +588,8 @@ async function ensureMetricsServer(state) {
   }
 }
 
+// Використовую наявну CA проєкту та перевіряю сертифікат localhost і відповідність ключа
+// За потреби створюю або оновлюю серверний сертифікат, перевірку TLS не вимикаю
 async function certificates() {
   const directory = join(local, "tls");
   await mkdir(directory, { recursive: true, mode: 0o700 });
@@ -609,7 +638,7 @@ async function certificates() {
     await run("openssl", ["x509", "-in", cert, "-checkend", "86400", "-noout"]);
     valid = true;
   } catch {
-    /* Серверний сертифікат можна оновити, зберігши ту саму проєктну CA. */
+    /* Серверний сертифікат можна оновити, зберігши ту саму проєктну CA */
   }
   if (!valid) {
     const csr = join(directory, "localhost.csr");
@@ -674,6 +703,7 @@ async function certificates() {
   };
 }
 
+// Завершую тільки port-forward, який створив цей процес для відповідного namespace
 async function closeForwarding(namespace) {
   const child = forwardings.get(namespace);
   forwardings.delete(namespace);
@@ -691,11 +721,13 @@ async function closeForwarding(namespace) {
   }
 }
 
+// Перевіряю реальний HTTPS-маршрут до HTTP-процесу через /api/health із довірою до локальної CA
+// Назва функції тут не означає перевірку інтернет-тунелю чи готовності PostgreSQL через /api/ready
 async function waitForPublicHttps(origin, caPath) {
   const deadline = Date.now() + 15_000;
-  // Допоміжна команда успадковує кінцевий строк перевірки й завершується після таймауту.
+  // Допоміжна команда успадковує кінцевий строк перевірки й завершується після таймауту
   // Виконується GET зі звичайною перевіркою TLS; відкритий TCP-порт сам по собі
-  // ще не доводить, що Traefik уже маршрутизує запити до нових серверів.
+  // ще не доводить, що Traefik уже маршрутизує запити до нових серверів
   const source = `import https from 'node:https';import{readFile}from'node:fs/promises';
     let input='';for await(const chunk of process.stdin)input+=chunk;const{origin,caPath}=JSON.parse(input);
     const ca=await readFile(caPath);const ready=await new Promise(resolve=>{
@@ -724,6 +756,8 @@ async function waitForPublicHttps(origin, caPath) {
   );
 }
 
+// Спочатку перевіряю власника ресурсів, прибираю наш HPA й зменшую репліки до нуля
+// PVC, дані, кластер і спільний Metrics Server цим шляхом не видаляю
 async function stopNamespace(kubectl, namespace, ownerId) {
   const objects = [
     ["namespace", namespace, "Namespace", undefined],
@@ -763,10 +797,10 @@ async function stopNamespace(kubectl, namespace, ownerId) {
   }
   // Перенаправлення порту прив’язане до конкретного pod Traefik і може зберігати
   // відкритий локальний сокет навіть після його зникнення. Під час зупинки
-  // завершуємо цей процес, щоб наступний запуск міг знову зайняти потрібний порт.
+  // завершуємо цей процес, щоб наступний запуск міг знову зайняти потрібний порт
   await closeForwarding(namespace);
-  // Перед зменшенням кількості копій до нуля видаляємо тільки власний HPA цього простору імен.
-  // Спільний Metrics Server і масштабування інших просторів імен зберігаються.
+  // Перед зменшенням кількості копій до нуля видаляємо тільки власний HPA цього простору імен
+  // Спільний Metrics Server і масштабування інших просторів імен зберігаються
   await kubectl([
     "scale",
     "deployment/app",
@@ -798,7 +832,9 @@ async function stopNamespace(kubectl, namespace, ownerId) {
   );
 }
 
-// Готуємо власний простір імен, конфігурацію, PostgreSQL, міграції, застосунок і HTTPS через Traefik.
+// Готуємо власний простір імен, конфігурацію, PostgreSQL, міграції, застосунок і HTTPS через Traefik
+// Розгортаю namespace, права моніторингу, Secret, PostgreSQL, міграції, застосунок і Traefik
+// На кожному кроці використовую конкретні образи, порти та мітки власника цього розгортання
 async function provision({
   state,
   namespace,
@@ -812,6 +848,8 @@ async function provision({
   assert.equal(typeof autoscaling, "boolean");
   if (autoscaling) await ensureMetricsServer(state);
   const kubectl = kubectlFor(namespace);
+  // Будую локальну HTTPS-адресу з вибраного порту, за замовчуванням це https://localhost:8443
+  // Дозволені додаткові Origin узгоджую окремо, сам цей рядок не створює публічного тунелю
   const publicOrigin = `https://localhost:${httpsPort}`;
   const migrationName = `migrate-${image.split("-").at(-1)}`;
   const tokens = {
@@ -866,6 +904,7 @@ async function provision({
     "json",
   ]);
   if (existing.trim()) await assertOwned();
+  // Передаю готовий JSON у kubectl apply через stdin після видалення _comment-полів
   async function apply(value) {
     await kubectl(["apply", "-f", "-"], { input: JSON.stringify(value) });
   }
@@ -881,6 +920,8 @@ async function provision({
         JSON.stringify(patch),
       ]);
   }
+  // Перед повторним apply узгоджую керування кількістю реплік із HPA
+  // Не скидаю масштабований живий застосунок до початкової кількості копій
   async function applyApplication() {
     await assertOwned();
     const prior = await kubectl([
@@ -927,8 +968,8 @@ async function provision({
         JSON.stringify(plan.handoffPatch),
       ]);
     await apply(plan.manifest);
-    // Для нового або зупиненого розгортання запускаємо дві копії; далі масштабуванням керує HPA.
-    // Повторне застосування конфігурації зберігає поточну кількість копій.
+    // Для нового або зупиненого розгортання запускаємо дві копії; далі масштабуванням керує HPA
+    // Повторне застосування конфігурації зберігає поточну кількість копій
     if (autoscaling && plan.bootstrap)
       await handoff(
         await kubectl(["get", "deployment", "app", "-o", "json"], {
@@ -937,6 +978,8 @@ async function provision({
       );
     if (autoscaling) await apply(await manifest("hpa"));
   }
+  // Читаю шаблон deploy/k8s, прибираю нотатки й підставляю конкретні значення
+  // Контрольна сума ConfigMap у шаблоні pod дозволяє запустити оновлення при зміні конфігурації
   async function manifest(name) {
     const value = replace(
       await readDeploymentConfig(join(root, `deploy/k8s/${name}.json`)),
@@ -958,8 +1001,8 @@ async function provision({
   }
   await apply(await manifest("namespace"));
   const monitorRbac = await manifest("monitor-rbac");
-  // Перед зміною прав перевіряємо кожний наявний ресурс окремо.
-  // Самої мітки простору імен недостатньо, щоб вважати наявну Role власністю проєкту.
+  // Перед зміною прав перевіряємо кожний наявний ресурс окремо
+  // Самої мітки простору імен недостатньо, щоб вважати наявну Role власністю проєкту
   for (const object of monitorRbac.items) {
     const prior = await kubectl([
       "get",
@@ -980,6 +1023,7 @@ async function provision({
   await apply(monitorRbac);
   const directory = join(local, namespace);
   const credentialsPath = join(directory, "credentials.json");
+  // Повторно використовую наявні credentials, а якщо є PVC без них, відмовляюся скидати паролі
   let credentials = await readJson(credentialsPath);
   if (!credentials) {
     const claims = await kubectl(["get", "pvc", "-o", "json"], { json: true });
@@ -998,9 +1042,11 @@ async function provision({
   assert.equal(credentials.ownerId, ownerId);
   hidden.add(credentials.admin);
   hidden.add(credentials.app);
+  // Передаю секрети через stdin і server-side apply без відкритої last-applied копії
+  // Base64 у Kubernetes Secret є кодуванням, а не шифруванням, тому значення не друкую
   async function secret(name, stringData, type = "Opaque") {
     // Застосування на стороні сервера не додає відкриту копію секрету в анотацію
-    // попередньої конфігурації. Значення секретів передаються тільки через stdin.
+    // попередньої конфігурації. Значення секретів передаються тільки через stdin
     const data = Object.fromEntries(
       Object.entries(stringData).map(([key, value]) => [
         key,
@@ -1066,8 +1112,8 @@ async function provision({
     ["rollout", "status", "statefulset/postgres", "--timeout=180s"],
     { timeoutMs: 190_000 },
   );
-  // pg_isready може побачити тимчасовий сервер початкового налаштування образу.
-  // Готуємо БД лише після запуску основного PostgreSQL як процесу PID 1.
+  // pg_isready може побачити тимчасовий сервер початкового налаштування образу
+  // Готуємо БД лише після запуску основного PostgreSQL як процесу PID 1
   const postgresDeadline = Date.now() + 30_000;
   while (true) {
     try {
@@ -1095,8 +1141,8 @@ async function provision({
       await delay(200);
     }
   }
-  // Адміністративне налаштування виконується всередині власного pod PostgreSQL.
-  // Пароль передається тільки через stdin і не потрапляє до HTTP-процесу.
+  // Адміністративне налаштування виконується всередині власного pod PostgreSQL
+  // Пароль передається тільки через stdin і не потрапляє до HTTP-процесу
   const quote = (value) => `'${value.replaceAll("'", "''")}'`;
   const bootstrap =
     `SET log_statement='none'; SET log_min_error_statement='panic';\nSELECT format('CREATE ROLE courier_route LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD %L', ${quote(credentials.app)}) WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname='courier_route')\\gexec\n` +
@@ -1125,7 +1171,7 @@ async function provision({
     ],
     { input: bootstrap },
   );
-  // Перед оновленням застосунку чекаємо виконання зібраного коду міграцій; успішний Job цього образу використовуємо повторно.
+  // Перед оновленням застосунку чекаємо виконання зібраного коду міграцій; успішний Job цього образу використовуємо повторно
   const prior = await kubectl([
     "get",
     "job",
@@ -1153,7 +1199,7 @@ async function provision({
     { timeoutMs: 140_000 },
   );
   await applyApplication();
-  // Traefik приймає HTTPS і передає HTTP-запити одному з pod застосунку, не повторюючи POST.
+  // Traefik приймає HTTPS і передає HTTP-запити одному з pod застосунку, не повторюючи POST
   await apply(await manifest("traefik"));
   await apply(await manifest("ingress"));
   await kubectl(["rollout", "status", "deployment/app", "--timeout=180s"], {
@@ -1407,6 +1453,8 @@ async function provision({
   };
 }
 
+// Створюю ізольоване тестове розгортання лише з перевіреною назвою й ownerId
+// Тестовий cleanup може видалити його namespace, тому це не команда звичайної зупинки демо
 export async function provisionTestDeployment({
   namespace,
   ownerId,
@@ -1467,8 +1515,10 @@ export async function provisionTestDeployment({
   }
 }
 
-/** Локальна адміністративна команда використовує власний файл kubeconfig проєкту.
- * Обліковий запис HTTP-сервера не має прав на exec або зміну ролей. */
+/** Локальна адміністративна команда використовує власний файл kubeconfig проєкту
+ * Обліковий запис HTTP-сервера не має прав на exec або зміну ролей */
+// Виконую явну адміністративну зміну ролі через власний kubeconfig
+// Звичайний HTTP ServiceAccount не отримує для цього права на exec чи зміну ролей
 export async function assignDeploymentRole({
   namespace = "courier-route",
   ownerId,
@@ -1597,6 +1647,8 @@ export async function assignDeploymentRole({
   ).trim();
 }
 
+// Обираю одну дію з npm-команди: preflight, image, up, status, stop або role
+// Status лише читає стан, а створення кластера дозволяю тільки для up
 async function main(command) {
   if (command === "preflight") {
     console.log(JSON.stringify(await preflight(), null, 2));
@@ -1679,7 +1731,7 @@ async function main(command) {
     }
     return;
   }
-  // Тут викликаю пошук або створення кластера; створення дозволяю лише для команди up.
+  // Тут викликаю пошук або створення кластера; створення дозволяю лише для команди up
   const state = await clusterState({ create: command === "up" });
   const kubectl = kubectlFor("courier-route");
   if (command === "stop") {
@@ -1696,7 +1748,7 @@ async function main(command) {
   );
   const image = await buildImage();
   await loadOwnedImage(state, image);
-  // Кластер уже підготовлений; тепер розгортаю в ньому застосунок, PostgreSQL і Traefik.
+  // Кластер уже підготовлений; тепер розгортаю в ньому застосунок, PostgreSQL і Traefik
   const deployment = await provision({
     state,
     namespace: "courier-route",

@@ -1,3 +1,7 @@
+// Цим файлом запускаю розрахунок маршруту з термінала без HTTP і PostgreSQL
+// Читаю JSON із заданого файлу або прикладу, прогрес пишу в stderr, результат у stdout
+// На Ctrl+C передаю скасування executor, а наприкінці завжди закриваю worker
+
 import { readFile } from 'node:fs/promises';
 import { RouteExecutor } from './executor.js';
 import { readRouteConfig } from './config.js';

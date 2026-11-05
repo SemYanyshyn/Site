@@ -1,9 +1,14 @@
+// Тут запускаю зовнішні команди Docker і Kubernetes з обмеженим часом та обсягом виводу
+// Не залишаю зміну ресурсів працювати непомітно після завершення очікування скрипта
+
 import assert from "node:assert/strict";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { spawn } from "node:child_process";
 
+// Через AsyncLocalStorage передаю дедлайн вкладеним асинхронним викликам без змінної глобального поточного запиту
 const deadlines = new AsyncLocalStorage();
 
+// Окремим кодом позначаю вичерпання спільного дедлайну, щоб відрізнити його від звичайної помилки команди
 export class DeploymentDeadlineError extends Error {
   constructor() {
     super("The absolute deployment command deadline expired.");
@@ -11,8 +16,8 @@ export class DeploymentDeadlineError extends Error {
   }
 }
 
-/** Native async scope propagates through every nested helper without global
- * mutable state. Nesting can shorten a parent's deadline, never extend it. */
+// Передаю дедлайн вкладеним helper через асинхронний контекст
+// Вкладена операція може лише скоротити батьківський дедлайн, а не продовжити його
 export function withDeploymentDeadline(deadlineEpochMs, work) {
   assert.ok(
     Number.isSafeInteger(deadlineEpochMs) && deadlineEpochMs > 0,
@@ -28,21 +33,21 @@ export function withDeploymentDeadline(deadlineEpochMs, work) {
   );
 }
 
-/** Cleanup must remain available after the acceptance budget has expired. */
+// Дозволяю явно виконати cleanup навіть після вичерпання бюджету перевірки
 export function withoutDeploymentDeadline(work) {
   assert.equal(typeof work, "function");
   return deadlines.run(undefined, work);
 }
 
-/** Polling loops must also stop when no further child command may start. */
+// Зупиняю й цикли очікування, коли часу для нової команди вже немає
 export function assertDeploymentDeadline() {
   const deadline = deadlines.getStore();
   if (deadline !== undefined && Date.now() >= deadline)
     throw new DeploymentDeadlineError();
 }
 
-/** Do not race and abandon a mutation promise: expiry kills the actual child,
- * then settles only after its close event. No command starts after expiry. */
+// При таймауті зупиняю реальний дочірній процес і чекаю close замість покинути Promise
+// Після завершення дедлайну нову команду не запускаю
 export function runDeploymentCommand(
   command,
   args,
@@ -62,9 +67,11 @@ export function runDeploymentCommand(
   assert.ok(
     Number.isFinite(timeoutMs) && timeoutMs > 0 && timeoutMs <= 2_147_483_647,
   );
+  // Для дочірньої команди беру менше з її таймауту та залишку спільного часу
   const effectiveTimeout = Math.max(1, Math.min(timeoutMs, remaining));
   const absoluteLimited = remaining <= timeoutMs;
   return new Promise((resolve, reject) => {
+    // Запускаю програму з масивом аргументів без додаткового shell, stdin і вивід тримаю під контролем
     const child = spawn(command, args, {
       cwd,
       env,
@@ -80,6 +87,7 @@ export function runDeploymentCommand(
       expired = true;
       child.kill("SIGKILL");
     }, effectiveTimeout);
+    // Обмежую сумарний stdout і stderr, щоб команда не заповнила пам’ять нескінченним журналом
     const collect = (target, chunk, stream) => {
       bytes += chunk.length;
       if (bytes > 16 * 1024 * 1024) {
@@ -93,6 +101,7 @@ export function runDeploymentCommand(
     child.once("error", (error) => {
       startError = error;
     });
+    // Завершую Promise після фактичного закриття дочірнього процесу, прибираю таймер і перевіряю результат
     child.once("close", (code) => {
       clearTimeout(timer);
       if (expired && absoluteLimited) reject(new DeploymentDeadlineError());

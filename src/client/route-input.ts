@@ -1,5 +1,7 @@
+// Тут перетворюю текст із форми маршруту на перевірені числові дані для запиту.
 import type { RouteInput, RouteLimits } from "../shared/route.js";
 
+// Зберігаю чернетку як рядки, бо саме так браузер читає значення полів форми.
 export interface RouteDraft {
   warehouseX: string;
   warehouseY: string;
@@ -20,6 +22,7 @@ export type RouteDraftResult =
 const NUMBER = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
 const MAX_TEXT_LENGTH = 256 * 1024;
 
+// Перевіряю формат координати та її межі, отримані від сервера.
 function coordinate(text: string, maximum: number): number | null {
   const trimmed = text.trim();
   if (!NUMBER.test(trimmed)) return null;
@@ -27,6 +30,7 @@ function coordinate(text: string, maximum: number): number | null {
   return Number.isFinite(value) && Math.abs(value) <= maximum ? value : null;
 }
 
+// Перевіряю цілі числа для бюджету ітерацій і seed — початкового значення генератора випадкових чисел.
 function integer(
   text: string,
   minimum: number,
@@ -39,7 +43,7 @@ function integer(
     : null;
 }
 
-/** Count first, then construct only the bounded number of delivery objects. */
+// Спочатку перевіряю ліміти й кількість доставок, потім створюю об’єкти координат.
 export function parseRouteDraft(
   draft: RouteDraft,
   limits: RouteLimits,
@@ -61,6 +65,7 @@ export function parseRouteDraft(
       message: "Спочатку завантажте коректні серверні ліміти.",
     };
   }
+  // Спочатку перевіряю координати складу, щоб одразу підсвітити неправильне поле.
   const x = coordinate(draft.warehouseX, limits.maxCoordinate);
   const y = coordinate(draft.warehouseY, limits.maxCoordinate);
   if (x === null || y === null)
@@ -76,7 +81,7 @@ export function parseRouteDraft(
       message: "Текст доставок завеликий. Скоротіть його до 262144 символів.",
     };
   let count = 0;
-  // Do not split the entire text into an unbounded array.
+  // Рахую непорожні рядки поступово, щоб завеликий текст не створював величезний масив.
   for (let start = 0; start <= draft.points.length; ) {
     const end = draft.points.indexOf("\n", start);
     const line = draft.points.slice(start, end === -1 ? undefined : end).trim();
@@ -95,6 +100,7 @@ export function parseRouteDraft(
       field: "points",
       message: "Введіть щонайменше одну доставку.",
     };
+  // Тепер читаю дозволену кількість доставок: один непорожній рядок має містити рівно x та y.
   const points: RouteInput["points"] = [];
   let lineNumber = 0;
   for (let start = 0; start <= draft.points.length; ) {
@@ -121,6 +127,7 @@ export function parseRouteDraft(
     if (end === -1) break;
     start = end + 1;
   }
+  // Перевіряю бюджет обчислень; непорожній seed додаю до запиту, а порожній визначить сервер.
   const iterations = integer(draft.iterations, 1, limits.maxIterations);
   if (iterations === null)
     return {

@@ -1,3 +1,7 @@
+// Це точка входу окремого потоку, який виконує важкий пошук і не обробляє HTTP
+// Отримую перевірений вхід через workerData, а прогрес і результат передаю через parentPort
+// Після надсилання результату закриваю порт, щоб потік міг завершитися
+
 import { isMainThread, parentPort, threadId, workerData } from 'node:worker_threads';
 import type { NormalizedRouteInput, RouteProgress } from '../../shared/route.js';
 import { calculateRoute } from './algorithm.js';

@@ -1,3 +1,7 @@
+// Цим файлом вимірюю справжній час, CPU і пам’ять пошуку на кількох розмірах входу
+// Використовую той самий executor, що й сервер, із чинними обмеженнями
+// CPU і RSS вимірюю для всього процесу з потоками, а пікову пам’ять оцінюю періодичними замірами
+
 import { performance } from 'node:perf_hooks';
 import { RouteExecutor } from './executor.js';
 import { readRouteConfig } from './config.js';
@@ -10,7 +14,7 @@ try {
   const cases = [
     { name: 'small', points: 4, iterations: 10_000, seed: 0 },
     { name: 'medium', points: 100, iterations: 1_000_000, seed: 42 },
-    // Exercise the explicitly configured server budget, without raising it.
+    // Для важкого виміру використовую чинний бюджет сервера без його збільшення
     { name: 'heavy', points: 500, iterations: limits.maxIterations, seed: 42 },
   ] as const;
   for (const scenario of cases) {
@@ -18,7 +22,7 @@ try {
     let completedIterations = 0;
     const rssStartBytes = process.memoryUsage.rss();
     let rssPeakBytes = rssStartBytes;
-    // Monitoring only: this timer never delays or simulates the search.
+    // Цим таймером лише вимірюю пам’ять, не затримую і не імітую пошук
     const sampler = setInterval(() => { rssPeakBytes = Math.max(rssPeakBytes, process.memoryUsage.rss()); }, 50);
     const cpuStart = process.cpuUsage();
     const started = performance.now();

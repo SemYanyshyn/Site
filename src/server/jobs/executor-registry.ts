@@ -1,3 +1,7 @@
+// Тут повідомляю PostgreSQL, що процес живий і має один обчислювальний слот
+// У реєстрі зберігаю зайнятість, поточну задачу й готовність брати нові задачі
+// Кількість живих pod сама по собі ще не означає стільки ж вільних виконавців
+
 import { performance } from 'node:perf_hooks';
 import type { Pool } from 'pg';
 import type { ExecutorConfig, ExecutorPodMetadata } from './executor-config.js';
@@ -9,6 +13,7 @@ export interface ExecutorRegistrationState {
   currentJobId: string | null;
 }
 
+// Порівнюю значущі поля стану, щоб помітити їх зміну під час запису heartbeat
 function same(left: ExecutorRegistrationState, right: ExecutorRegistrationState): boolean {
   return left.acceptingClaims === right.acceptingClaims && left.busy === right.busy && left.currentJobId === right.currentJobId;
 }
@@ -37,15 +42,18 @@ export class ExecutorRegistry {
       ? {} : { POD_UID: metadata.podUid ?? undefined, POD_NAME: metadata.podName ?? undefined, POD_NAMESPACE: metadata.podNamespace ?? undefined });
   }
 
+  // Вважаю реєстрацію чинною лише до її локального дедлайну та до початку зупинки
   get confirmed(): boolean {
     return this.#confirmed && !this.#stopping && performance.now() < this.#lastConfirmedUntil;
   }
 
+  // Після невдалого запису забороняю нові claim до наступного підтвердження реєстрації
   invalidate(): void {
     this.#confirmed = false;
     this.#nextRetryAt = performance.now() + this.#config.heartbeatIntervalMs;
   }
 
+  // Отримую функцію актуального стану та обробник збою, після чого запускаю перший heartbeat
   start(state: () => ExecutorRegistrationState, onFailure: () => Promise<void>): void {
     if (this.#state || this.#stopping) throw new Error('Реєстр виконавця вже запущено або зупинено.');
     this.#state = state;
@@ -53,6 +61,7 @@ export class ExecutorRegistry {
     void this.refresh();
   }
 
+  // Об’єдную одночасні звернення в одну операцію, щоб SQL-записи не накопичувалися в черзі
   refresh(): Promise<boolean> {
     if (this.#stopping || !this.#state) return Promise.resolve(false);
     if (this.#operation) return this.#operation;
@@ -71,6 +80,8 @@ export class ExecutorRegistry {
     return operation;
   }
 
+  // Створюю або оновлюю запис цього instanceId одним UPSERT
+  // Строк expires_at рахую за часом PostgreSQL, щоб різниця годинників серверів не спотворила свіжість
   async #write(state: ExecutorRegistrationState, shutdownDeadline?: number): Promise<void> {
     const text = `
       WITH stamp AS (SELECT clock_timestamp() AS now)
@@ -90,8 +101,8 @@ export class ExecutorRegistry {
       await this.#pool.query(text, values);
       return;
     }
-    // Acquisition is bounded by the pool's 2s limit. Reserve 250ms for setting
-    // the server limit plus 500ms for the stopping write, within a 3s budget.
+    // На отримання з’єднання пул дає до 2 с, додатково резервую 250 мс на налаштування
+    // І ще 500 мс на запис зупинки, щоб укластися у спільний бюджет 3 с
     const client = await this.#pool.connect();
     try {
       if (shutdownDeadline - performance.now() < 750) return;
@@ -100,15 +111,17 @@ export class ExecutorRegistry {
       const update = { text, values, query_timeout: 500 };
       await client.query(update);
     } finally {
-      // A changed session limit or timed-out query must never return to the pool.
+      // Закриваю це з’єднання назавжди, щоб змінений таймаут або незавершений запит не повернувся в пул
       client.release(true);
     }
   }
 
+  // Записую найновіший стан і підтверджую реєстрацію тільки після успішного SQL
+  // При збої повідомляю диспетчеру, щоб він не продовжував обчислення без контролю
   async #refresh(): Promise<boolean> {
     try {
-      // If a transition happened during SQL, persist just the newest state before
-      // resolving. Claim waits on this same operation; heartbeats never enqueue.
+      // Якщо стан змінився під час SQL, перед завершенням зберігаю його найновішу версію
+      // Claim чекає на цю ж операцію, а heartbeat не створює чергу паралельних записів
       for (let attempt = 0; attempt < 2 && !this.#stopping && this.#state; attempt++) {
         const state = this.#state();
         const issuedAt = performance.now();
@@ -123,27 +136,29 @@ export class ExecutorRegistry {
     } catch {
       this.invalidate();
       if (!this.#stopping) {
-        try { await this.#onFailure?.(); } catch { /* The owning dispatcher retains its reservation. */ }
+        try { await this.#onFailure?.(); } catch { /* Диспетчер продовжує утримувати свою резервацію слота */ }
       }
       return false;
     }
   }
 
+  // Повторні виклики зупинки повертаю до тієї самої операції завершення
   shutdown(deadline = performance.now() + 3_800): Promise<void> {
     this.#shutdownPromise ??= this.#shutdown(deadline);
     return this.#shutdownPromise;
   }
 
+  // Вимикаю таймер, чекаю поточний heartbeat і за наявності часу записую acceptingClaims=false
   async #shutdown(deadline: number): Promise<void> {
     this.#stopping = true;
     this.#confirmed = false;
     if (this.#timer) clearTimeout(this.#timer);
     this.#timer = undefined;
-    // Drain an issued heartbeat before the final stopping write; no late ready
-    // update may overwrite it, and callers may close the pool after this resolves.
+    // Перед фінальним записом зупинки чекаю вже запущений heartbeat
+    // Так запізнілий запис готовності не перезапише зупинку, а після завершення можна закрити пул
     await this.#operation;
     if (deadline - performance.now() < 3_000 || !this.#state) return;
     const state = this.#state();
-    try { await this.#write({ ...state, acceptingClaims: false }, deadline); } catch { /* TTL excludes an unreachable process. */ }
+    try { await this.#write({ ...state, acceptingClaims: false }, deadline); } catch { /* Після закінчення TTL недоступний процес перестане враховуватися */ }
   }
 }

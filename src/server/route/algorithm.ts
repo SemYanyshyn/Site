@@ -6,7 +6,6 @@ import type {
   RouteProgress,
   RouteResult,
 } from "../../shared/route.js";
-// пишу .js бо після збирання Node запускає саме JavaScript файли з такими шляхами
 import { createRandom } from "./random.js";
 
 const PROGRESS_INTERVAL_MS = 150;
@@ -78,6 +77,8 @@ function nearestNeighbor(distances: Float64Array, size: number): number[] {
 }
 
 // з перевіреного входу будую початковий маршрут і наближено покращую його через 2-opt
+// Повертаю замкнений маршрут зі складу через усі доставки й назад
+// Зберігаю найкращий знайдений порядок окремо від поточного, який іноді може тимчасово погіршитися
 export function calculateRoute(
   input: NormalizedRouteInput,
   onProgress?: (progress: RouteProgress) => void,

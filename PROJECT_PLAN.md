@@ -179,3 +179,33 @@ Autoscaling виконує HPA, а не load driver; один worker на про
 
 
 Уточнення **04.11.2026 — коміт і push**: на явне доручення користувача підготовлено збережені локальні редагування Dockerfile, deploy/k8s/app.json, scripts/deploy-local.mjs та src/server/auth/router.ts. Порівняння через esbuild підтвердило незмінність виконуваного коду; JSON-конфігурація та інструкції Dockerfile незмінні. Typecheck/build і всі 54 unit-тести PASS. Публікується поточна гілка build/github-pages разом із попередніми локальними комітами; автоматичного злиття в main немає.
+
+
+Уточнення **04.11.2026 — Quick Tunnel**: за поточним дорученням виправлено хибний URL API з журналу, свіжий status/restart та перевірку публічної readiness до deployment. Typecheck/build, 29 Pages/public і 54 unit-тести PASS. Одна реальна спроба завершилася таймаутом Cloudflare API та exit 1, url=null; локальна readiness й CA збережені, deployment не запускався. Публічний доступ не підтверджений. Комітів і push немає. [Фактичний звіт і наступний крок](docs/public-demo-recovery.md).
+
+
+Уточнення **04.11.2026 — альтернативний public helper**: додано demo:ssh/status/stop через Pinggy Free без акаунта/токена (60 хвилин, одноразовий browser screening). localhost.run відхилено після фактичної ротації домену за приблизно п’ять хвилин. Одночасний frontend/API origin, CA-verified локальний HTTPS-адаптер, структурована подія адреси, свіжий status і точний Origin через штатний deployment. Typecheck/build, 39 Pages/SSH і 54 unit-тести PASS; публічні ресурси/guards, Chrome register/login/reload/одна completed задача/logout та фактичний stop/restart перевірені. PVC/CA збережені; Cloudflare-виправлення й сторонні зміни не відкидалися. Комітів/push немає. [Інструкція, умови й докази](docs/ssh-demo.md).
+
+
+Уточнення **05.11.2026 — публікація накопичених змін**: користувач явно доручив commit і push поточної гілки build/github-pages. Виправлення Cloudflare, окремий Pinggy helper та збережені користувацькі редагування підготовлено окремими змістовними комітами. Esbuild/Sass-порівняння підтвердили незмінність виконуваного коду та CSS у форматувальних змінах. Typecheck/build і 159 тестів (39 Pages/tunnels +54 unit +66 client) PASS. Згенерований css/styles.css залишено локально й виключено з Git; .local/credentials/ключі/стан тунелів не публікуються. Автоматичного злиття в main немає.
+
+
+Уточнення **05.11.2026 — коментарі client**: у всіх 15 TypeScript-файлах src/client додано українські нотатки від першої особи до головних блоків, англомовні пояснення перекладено. Виконуваний JavaScript усіх файлів збігається з початковим за esbuild; typecheck/build і 66 клієнтських тестів PASS. Логіку, сервер, дані й розгортання не змінено. [Мапа файлів і перевірки](docs/client-code-notes.md).
+
+
+Уточнення **05.11.2026 — коментарі SCSS**: у всіх 8 SCSS-файлах клієнта додано українські нотатки від першої особи до основних блоків і адаптивних правил. Вихідні правила без коментарів та скомпільований CSS кожного файлу побайтово незмінні; typecheck/build і diff --check PASS. Мапу оформлення додано до [нотаток клієнта](docs/client-code-notes.md). Логіку, вигляд, сервер і дані не змінено.
+
+
+Уточнення **05.11.2026 — коментарі server**: у всіх 40 файлах src/server додано докладні українські пояснення від першої особи без крапок наприкінці коментарів, англійські пояснення перекладено. У корені та шести підпапках додано README з мапою файлів і базовими поняттями backend. Рядки поза коментарями та виконуваний JavaScript усіх файлів незмінні; typecheck/build, 54 unit і 45 route/worker/HTTP тестів, diff --check PASS. Наявні користувацькі видалення коментарів збережено, базу й deployment не змінено. [Мапа backend](src/server/README.md), [результати перевірок](docs/server-code-notes.md).
+
+
+Уточнення **05.11.2026 — коментарі shared**: усі шість TypeScript-файлів src/shared отримали українські пояснення від першої особи без крапок наприкінці, англійські пояснення перекладено. Додано README з мапою спільних типів і перевірок. Рядки коду поза коментарями та виконуваний JavaScript незмінні; typecheck/build, 66 client і 54 unit тести PASS. Сторонні зміни клієнта й алгоритму збережено окремо. [Мапа shared](src/shared/README.md), [перевірки](docs/shared-code-notes.md).
+
+
+Уточнення **05.11.2026 — схема БД і службові команди**: додано пояснювальні українські коментарі від першої особи без кінцевих крапок до scripts/local-postgres.mjs і scripts/copy-migrations.mjs та докладну мапу таблиць, зв’язків, індексів і команд у migrations/README.md. Раніше прокоментовані src/server/db і database.ts збережено, чотири SQL-міграції побайтово незмінні для сумісності SHA-256. Код двох скриптів незмінний; node --check, typecheck/build, 54 unit та diff --check PASS. Команди керування БД й міграції не запускалися. [Пояснення](migrations/README.md), [перевірки](docs/migration-comments-notes.md).
+
+
+Уточнення **05.11.2026 — коментарі Docker і Kubernetes**: доповнено українські пояснення від першої особи без кінцевих крапок у Dockerfile, .dockerignore, шести deployment helper та 12 JSON-шаблонах deploy. Додано README для deploy і deploy/k8s. Код та інструкції незмінні, ефективні JSON після штатного очищення нотаток збігаються з початковими. Синтаксис, typecheck/build, 54 unit/safety тести та diff --check PASS. Кластер, контейнери, PVC, credentials і CA не змінювалися, фактичне розгортання не запускалося. [Мапа](deploy/README.md), [перевірки](docs/deployment-code-notes.md).
+
+
+Уточнення **05.11.2026 — commit і push пояснень**: на явне доручення користувача збережено поточні форматувальні правки src/client/jobs-view.ts і src/shared/health.ts та видалення окремих коментарів src/server/route/algorithm.ts. Esbuild підтвердив незмінний виконуваний JavaScript усіх трьох файлів, typecheck/build і 66 client-тестів PASS. Шість попередніх локальних комітів пояснень client/SCSS/server/shared/database/deploy та новий коміт цих редагувань підготовлено до звичайного push у build/github-pages без злиття в main.

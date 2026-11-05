@@ -1,5 +1,5 @@
 {
-  "_comment": "Дозволяю Kubernetes автоматично змінювати кількість серверів застосунку від 2 до 4 за завантаженням CPU; ціль — 70% від запитаного CPU.",
+  "_comment": "Дозволяю Kubernetes автоматично змінювати кількість серверів застосунку від 2 до 4 за завантаженням CPU; ціль — 70% від запитаного CPU",
   "apiVersion": "autoscaling/v2",
   "kind": "HorizontalPodAutoscaler",
   "metadata": {
@@ -56,6 +56,8 @@
           }
         ]
       }
-    }
-  }
+    },
+    "_comment_cpu": "Ціль CPU порівнюю з requests, не з усім CPU MacBook, minReplicas і maxReplicas задають межі масштабування"
+  },
+  "_comment_purpose": "Дозволяю HPA змінювати репліки цільового Deployment за метриками без перезапису вручну"
 }

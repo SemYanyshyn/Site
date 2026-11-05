@@ -1,5 +1,7 @@
+// Тут задаю базове оформлення всієї сторінки: текст, HTML-елементи та доступність.
 @use "tokens" as t;
 
+// Підключаю спільний шрифт, колір тексту й фону та налаштовую відображення літер.
 :root {
   font-family: t.$font-sans;
   font-synthesis: none;
@@ -9,28 +11,35 @@
   background: var(--canvas);
 }
 
+// Враховую padding і рамку в заданій ширині елемента, щоб блоки не розповзалися.
 * { box-sizing: border-box; }
+// Зберігаю дію HTML-атрибута hidden навіть для елементів, яким інші стилі задають flex або grid.
 [hidden] { display: none !important; }
 body { margin: 0; font-size: 15px; line-height: 1.65; }
 a { color: inherit; text-underline-offset: 4px; }
+// Задаю спільний вигляд заголовків і їхні розміри; clamp змінює головний заголовок разом із шириною екрана.
 h1, h2, h3, h4, h5 { color: var(--green); overflow-wrap: anywhere; }
 h1 { margin: 0; font-size: clamp(36px, 4.6vw, 58px); font-weight: 700; line-height: 1.13; letter-spacing: -.045em; }
 h2, h3, h4, h5 { margin: 0; font-weight: 650; line-height: 1.4; letter-spacing: -.02em; }
 h2 { font-size: 27px; }
 h3 { font-size: 20px; }
 h4 { font-size: 17px; }
+// Оформлюю списки «назва — значення» й технічний текст, наприклад ID та координати.
 dl { margin: 0; }
 dt { margin: 0 0 6px; color: var(--muted); font-size: 13px; line-height: 1.55; }
 dd { margin: 0; color: var(--text); font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 code { font-family: t.$font-mono; font-size: .95em; }
 button, input, textarea, select { font: inherit; }
 button, input, textarea, select, summary, a { -webkit-tap-highlight-color: transparent; }
+// Підсвічую елемент, на якому стоїть фокус клавіатури, щоб можна було орієнтуватися через Tab.
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
 ::selection { color: #173f35; background: #d6e8d0; }
 section { scroll-margin-top: 24px; }
+// Ховаю допоміжний текст візуально, залишаючи його доступним для програм озвучення екрана.
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .error, .form-error { color: var(--danger); }
 
+// Прибираю плавні переходи, якщо користувач увімкнув зменшення анімації.
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; }
 }

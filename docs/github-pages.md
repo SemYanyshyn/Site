@@ -13,7 +13,7 @@ export PATH="$HOME/.nvm/versions/node/v24.18.0/bin:$PATH"
 npm run demo:public:status
 ```
 
-Поле `url` містить фактичне посилання. Відкрийте **саме його корінь** у браузері й зареєструйтеся або ввійдіть своїм обліковим записом. Паролі й токени не потрібно передавати через чат. Нова реєстрація створює роль user; адмін доступ збережено тільки за фактично призначеною роллю. Роль не надається автоматично.
+Поле `url` містить посилання тільки після свіжої успішної публічної readiness та перевірки точного Origin; інакше воно `null`. `running` означає стан процесу, `ready` — доступність застосунку, `checkedAt` — час перевірки. `recordedPhase` є історією, а не доказом доступності. Відкрийте **саме його корінь** у браузері й зареєструйтеся або ввійдіть своїм обліковим записом. Паролі й токени не потрібно передавати через чат. Нова реєстрація створює роль user; адмін доступ збережено тільки за фактично призначеною роллю. Роль не надається автоматично.
 
 Для запуску/повторного запуску:
 
@@ -21,7 +21,7 @@ npm run demo:public:status
 npm run demo:public
 ```
 
-Скрипт використовує `.local/tools/cloudflared`, створює випадковий публічний URL, додає **тільки цей точний origin** поряд із `https://localhost:8443` та виконує штатний `deploy:local`. Він чекає звичайної локальної TLS-перевірки й справжнього публічного `/api/ready`. Повторний start при живому власному процесі повертає поточний URL. URL/state/PID/logs лишаються в ignored `.local/public-demo`, а не Git. Stop звіряє PID, час створення й команду процесу.
+Скрипт використовує `.local/tools/cloudflared`, створює випадковий публічний URL, додає **тільки цей точний origin** поряд із `https://localhost:8443` та виконує штатний `deploy:local`. Він чекає звичайної локальної TLS-перевірки й справжнього публічного `/api/ready`. Повторний start при живому власному процесі повторно перевіряє публічну readiness та Origin; збережений `ready` не вважається актуальним. URL приймається тільки з банера успішного створення Quick Tunnel, а не з помилки API чи документації. Перед зміною Origins перевіряється реальна публічна readiness; після deploy — ще й точний дозволений Origin. URL/state/PID/logs лишаються в ignored `.local/public-demo`, а не Git. Stop звіряє PID, час створення й команду процесу.
 
 ```sh
 npm run demo:public:stop
@@ -74,3 +74,13 @@ API має точний allowlist `APP_ORIGINS`, credentialed CORS та bounded 
 5. Після першої публікації перевірте **через фактичний Pages URL** зі звичайними налаштуваннями cookie: register/login/reload/logout, create/progress/result/history/cancel, admin/user403, desktop/360 px і console/network. До цього frontend-публікація не є повним прийманням застосунку.
 
 Зараз Pages/Actions variables/environment не змінювали; workflow у GitHub не запускався. [Офіційний Pages workflow](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages), [Vite base](https://vite.dev/guide/static-deploy).
+
+
+## Діагностика Quick Tunnel — 04.11.2026
+
+Створення URL має 30-секундне вікно; кожна HTTPS-проба — 5 секунд включно з читанням JSON, без redirect та без вимкнення TLS. Живий процес не гарантує доступності сайту. Помилки створення повертають exit code 1 і не запускають deployment без підтвердженої адреси. `api.trycloudflare.com` — службовий API, а не адреса демо. [Виправлення, тести й фактичні мережеві докази](public-demo-recovery.md).
+
+
+## Альтернатива Cloudflare Quick Tunnel — 04.11.2026
+
+Додано окремі `npm run demo:ssh`, `npm run demo:ssh:status`, `npm run demo:ssh:stop` через Pinggy Free (60 хвилин на сеанс, одноразове підтвердження у браузері). Цей варіант не потребує акаунта чи токена та перевірений зі справжнім backend і cookie-сесією. Cloudflare helper і його виправлення залишені. [Повна інструкція, умови безкоштовного сервісу, тести й фактичні перевірки](ssh-demo.md).

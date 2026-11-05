@@ -1,5 +1,6 @@
-# Build inputs are an allowlist. Local databases, .env, Git history, TLS keys,
-# kubeconfig, profiles and screenshots never enter the build context.
+# Дозволяю передавати в Docker build тільки явно перелічені нижче файли
+# Локальні бази, .env, історія Git, TLS-ключі, kubeconfig і знімки не мають потрапити в контекст збірки
+# ** спочатку виключає все, а ! повертає потрібні файли, остаточні правила знову виключають секретні формати
 **
 !Dockerfile
 !.dockerignore

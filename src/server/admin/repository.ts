@@ -1,3 +1,6 @@
+// Тут читаю адміністративний огляд із PostgreSQL без зміни даних
+// Адміністратору потрібен загальний стан задач і виконавців, але паролі та токени в ці відповіді не включаю
+
 import type { Pool, QueryResultRow } from "pg";
 import type {
   AdminCounts,
@@ -59,6 +62,8 @@ export interface AdminDatabaseSnapshot {
 const BEGIN = `BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;
   SET LOCAL statement_timeout = '1000ms'; SET LOCAL lock_timeout = '500ms';
   SET LOCAL idle_in_transaction_session_timeout = '1500ms'; SET LOCAL transaction_timeout = '5000ms'`;
+// Перетворюю рядок бази на адміністративний опис із власником, прогресом і виконавцем
+// Вхідні координати й claim token до цього списку не додаю
 function projectJob(row: JobRow): AdminJob {
   return {
     id: row.id,
@@ -81,6 +86,8 @@ function projectJob(row: JobRow): AdminJob {
 }
 export class AdminRepository {
   constructor(private readonly pool: Pool) {}
+  // В одній read-only транзакції збираю лічильники задач і реєстр виконавців
+  // Свіжість рахую за часом PostgreSQL і явно позначаю обрізаний список недавніх записів
   overview(
     deadline: number,
     signal: AbortSignal,
@@ -98,8 +105,8 @@ export class AdminRepository {
         COUNT(*) FILTER (WHERE status = 'completed')::text AS completed,
         COUNT(*) FILTER (WHERE status = 'cancelled')::text AS cancelled,
         COUNT(*) FILTER (WHERE status = 'failed')::text AS failed FROM jobs`);
-      // Current pod matches, every fresh lease and every unfinished executor
-      // are mandatory. Only the separate recent unavailable tail is capped.
+      // Завжди включаю виконавців поточних pod, чинні реєстрації та виконавців незавершених задач
+      // Окремо обмежую лише додатковий список нещодавно недоступних виконавців
       const result = await query<ExecutorRow>(
         `WITH running AS (
         SELECT instance_id, array_agg(id ORDER BY id) AS job_ids FROM jobs WHERE status = 'running' GROUP BY instance_id
@@ -171,6 +178,8 @@ export class AdminRepository {
       return value;
     });
   }
+  // В одному знімку читаю загальну кількість і сторінку задач за фільтрами
+  // Значення фільтрів передаю параметрами SQL, а не вставляю в текст запиту
   jobs(
     options: AdminJobsOptions,
     deadline: number,

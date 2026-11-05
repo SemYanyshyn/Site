@@ -1,5 +1,7 @@
+// Тут готую підписи та покрокову таблицю початкового маршруту, який зберіг сервер.
 import type { Coordinate } from "../shared/route.js";
 
+// Описую один перехід: звідки й куди йду, відстань і ознаку повернення на склад.
 export interface InitialRouteStep {
   step: number;
   from: number;
@@ -8,7 +10,7 @@ export interface InitialRouteStep {
   returnsToWarehouse: boolean;
 }
 
-// розписую переходи збереженого initialOrder без повторного пошуку найближчого сусіда в UI
+// Розписую переходи готового initialOrder, який сервер зберіг разом із результатом.
 export function initialRouteSteps(
   input: { warehouse: Coordinate; points: readonly Coordinate[] },
   order: readonly number[],
@@ -20,6 +22,7 @@ export function initialRouteSteps(
     order.at(-1) !== 0 ||
     coordinates.some((point) => !Number.isFinite(point.x) || !Number.isFinite(point.y))
   ) throw new Error("Некоректний збережений початковий маршрут.");
+  // Перевіряю індекси й повтори точок у збереженому порядку.
   const seen = new Set<number>();
   for (const index of order.slice(0, -1)) {
     if (!Number.isSafeInteger(index) || index < 0 || index >= coordinates.length || seen.has(index)) {
@@ -27,6 +30,7 @@ export function initialRouteSteps(
     }
     seen.add(index);
   }
+  // Для кожної пари сусідніх точок рахую відстань і формую рядок таблиці переходів.
   return order.slice(1).map((to, index) => {
     const from = order[index]!;
     const a = coordinates[from]!;
@@ -37,6 +41,7 @@ export function initialRouteSteps(
   });
 }
 
+// Перетворюю індекси на зрозумілий запис на кшталт «Склад → 1 → 2 → Склад».
 export function routeSequence(order: readonly number[]): string {
   return order.map((index) => index === 0 ? "Склад" : String(index)).join(" → ");
 }

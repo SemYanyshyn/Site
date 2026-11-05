@@ -1,5 +1,7 @@
+// Тут оформлюю роботу з маршрутами: форму, чергу, деталі задачі, результат, SVG і списки.
 @use "tokens" as t;
 
+// Виділяю блок серверних лімітів і повідомлення про помилку їх завантаження.
 .limits-box {
   margin: 0 0 24px;
   padding: 15px 16px;
@@ -21,6 +23,7 @@
 .limits-box .text-button {
   font-size: 13px;
 }
+// Групую поля маршруту у картки: склад, доставки та параметри обчислення.
 .input-group {
   min-width: 0;
   margin: 0 0 22px;
@@ -43,6 +46,7 @@ fieldset.input-group {
 .input-group .form-field + .form-field {
   margin-top: 22px;
 }
+// Розміщую координати X і Y поруч, а підпис поля та допоміжну дію — у спільному рядку.
 .coordinate-fields {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -62,6 +66,7 @@ fieldset.input-group {
 .field-heading .text-button {
   font-size: 13px;
 }
+// Оформлюю широку кнопку запуску маршруту.
 .submit-route {
   display: flex;
   justify-content: space-between;
@@ -75,6 +80,7 @@ fieldset.input-group {
 .submit-route span {
   font-size: 22px;
 }
+// Задаю основу деталей задачі, рядок стану, кнопку скасування й назву поточного етапу.
 .detail-panel {
   min-height: 350px;
 }
@@ -98,6 +104,7 @@ fieldset.input-group {
   font-size: 14px;
   line-height: 1.7;
 }
+// Оформлюю оцінку очікування; за data-stale підсвічую, що дані черги застаріли.
 .queue-notice {
   margin-bottom: 20px;
 }
@@ -112,6 +119,7 @@ fieldset.input-group {
   border-color: #e6cfaa;
   background: var(--warning-soft);
 }
+// Розкладаю дату, кількість доставок, seed і бюджет ітерацій у компактну сітку.
 .job-metadata {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -122,6 +130,7 @@ fieldset.input-group {
   border-radius: 12px;
   background: var(--surface);
 }
+// Відокремлюю картки початкового та найкращого знайденого маршруту й виділяю їхню довжину.
 .initial-route,
 .best-route {
   padding: 20px;
@@ -169,7 +178,7 @@ fieldset.input-group {
   color: var(--muted);
   font-size: 13px;
 }
-// довга послідовність має власний scroll без обрізання номерів доставок
+// Додаю довгій послідовності власну прокрутку, щоб усі номери доставок залишалися доступними.
 .route-order {
   max-height: 180px;
   overflow: auto;
@@ -183,6 +192,7 @@ fieldset.input-group {
   line-height: 1.9;
   overflow-wrap: anywhere;
 }
+// Оформлюю розгортану таблицю кроків початкового маршруту та її власну прокрутку.
 .initial-route-steps {
   margin: 14px 0 0;
   color: var(--green);
@@ -230,6 +240,7 @@ fieldset.input-group {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+// Оформлюю SVG-схему: фон, лінію маршруту, доставки, склад і підписи точок.
 .route-diagram {
   overflow: hidden;
   border: 1px solid #d9e4d0;
@@ -266,6 +277,7 @@ fieldset.input-group {
   stroke-width: 4px;
   stroke-linejoin: round;
 }
+// Пояснюю кольорові позначки схеми в окремій легенді.
 .diagram-legend {
   display: flex;
   flex-wrap: wrap;
@@ -298,6 +310,7 @@ fieldset.input-group {
   font-size: 13px;
   line-height: 1.75;
 }
+// Розміщую параметри результату й примітку про наближений пошук.
 .result-metadata {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -312,6 +325,7 @@ fieldset.input-group {
   font-size: 13px;
   line-height: 1.75;
 }
+// Оформлюю збережені координати задачі та її повний ідентифікатор.
 .saved-input {
   margin-top: 24px;
   padding-top: 18px;
@@ -339,6 +353,7 @@ fieldset.input-group {
   line-height: 1.8;
   overflow-wrap: anywhere;
 }
+// Ставлю активні задачі й історію поруч та оформлюю лічильники й повідомлення списків.
 .lists-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -373,6 +388,7 @@ fieldset.input-group {
 .job-list li + li {
   margin-top: 8px;
 }
+// Задаю вигляд рядка задачі: дату, короткий ID, стан, прогрес і виділення вибраної.
 .job-item {
   display: flex;
   align-items: flex-start;
@@ -424,11 +440,13 @@ fieldset.input-group {
   font-variant-numeric: tabular-nums;
 }
 
+// На вузькому екрані ставлю списки задач в одну колонку.
 @media (max-width: t.$stack) {
   .lists-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+// На телефоні ущільнюю форму, картки результату, рядки задач і таблицю переходів.
 @media (max-width: t.$phone) {
   .input-group {
     padding: 14px;
@@ -443,7 +461,7 @@ fieldset.input-group {
   .best-route {
     padding: 16px;
   }
-  // на телефоні прибираю мінімальну ширину щоб усі чотири колонки помістилися
+  // На телефоні прибираю мінімальну ширину таблиці, щоб усі чотири колонки помістилися.
   .route-steps-table {
     min-width: 0;
     font-size: 12px;

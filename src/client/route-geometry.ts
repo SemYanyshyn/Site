@@ -1,3 +1,4 @@
+// Тут готую координати готового маршруту для SVG-схеми та форматую відсоток прогресу.
 import type { Coordinate } from '../shared/route.js';
 import type { JobStatus } from '../shared/jobs.js';
 
@@ -7,6 +8,7 @@ export interface ProjectedPoint {
   y: number;
 }
 
+// Описую розмір схеми, готові точки й рядок path для малювання маршруту.
 export interface RouteProjection {
   width: number;
   height: number;
@@ -16,7 +18,7 @@ export interface RouteProjection {
   scale: number;
 }
 
-// переношу збережені точки у SVG з однаковим масштабом X і Y та номерами 0 для складу і 1..N для доставок
+// Переношу збережений маршрут у SVG: 0 — склад, 1..N — доставки; масштаб обох осей однаковий.
 export function projectRoute(
   input: { warehouse: Coordinate; points: readonly Coordinate[] },
   order: readonly number[],
@@ -31,6 +33,7 @@ export function projectRoute(
   if (order.length !== coordinates.length + 1 || order[0] !== 0 || order.at(-1) !== 0) {
     throw new Error('Некоректний порядок маршруту.');
   }
+  // Перевіряю, що кожна точка має правильний індекс і зустрічається в маршруті один раз.
   const seen = new Set<number>();
   for (const index of order.slice(0, -1)) {
     if (!Number.isSafeInteger(index) || index < 0 || index >= coordinates.length || seen.has(index)) {
@@ -38,6 +41,7 @@ export function projectRoute(
     }
     seen.add(index);
   }
+  // Знаходжу межі координат, щоб умістити всі точки у видиму область схеми.
   let minX = coordinates[0]!.x;
   let maxX = minX;
   let minY = coordinates[0]!.y;
@@ -52,11 +56,12 @@ export function projectRoute(
   const spanY = maxY - minY;
   const span = Math.max(spanX, spanY);
   if (!Number.isFinite(span)) throw new Error('Діапазон координат завеликий для схеми.');
-  // Normalize first: tiny nonzero spans must not be replaced with 1 or overflow the scale.
+  // Нормалізую діапазон перед масштабуванням, щоб правильно показати навіть дуже близькі точки.
   const fit = span === 0 ? 0 : Math.min(
     spanX === 0 ? Infinity : (width - 2 * padding) / (spanX / span),
     spanY === 0 ? Infinity : (height - 2 * padding) / (spanY / span),
   );
+  // Центрую маршрут і перевертаю вісь Y під координати екрана, зберігаючи пропорції.
   const offsetX = (width - (span === 0 ? 0 : spanX / span * fit)) / 2;
   const offsetY = (height - (span === 0 ? 0 : spanY / span * fit)) / 2;
   const points = coordinates.map((point, index) => ({
@@ -71,7 +76,7 @@ export function projectRoute(
   };
 }
 
-/** Truncate pending progress so 99.999 can never look like completed 100. */
+// Округлюю прогрес униз, щоб незавершена задача не виглядала як виконана на 100%.
 export function formatProgress(percent: number, status: JobStatus): string {
   const bounded = Number.isFinite(percent) ? Math.max(0, Math.min(percent, status === 'completed' ? 100 : 99.9)) : 0;
   const displayed = Math.floor(bounded * 10) / 10;

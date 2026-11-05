@@ -1,6 +1,10 @@
+// Тут готую вхідні координати для автоматичних тестів і вимірів продуктивності
+// Звичайні користувацькі задачі надходять через API й не підміняються цим генератором
+
 import type { RouteInput } from '../../shared/route.js';
 
-// Reproducible coordinates for bounded tests/benchmarks; not a route solver.
+// Генерую відтворювані координати для тестів і вимірів, а розрахунок маршруту виконується окремо
+// Генерую обмежений набір точок із заданим seed, щоб повторні виміри мали однаковий вхід
 export function generateRouteInput(pointCount: number, iterations: number, seed = 42): RouteInput {
   if (!Number.isSafeInteger(pointCount) || pointCount < 1 || pointCount > 2000) {
     throw new Error('Генератор підтримує від 1 до 2000 точок.');

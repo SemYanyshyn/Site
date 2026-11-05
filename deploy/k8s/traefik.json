@@ -36,55 +36,24 @@
       },
       "rules": [
         {
-          "apiGroups": [
-            ""
-          ],
-          "resources": [
-            "services",
-            "secrets"
-          ],
-          "verbs": [
-            "get",
-            "list",
-            "watch"
-          ]
+          "apiGroups": [""],
+          "resources": ["services", "secrets"],
+          "verbs": ["get", "list", "watch"]
         },
         {
-          "apiGroups": [
-            "discovery.k8s.io"
-          ],
-          "resources": [
-            "endpointslices"
-          ],
-          "verbs": [
-            "get",
-            "list",
-            "watch"
-          ]
+          "apiGroups": ["discovery.k8s.io"],
+          "resources": ["endpointslices"],
+          "verbs": ["get", "list", "watch"]
         },
         {
-          "apiGroups": [
-            "networking.k8s.io"
-          ],
-          "resources": [
-            "ingresses"
-          ],
-          "verbs": [
-            "get",
-            "list",
-            "watch"
-          ]
+          "apiGroups": ["networking.k8s.io"],
+          "resources": ["ingresses"],
+          "verbs": ["get", "list", "watch"]
         },
         {
-          "apiGroups": [
-            "networking.k8s.io"
-          ],
-          "resources": [
-            "ingresses/status"
-          ],
-          "verbs": [
-            "update"
-          ]
+          "apiGroups": ["networking.k8s.io"],
+          "resources": ["ingresses/status"],
+          "verbs": ["update"]
         }
       ],
       "_comment_purpose": "Перелічую дозволені дії над ресурсами лише в цьому namespace"
@@ -266,9 +235,7 @@
                   "allowPrivilegeEscalation": false,
                   "readOnlyRootFilesystem": true,
                   "capabilities": {
-                    "drop": [
-                      "ALL"
-                    ]
+                    "drop": ["ALL"]
                   }
                 },
                 "startupProbe": {

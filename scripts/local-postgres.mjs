@@ -1,3 +1,7 @@
+// Тут керую окремим PostgreSQL для запуску проєкту без Kubernetes
+// Це host PostgreSQL на Mac, а не контейнер PostgreSQL із deploy/k8s/postgres.json
+// Дані тримаю в .local/postgres, команда stop зупиняє сервер без видалення цих файлів
+
 import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -6,18 +10,25 @@ import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
 import { Pool } from "pg";
 
+// Будую шляхи від розташування скрипта, тому вони не залежать від поточної папки термінала
 const project = fileURLToPath(new URL("../", import.meta.url));
 const directory = join(project, ".local", "postgres");
 const data = join(directory, "data");
 const socket = join(directory, "socket");
 const log = join(directory, "server.log");
 const envPath = join(project, ".env");
+// Для цього локального кластера використовую порт 55432, щоб відокремити його від звичайного порту 5432
+// Адміністративну роль використовую тільки для підготовки, а застосунок працює через обмежену роль courier_route
 const port = 55432;
 const admin = "courier_local_admin";
 const role = "courier_route";
+// Створюю окремі робочу й тестову бази, щоб інтеграційні тести не очищали робочі таблиці
 const databases = ["courier_route", "courier_route_test"];
+// Читаю дію setup, start, stop або status з аргументу, який передає відповідна npm-команда
 const command = process.argv[2];
 
+// Шукаю вже встановлені утиліти PostgreSQL 18 спочатку через PG_BIN_DIR, потім у типових папках Mac
+// Цей код не встановлює сам PostgreSQL, а знаходить pg_ctl та initdb
 function findBinaries() {
   const candidates = [
     process.env.PG_BIN_DIR,
@@ -37,6 +48,8 @@ function findBinaries() {
   return found;
 }
 
+// Запускаю утиліту PostgreSQL окремим процесом і передаю аргументи масивом без shell
+// spawnSync чекає завершення, що підходить для цієї короткої службової команди, а не для HTTP-обробника
 function execute(binary, args, options = {}) {
   return spawnSync(join(findBinaries(), binary), args, {
     cwd: project,
@@ -45,6 +58,7 @@ function execute(binary, args, options = {}) {
   });
 }
 
+// Перевіряю наявність підготовленої папки даних і статус саме цього кластера через pg_ctl
 function isRunning() {
   return (
     existsSync(join(data, "PG_VERSION")) &&
@@ -52,6 +66,8 @@ function isRunning() {
   );
 }
 
+// Запускаю вже підготовлену базу або залишаю чинний процес працювати
+// На старт даю до 15 секунд і пишу журнал у .local/postgres/server.log
 function start() {
   if (!existsSync(join(data, "PG_VERSION")))
     throw new Error("Спочатку виконайте npm run db:setup.");
@@ -74,9 +90,14 @@ function start() {
   console.info(`PostgreSQL проєкту працює на 127.0.0.1:${port}.`);
 }
 
+// Готую окрему папку даних, налаштування доступу, роль застосунку та дві бази
+// Не видаляю наявний кластер, але ця команда може створити або оновити роль застосунку
 async function setup() {
+  // Обмежую доступ до папки Unix-сокета правами власника, бо локальний admin підключається через неї
   mkdirSync(socket, { recursive: true, mode: 0o700 });
   if (!existsSync(join(data, "PG_VERSION"))) {
+    // Ініціалізую кластер лише якщо ще немає PG_VERSION
+    // Для локального сокета задаю trust, для TCP вимагаю SCRAM-пароль, тому сокет залишаю у приватній папці
     const result = execute("initdb", [
       "-D",
       data,
@@ -91,6 +112,8 @@ async function setup() {
       throw new Error(
         "Не вдалося ініціалізувати окремий кластер PostgreSQL. Наявні дані не змінювалися.",
       );
+    // Записую конфігурацію лише для щойно створеного кластера
+    // Слухаю тільки loopback 127.0.0.1, зберігаю приватні права файлу й не журналюю SQL та його параметри
     writeFileSync(
       join(data, "postgresql.auto.conf"),
       [
@@ -109,6 +132,8 @@ async function setup() {
   }
   start();
 
+  // Якщо .env ще немає, генерую випадковий пароль і створюю файл із правами 0600
+  // Прапорець wx не дозволяє випадково перезаписати вже створений файл
   if (!existsSync(envPath)) {
     const password = randomBytes(32).toString("hex");
     const lines = [
@@ -122,9 +147,12 @@ async function setup() {
     ];
     writeFileSync(envPath, lines.join("\n"), { mode: 0o600, flag: "wx" });
   }
+  // Читаю локальний .env для службової підготовки, його вміст і паролі не виводжу
   const env = parseEnv(readFileSync(envPath, "utf8"));
   const appUrl = new URL(env.DATABASE_URL ?? "");
   const testUrl = new URL(env.TEST_DATABASE_URL ?? "");
+  // Перед адміністративними SQL-запитами перевіряю точний host, порт, назви баз і роль
+  // Якщо .env указує інше підключення, зупиняю підготовку без його перезаписування
   for (const [index, url] of [appUrl, testUrl].entries()) {
     if (
       url.protocol !== "postgresql:" ||
@@ -140,6 +168,8 @@ async function setup() {
       );
     }
   }
+  // Для підготовки відкриваю одне адміністративне з’єднання через приватний Unix-сокет
+  // Це окремий пул, він не використовується звичайними HTTP-запитами
   const pool = new Pool({
     host: socket,
     port,
@@ -153,16 +183,21 @@ async function setup() {
     console.error("Адміністративне з’єднання локального кластера перервано."),
   );
   try {
+    // Перевіряю наявність ролі, щоб обрати CREATE або ALTER без видалення користувача PostgreSQL
     const existing = await pool.query(
       "SELECT 1 FROM pg_roles WHERE rolname=$1",
       [role],
     );
     const verb = existing.rowCount ? "ALTER" : "CREATE";
+    // Доручаю PostgreSQL безпечно екранувати ім’я ролі через %I і пароль через %L
+    // Вимикаю superuser, створення баз і ролей та реплікацію для облікового запису застосунку
     const formatted = await pool.query(
       `SELECT format('${verb} ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD %L', $1::text, $2::text) AS statement`,
       [role, decodeURIComponent(appUrl.password)],
     );
     await pool.query(formatted.rows[0].statement);
+    // Створюю відсутні робочу й тестову бази з потрібним власником
+    // Якщо наявна база належить іншій ролі, не забираю її собі й завершую з помилкою
     for (const name of databases) {
       const previous = await pool.query(
         "SELECT pg_get_userbyid(datdba) AS owner FROM pg_database WHERE datname=$1",
@@ -175,6 +210,7 @@ async function setup() {
       if (!previous.rowCount)
         await pool.query(`CREATE DATABASE ${name} OWNER ${role}`);
     }
+  // Закриваю адміністративний пул навіть тоді, коли підготовка завершилася помилкою
   } finally {
     await pool.end();
   }
@@ -184,8 +220,11 @@ async function setup() {
 }
 
 try {
+  // Виконую лише запитану дію, звичайний start не повторює адміністративну підготовку
   if (command === "setup") await setup();
   else if (command === "start") start();
+  // Зупиняю тільки цей кластер у режимі fast, який завершує з’єднання й відкочує активні транзакції
+  // Це коректна зупинка PostgreSQL, вона не видаляє таблиці та збережені дані
   else if (command === "stop") {
     if (
       isRunning() &&
@@ -194,6 +233,7 @@ try {
     )
       throw new Error("Не вдалося зупинити PostgreSQL проєкту.");
     console.info("PostgreSQL проєкту зупинено; дані збережено.");
+  // Для status повертаю код 0, якщо сервер працює, і 1, якщо зупинений
   } else if (command === "status") {
     const running = isRunning();
     console.info(
@@ -204,8 +244,9 @@ try {
     process.exitCode = running ? 0 : 1;
   } else
     throw new Error("Використайте db:setup, db:start, db:stop або db:status.");
+// При помилці встановлюю ненульовий exit code, щоб термінал і наступна команда побачили невдачу
 } catch (error) {
-  // Деталі сторонніх помилок можуть містити підключення або секрети.
+  // Не показую деталі сторонніх помилок, бо вони можуть містити адресу підключення або секрети
   console.error(
     error instanceof Error &&
       !("code" in error) &&

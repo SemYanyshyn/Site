@@ -200,3 +200,6 @@ Autoscaling виконує HPA, а не load driver; один worker на про
 
 
 Уточнення **05.11.2026 — коментарі shared**: усі шість TypeScript-файлів src/shared отримали українські пояснення від першої особи без крапок наприкінці, англійські пояснення перекладено. Додано README з мапою спільних типів і перевірок. Рядки коду поза коментарями та виконуваний JavaScript незмінні; typecheck/build, 66 client і 54 unit тести PASS. Сторонні зміни клієнта й алгоритму збережено окремо. [Мапа shared](src/shared/README.md), [перевірки](docs/shared-code-notes.md).
+
+
+Уточнення **05.11.2026 — схема БД і службові команди**: додано пояснювальні українські коментарі від першої особи без кінцевих крапок до scripts/local-postgres.mjs і scripts/copy-migrations.mjs та докладну мапу таблиць, зв’язків, індексів і команд у migrations/README.md. Раніше прокоментовані src/server/db і database.ts збережено, чотири SQL-міграції побайтово незмінні для сумісності SHA-256. Код двох скриптів незмінний; node --check, typecheck/build, 54 unit та diff --check PASS. Команди керування БД й міграції не запускалися. [Пояснення](migrations/README.md), [перевірки](docs/migration-comments-notes.md).

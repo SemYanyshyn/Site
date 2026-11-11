@@ -1,7 +1,5 @@
-// Тут оформлюю вхід і реєстрацію: картку, повідомлення, перемикачі режимів та поле пароля.
 @use "tokens" as t;
 
-// Задаю ширину, відступи, рамку та тінь картки входу.
 .auth-card {
   max-width: 560px;
   width: 100%;
@@ -12,14 +10,12 @@
   background: var(--paper);
   box-shadow: var(--card-shadow);
 }
-// Центрую картку через margin-inline: auto, поки дані користувача приховані.
 .auth-card:has(#user-state[hidden]) {
   margin-inline: auto;
 }
 .auth-heading h2 {
   font-size: 23px;
 }
-// Оформлюю підказку форми; за data-state змінюю колір помилки чи успіху.
 .auth-message {
   margin: 10px 0 24px;
   color: var(--muted);
@@ -33,7 +29,6 @@
 .auth-message[data-state="success"] {
   color: #286143;
 }
-// Розміщую кнопки «Вхід» і «Реєстрація» в одному спільному блоці.
 .auth-modes {
   display: flex;
   gap: 6px;
@@ -47,7 +42,6 @@
 .auth-modes .mode-button {
   flex: 1 1 120px;
 }
-// Ставлю поле пароля та кнопку «Показати / Приховати» поруч; поле займає вільне місце.
 .password-field {
   display: flex;
   align-items: stretch;
@@ -61,13 +55,11 @@
   flex: 0 0 auto;
   min-width: 105px;
 }
-// Розтягую основну кнопку входу або реєстрації на ширину форми.
 #auth-submit {
   width: 100%;
   min-height: 48px;
   margin-top: 2px;
 }
-// Оформлюю ім’я користувача та рядок із кнопкою виходу після входу.
 .user-summary {
   margin: 0;
   color: var(--muted);
@@ -84,7 +76,6 @@
   gap: 24px;
   min-width: 0;
 }
-// Після входу перетворюю картку на компактний широкий рядок із даними облікового запису.
 .auth-card:has(#user-state:not([hidden])) {
   display: flex;
   align-items: center;
@@ -102,7 +93,6 @@
   font-size: 13px;
 }
 
-// На вужчому екрані дозволяю рядку користувача переноситися.
 @media (max-width: t.$stack) {
   .auth-card:has(#user-state:not([hidden])) {
     align-items: flex-start;
@@ -112,7 +102,6 @@
     gap: 12px;
   }
 }
-// На телефоні зменшую відступи й розміщую вміст картки вертикально.
 @media (max-width: t.$phone) {
   .auth-card {
     padding: 24px 20px;

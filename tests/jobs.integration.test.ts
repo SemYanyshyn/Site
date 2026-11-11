@@ -140,7 +140,6 @@ async function stop(managed: Managed, signal: NodeJS.Signals = 'SIGTERM', clean 
 
 async function migrate(): Promise<void> {
   const managed = child([migration], environment());
-  // Migration CLI does not use IPC, so do not keep a test-only channel alive.
   managed.child.disconnect();
   const result = await Promise.race([managed.closed, delay(15000, undefined, { ref: false }).then(() => undefined)]);
   assert.ok(result, 'Built migration runner must finish.');
@@ -603,8 +602,6 @@ describe('Durable PostgreSQL jobs across independent production HTTP processes',
     await searching(appB, job.id);
     let renamed = false;
     try {
-      // Failure is scoped to this random test schema. No PostgreSQL cluster,
-      // working database, role or other test schema is stopped or changed.
       await pool.query('ALTER TABLE jobs RENAME TO jobs_unavailable');
       renamed = true;
       assert.equal((await get(appB, '/api/health')).status, 200);
@@ -650,8 +647,6 @@ describe('Durable PostgreSQL jobs across independent production HTTP processes',
     await stop(appA, 'SIGKILL', false);
     const stillRunning = await details(appB, lost.id);
     assert.equal(stillRunning.status, 'running');
-    // This is test observation of the recorded production deadline, with no
-    // sleep or artificial slowdown in the route algorithm itself.
     await delay(Math.max(0, deadline.rows[0].lost_after.getTime() - Date.now() - 1200));
     const alive = await create(appB, users[1], heavy());
     await command(appB, 'resume');
@@ -701,8 +696,6 @@ describe('Durable PostgreSQL jobs across independent production HTTP processes',
     const legacyCompleted = await terminal(appB, legacyJob.id);
     assert.equal(legacyCompleted.status, 'completed');
     assert.ok(legacyCompleted.result?.initialOrder);
-    // Simulate an older completed JSON only in this already guarded random test
-    // schema. Existing rows have initialLength but no saved initial sequence.
     await pool.query("UPDATE jobs SET result=result-'initialOrder' WHERE id=$1", [legacyJob.id]);
     const legacySaved = await details(appA, legacyJob.id);
     assert.ok(legacySaved.result);

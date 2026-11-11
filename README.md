@@ -120,14 +120,11 @@ Container driver приймає тег **позиційним аргументо
 Зареєструйте свій логін звичайною формою. Нова реєстрація завжди має роль `user`; автоматичного адміністратора немає. Оператор явно надає роль **наявному** обліковому запису, після чого користувач входить знову й відкриває «Адміністрування». `YOUR_LOGIN` замініть власним логіном, пароль у CLI не передається:
 
 ```sh
-# Host dev, застосункова роль PostgreSQL із локального .env
 npm run db:migrate
 npm run admin:role -- --username YOUR_LOGIN --role admin
 npm run admin:role:built -- --username YOUR_LOGIN --role user
-# Demo: власний .local/deploy/kubeconfig, kind-courier-route, namespace courier-route
 npm run deploy:local
 npm run admin:role:deployment -- --username YOUR_LOGIN --role admin
-# Зняти роль тим самим перевіреним операторським helper-ом
 npm run admin:role:deployment -- --username YOUR_LOGIN --role user
 ```
 
@@ -287,10 +284,10 @@ Lease TTL і `jobs.lost_after` мають різне призначення. TTL
 
 ```ts
 queue: {
-  estimatedWaitMs: number | null; // ціле, час ДО ПОЧАТКУ
-  calculatedAt: string;          // один DB timestamp snapshot
-  queuedAhead: number;           // queued-попередники всіх власників
-  executorCount: number;         // свіжі придатні процеси, включно з busy
+  estimatedWaitMs: number | null;
+  calculatedAt: string;
+  queuedAhead: number;
+  executorCount: number;
   basis: 'measured' | 'mixed' | 'timeout' | 'unavailable';
 }
 ```
@@ -384,12 +381,10 @@ npm start
 Для двох локальних процесів спочатку зберіть застосунок і явно застосуйте міграції. Потім відкрийте два термінали в корені одного проєкту:
 
 ```sh
-# Термінал A
 PORT=3000 APP_ORIGINS=http://127.0.0.1:3000,http://127.0.0.1:3001,http://127.0.0.1:5173 npm start
 ```
 
 ```sh
-# Термінал B
 PORT=3001 APP_ORIGINS=http://127.0.0.1:3000,http://127.0.0.1:3001,http://127.0.0.1:5173 npm start
 ```
 

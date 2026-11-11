@@ -1,5 +1,4 @@
 {
-  "_comment": "Зберігаю спільні налаштування застосунку: порти, cookie, ліміти задач і черги. Паролі зберігаються окремо в Secret",
   "apiVersion": "v1",
   "kind": "ConfigMap",
   "metadata": {
@@ -29,6 +28,5 @@
     "EXECUTOR_LEASE_TTL_MS": "15000",
     "ADMIN_KUBERNETES_ENABLED": "true",
     "ADMIN_CLUSTER_OWNER_ID": "__OWNER_ID__"
-  },
-  "_comment_purpose": "Зберігаю несекретні параметри у вигляді рядків для змінних середовища контейнера"
+  }
 }

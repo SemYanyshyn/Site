@@ -1,5 +1,3 @@
-// Тут задаю часові та розмірні межі адміністративного моніторингу
-// Моніторинг Kubernetes вмикаю явно, а поза кластером не вигадую CPU, пам’ять або pod
 
 import { ADMIN_UUID } from '../../shared/admin.js';
 
@@ -13,8 +11,6 @@ export interface AdminConfig {
   namespace: string | null;
   ownerId: string | null;
 }
-// При ввімкненому моніторингу вимагаю namespace і UUID власника ресурсів
-// Ці значення обмежують читання саме ресурсами нашого Courier Route
 export function readAdminConfig(environment: NodeJS.ProcessEnv = process.env): AdminConfig {
   const enabled = environment.ADMIN_KUBERNETES_ENABLED ?? 'false';
   if (!['true', 'false'].includes(enabled)) throw new Error('ADMIN_KUBERNETES_ENABLED має бути true або false.');

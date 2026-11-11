@@ -11,8 +11,6 @@ import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { assertSafeTestDatabase } from '../tests/database-safety.ts';
 
-// This is a real-browser check against the built application, not a DOM mock.
-// Chrome, all credentials, the profile and schema belong only to this run.
 const root = fileURLToPath(new URL('../', import.meta.url));
 const chromePath = process.env.COURIER_TEST_CHROME ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const output = join(root, '.local/browser-block06');
@@ -271,9 +269,6 @@ try {
   assert.ok(await evaluate(`document.documentElement.scrollWidth <= innerWidth`));
   passed('paused real executor is excluded and queued UI shows unknown at 360px');
 
-  // A short, real row lock holds the first persisted zero-counter snapshot while
-  // CPU work continues. It tests cold-start fallback without a fake worker or
-  // artificial algorithm delay, and is released before the SQL timeout.
   progressLock = await pool.connect();
   await progressLock.query('BEGIN');
   let locked = false;
@@ -312,8 +307,6 @@ try {
   await click('#jobs-refresh');
   await waitFor(`document.querySelector('#job-queue').dataset.stale !== 'true'
     && !document.querySelector('#history-message').classList.contains('error')`, 'queue restored after SQL failure');
-  // SQL failure really stops the first worker. The queued job then starts using
-  // the recovered registration; the old estimate must be removed.
   await status('running');
   assert.equal(await selectedId(), waitingJob);
   assert.equal(await visible('#job-queue'), false);
@@ -497,8 +490,6 @@ try {
   passed('real 401 and successful logout clear private form, lists, result and requests');
 
   step = 'Vite browser and real proxy';
-  // Vite receives only the backend port and ordinary process environment keys;
-  // its proxy reaches the same isolated production process and test schema.
   vite = managed(process.execPath, ['node_modules/vite/bin/vite.js', '--host', '127.0.0.1', '--port', String(vitePort), '--strictPort'], {
     cwd: root, env: { ...browserEnvironment, PORT: String(port) }, stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -548,8 +539,7 @@ try {
     await mkdir(output, { recursive: true });
     await writeFile(join(output, 'failure-diagnostic.json'), JSON.stringify({ step, page, exceptions,
       staticFailures, recentResources: network.slice(-35).map(({ method, path, status }) => ({ method, path, status })) }, null, 2), { mode: 0o600 });
-  } catch { /* Diagnostics must not prevent bounded cleanup. */ }
-  // Deliberately avoid raw protocol, HTTP, auth or PostgreSQL error objects.
+  } catch {   }
   console.error(JSON.stringify({ status: 'failed', step, reason: error instanceof assert.AssertionError ? 'assertion failed' : error instanceof Error && error.message.startsWith('Timeout:') ? error.message : 'check or environment failure', checksCompleted: checks.length }));
   process.exitCode = 1;
 } finally {

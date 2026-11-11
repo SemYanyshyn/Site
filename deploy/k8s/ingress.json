@@ -1,5 +1,4 @@
 {
-  "_comment": "Указую, що HTTPS-запити до localhost і шляху / треба передавати застосунку через Traefik",
   "apiVersion": "networking.k8s.io/v1",
   "kind": "Ingress",
   "metadata": {
@@ -45,8 +44,6 @@
           ]
         }
       }
-    ],
-    "_comment_tls": "Пов’язую hostname і TLS Secret з правилами маршрутизації, приватний ключ не зберігаю в цьому шаблоні"
-  },
-  "_comment_purpose": "Описую правило HTTP-маршрутизації, саме виконання й завершення TLS забезпечує Traefik"
+    ]
+  }
 }

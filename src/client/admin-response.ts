@@ -1,4 +1,3 @@
-// Тут перевіряю та відбираю поля відповідей моніторингу перед показом в адмінпанелі.
 import type {
   AdminCounts,
   AdminExecutor,
@@ -16,7 +15,6 @@ import type { JobFailureReason, JobStatus } from "../shared/jobs.js";
 import type { RouteProgress } from "../shared/route.js";
 import { InvalidResponseError } from "./response.js";
 
-// Задаю перелік відомих станів задач і причин завершення з помилкою.
 const statuses = new Set([
   "queued",
   "running",
@@ -32,7 +30,6 @@ const reasons = new Set([
   "invalid_input",
   "worker_lost",
 ]);
-// Тут зібрав базові перевірки об’єктів, чисел, тексту, дат, ID та списків.
 function record(value: unknown): Record<string, unknown> {
   if (!adminRecord(value)) throw new InvalidResponseError();
   return value;
@@ -88,7 +85,6 @@ function oneOf<T extends string>(value: unknown, choices: readonly T[]): T {
   return value as T;
 }
 
-// Перевіряю стан джерела моніторингу й час, коли від нього отримали дані.
 function source(input: unknown): AdminSource {
   const value = record(input);
   return {
@@ -114,7 +110,6 @@ function counts(input: unknown): AdminCounts {
     failed: integer(value.failed),
   };
 }
-// Перевіряю запис процесу-виконавця: сигнал життя, зайнятість і поточну задачу.
 function executor(input: unknown): AdminExecutor {
   const value = record(input);
   return {
@@ -132,7 +127,6 @@ function executor(input: unknown): AdminExecutor {
     runningJobIds: list(value.runningJobIds, 1_000, uuid),
   };
 }
-// Перевіряю CPU, пам’ять і часовий інтервал вимірювання.
 function metric(input: unknown): AdminMetric {
   const value = record(input);
   const window = text(value.window, 64);
@@ -169,7 +163,6 @@ function resource(input: unknown): {
     memoryBytes: nullable(value.memoryBytes, (n) => number(n, 1e15)),
   };
 }
-// Звіряю pod із процесом-виконавцем та часом метрик, щоб показувати узгоджені дані.
 function server(input: unknown): AdminServer {
   const value = record(input);
   const parsed: AdminServer = {
@@ -214,7 +207,6 @@ function server(input: unknown): AdminServer {
     throw new InvalidResponseError();
   return parsed;
 }
-// Перевіряю мінімальну, максимальну й поточну кількість копій у даних автомасштабування.
 function hpa(input: unknown): AdminHpa {
   const value = record(input);
   const parsed = {
@@ -235,7 +227,6 @@ function hpa(input: unknown): AdminHpa {
   return parsed;
 }
 
-// Формую огляд лише з перевірених відомих полів: БД, інфраструктура, підсумки й сервери.
 export function parseAdminOverview(input: unknown): AdminOverview {
   const value = record(input),
     database = record(value.database),
@@ -301,7 +292,6 @@ export function parseAdminOverview(input: unknown): AdminOverview {
     ),
   };
 }
-// Перевіряю прогрес і короткі дані задач, які бачить адміністратор.
 function progress(input: unknown, status: JobStatus): RouteProgress {
   const value = record(input);
   const parsed = {
@@ -344,7 +334,6 @@ function job(input: unknown): AdminJob {
     failureReason: value.failureReason as JobFailureReason | null,
   };
 }
-// Перевіряю сторінку загального списку задач, загальну кількість і повтори ID.
 export function parseAdminJobs(input: unknown): AdminJobsResponse {
   const value = record(input),
     jobs = list(value.jobs, 50, job),

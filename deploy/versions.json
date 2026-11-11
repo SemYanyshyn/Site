@@ -1,5 +1,4 @@
 {
-  "_comment": "Закріплюю перевірені версії інструментів і образів; sha256 указує точний образ, а source/sources містять офіційні джерела",
   "verifiedAt": "2026-10-24",
   "kind": {
     "version": "0.32.0",
@@ -11,13 +10,11 @@
     ],
     "sources": [
       "https://github.com/kubernetes-sigs/kind/releases/tag/v0.32.0"
-    ],
-    "_comment": "Фіксую узгоджені версії та джерела цього компонента, digest закріплює точний образ там, де він указаний"
+    ]
   },
   "kubectl": {
     "version": "1.36.3",
-    "source": "https://kubernetes.io/docs/tasks/tools/install-kubectl-macos/",
-    "_comment": "Фіксую узгоджені версії та джерела цього компонента, digest закріплює точний образ там, де він указаний"
+    "source": "https://kubernetes.io/docs/tasks/tools/install-kubectl-macos/"
   },
   "node": {
     "version": "24.18.0",
@@ -27,8 +24,7 @@
     "sources": [
       "https://hub.docker.com/v2/repositories/library/node/tags/24.18.0-bookworm-slim",
       "https://nodejs.org/en/blog/release/v24.18.0"
-    ],
-    "_comment": "Фіксую узгоджені версії та джерела цього компонента, digest закріплює точний образ там, де він указаний"
+    ]
   },
   "postgres": {
     "version": "18.4",
@@ -39,8 +35,7 @@
     "sources": [
       "https://hub.docker.com/v2/repositories/library/postgres/tags/18.4-bookworm",
       "https://github.com/docker-library/docs/blob/master/postgres/README.md"
-    ],
-    "_comment": "Фіксую узгоджені версії та джерела цього компонента, digest закріплює точний образ там, де він указаний"
+    ]
   },
   "metricsServer": {
     "version": "0.9.0",
@@ -54,8 +49,7 @@
       "https://github.com/kubernetes-sigs/metrics-server/blob/v0.9.0/README.md",
       "https://github.com/kubernetes-sigs/metrics-server/releases/tag/v0.9.0",
       "https://registry.k8s.io/v2/metrics-server/metrics-server/manifests/v0.9.0"
-    ],
-    "_comment": "Фіксую узгоджені версії та джерела цього компонента, digest закріплює точний образ там, де він указаний"
+    ]
   },
   "traefik": {
     "version": "3.7.15",
@@ -66,7 +60,6 @@
       "https://github.com/traefik/traefik/releases/tag/v3.7.15",
       "https://hub.docker.com/v2/repositories/library/traefik/tags/v3.7.15",
       "https://doc.traefik.io/traefik/v3.7/reference/install-configuration/providers/kubernetes/kubernetes-ingress/"
-    ],
-    "_comment": "Фіксую узгоджені версії та джерела цього компонента, digest закріплює точний образ там, де він указаний"
+    ]
   }
 }

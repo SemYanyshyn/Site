@@ -38,7 +38,6 @@ function docker(arguments_, { input, timeout = 60_000, allowFailure = false } = 
       env: { ...process.env, DOCKER_HOST: dockerHost },
     }, (error, stdout, stderr) => {
       if (error && !allowFailure) {
-        // Docker output can include environment/configuration; it stays private.
         reject(new Error(`Docker operation failed: ${arguments_[0]} ${arguments_[1] ?? ''} (exit ${String(error.code ?? 'timeout')}).`));
       } else resolvePromise({ stdout, stderr, code: error?.code ?? 0 });
     });
@@ -67,7 +66,7 @@ async function availablePort() {
 async function eventually(read, predicate, description, timeout = 30_000) {
   const deadline = performance.now() + timeout;
   while (performance.now() < deadline) {
-    try { const value = await read(); if (predicate(value)) return value; } catch { /* Observe bounded real startup. */ }
+    try { const value = await read(); if (predicate(value)) return value; } catch {   }
     await delay(50);
   }
   throw new Error(description);

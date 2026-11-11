@@ -34,7 +34,6 @@ export class ControlledJobsApi implements JobsApi {
   }
 }
 
-/** A controlled timer for application state tests; it provides no DOM or browser. */
 export class ControlledClock {
   private nextId = 0;
   private callbacks = new Map<ReturnType<typeof globalThis.setTimeout>, () => void>();

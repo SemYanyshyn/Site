@@ -24,7 +24,6 @@ function redactFailure(error) {
     .find((line) => /check-deployment\.mjs:\d+/u.test(line))?.trim() };
 }
 
-/** Faults are permitted only in the unique namespace made by this test run. */
 export function assertOwnedDeployment(target, namespace) {
   assert.ok(target && typeof target.namespace === 'string' && /^courier-route-test-[a-z0-9-]+$/u.test(target.namespace));
   assert.ok(typeof target.ownerId === 'string' && UUID.test(target.ownerId));
@@ -97,8 +96,6 @@ export function deploymentOrigin(value, protocol) {
   return url;
 }
 
-/** A new connection per request makes actual LB handler tracing observable.
- * POST is issued exactly once; retry decisions belong to safe GET observers. */
 export function requestDeployment(origin, ca, { path = '/', method = 'GET', body, cookie, headers = {}, wrongHostname = false, timeoutMs = 10_000, signal } = {}) {
   assert.ok(Number.isSafeInteger(timeoutMs) && timeoutMs >= 1 && timeoutMs <= 10_000, 'A bounded HTTP request deadline is required.');
   if (typeof body?.password === 'string') hidden.add(body.password);
@@ -124,8 +121,6 @@ export function requestDeployment(origin, ca, { path = '/', method = 'GET', body
       headers: { ...(data === undefined ? {} : { 'Content-Type': 'application/json' }),
         ...(cookie ? { Cookie: cookie } : {}), ...headers },
     }, (response) => {
-      // A socket reset after the headers is an IncomingMessage error, rather
-      // than necessarily a ClientRequest error. Handle both before body data.
       response.once('error', fail);
       response.once('aborted', () => fail({ code: 'ECONNRESET' }));
       const certificate = url.protocol === 'https:' ? response.socket?.getPeerCertificate()?.raw : undefined;
@@ -146,8 +141,6 @@ export function requestDeployment(origin, ca, { path = '/', method = 'GET', body
           certificate });
       });
     });
-    // Socket inactivity alone does not bound a slowly streaming response.
-    // This timer terminates the actual request rather than abandoning a race.
     timer = setTimeout(() => request.destroy(Object.assign(new Error('request deadline'), { code: 'ETIMEDOUT' })), timeoutMs);
     timer.unref();
     request.once('timeout', () => request.destroy(new Error('request deadline')));
@@ -373,8 +366,6 @@ export async function verifyDeployment(environment) {
   assert.equal(thirdClaims.length, 1, 'A real database trigger must observe exactly one committed queued→running claim.');
   assert.equal(thirdClaims[0].instance_id, thirdRunning.value.executedBy);
   for (let attempt = 0; !crossCancel && attempt < 4; attempt++) {
-    // A bounded separate scenario is permitted when the first safe cancel
-    // happened to hit the worker's own handler; never retry a failed POST.
     const extra = await create(heavy(70 + attempt), cookie);
     const active = await searching(extra.value.id, cookie);
     const response = await cancel(extra.value.id, cookie);
@@ -467,9 +458,6 @@ export async function verifyDeploymentFaults(environment, proof) {
   assert.equal(deadlines.length, 1);
   await owned();
   const killedAt = performance.now();
-  // Direct task SIGKILL comes from the verified kind node runtime. CRI
-  // StopContainer / zero-grace delete may still send SIGTERM first, which
-  // would exercise graceful shutdown rather than the intended crash case.
   assert.equal(typeof environment.killAppProcess, 'function');
   await environment.killAppProcess(killedPod.metadata.name);
   await eventually(pods, (values) => values.find((pod) => pod.metadata.uid === killedPod.metadata.uid)?.status.containerStatuses
@@ -532,8 +520,6 @@ export async function verifyDeploymentFaults(environment, proof) {
   checks.push('PostgreSQL PVC restart preserves accounts/sessions/results; no Ready endpoints yields public 503 while local health stays 200');
 
   phase = 'cross-handler logout and shared revocation';
-  // Safely observe routing before the single logout mutation. No retry
-  // middleware repeats logout or any other POST during a transport failure.
   const currentHandlers = await observeBoth('/api/auth/me', cookie);
   if (currentHandlers.has(proof.loginHandler)) await eventually(async () => invoke('observe handler before logout', '/api/auth/me', { cookie }),
     (response) => response.status === 200 && response.handler === proof.loginHandler, 'handler before cross-process logout');
@@ -556,8 +542,6 @@ export async function runDeployment() {
   let environment;
   let summary;
   try {
-    // Provisioning is deliberately delegated to the same reviewed local helper
-    // as deploy:local; it must return a NEW owned test namespace and resources.
     const { provisionTestDeployment } = await import('./deploy-local.mjs');
     environment = await provisionTestDeployment({ ownerId: randomUUID(), namespace: `courier-route-test-${randomBytes(5).toString('hex')}`, autoscaling: false });
     const result = await verifyDeployment(environment);

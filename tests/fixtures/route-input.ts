@@ -1,4 +1,3 @@
-/** Small reproducible fixture generator; these are conditional planar coordinates. */
 export function routeInput(pointCount = 180, iterations = 50_000_000, seed = 0) {
   let state = 0x51a7c0de;
   const coordinate = (): number => {

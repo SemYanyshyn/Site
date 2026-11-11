@@ -1,11 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createServer } from 'node:http';
-// The native deployment runner is intentionally usable without a Kubernetes
-// connection, so its deletion guards and contract checks can be unit-tested.
-// @ts-expect-error The executable is a native .mjs script, without emitted types.
 import { assertOwnedDeployment, assertReadyReplicas, deploymentOrigin, requestDeployment, safeTrace, secureSessionCookie, verifiedCrossCancellation } from '../scripts/check-deployment.mjs';
-// @ts-expect-error The deployment CLI helper is a native .mjs executable.
 import { collectDeploymentStatus, parseStatusArguments } from '../scripts/deployment-status.mjs';
 
 const ownerId = '00000000-0000-4000-8000-000000000001';

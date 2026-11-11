@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { readdir, readFile, lstat } from 'node:fs/promises';
 import { resolve, relative, dirname } from 'node:path';
 
-// This directory is deliberately narrower than dist (which also contains server code).
 const root = resolve('dist/client');
 const base = `${(process.env.PAGES_BASE_PATH ?? '/Site/').replace(/\/$/u, '')}/`;
 const files = [];

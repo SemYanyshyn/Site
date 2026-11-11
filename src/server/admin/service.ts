@@ -1,5 +1,3 @@
-// Тут об’єдную дані PostgreSQL і Kubernetes у модель адміністративного екрана
-// Не прирівнюю pod до виконавця автоматично, бо контейнер міг перезапуститися
 
 import type { Pool } from 'pg';
 import type { AdminExecutor, AdminOverview, AdminServer, AdminUnmatchedExecutor } from '../../shared/admin.js';
@@ -11,10 +9,6 @@ import type { InfrastructureSnapshot } from './kubernetes.js';
 import { AdminRepository } from './repository.js';
 import type { AdminDatabaseSnapshot } from './repository.js';
 
-// з'єдную pod із процесом за UID і часом запуску контейнера а не тільки за назвою
-// pod без відповідного процесу лишається видимим без вигаданих виконавця чи метрик
-// Зіставляю pod і процес за UID, namespace, назвою та часом запуску
-// Відкидаю метрики попереднього контейнера, а невідповідних виконавців залишаю окремо з поясненням
 export function mergeAdminOverview(db: AdminDatabaseSnapshot, infra: InfrastructureSnapshot, now = Date.now()): AdminOverview {
   const used = new Set<string>();
   const servers: AdminServer[] = infra.pods.map((pod) => {
@@ -26,7 +20,6 @@ export function mergeAdminOverview(db: AdminDatabaseSnapshot, infra: Infrastruct
     const raw = infra.samples.find((entry) => entry.namespace === pod.namespace && entry.podName === pod.name
       && (entry.podUid === null || entry.podUid === pod.uid));
     const timestamp = raw ? Date.parse(raw.sample.timestamp) : NaN;
-    // після рестарту відкидаю метрики вікно яких почалося раніше за поточний контейнер або процес
     const windowStart = raw ? timestamp - metricWindowMs(raw.sample.window) : NaN;
     const metric = raw && pod.containerStartedAt && windowStart >= Date.parse(pod.containerStartedAt)
       && (!executor || windowStart >= Date.parse(executor.startedAt)) && timestamp <= now + 5_000
@@ -74,22 +67,17 @@ export class AdminService {
   constructor(pool: Pool, config: AdminConfig = readAdminConfig(), private readonly provider = new KubernetesProvider(config)) {
     this.repository = new AdminRepository(pool);
   }
-  // Реєструю контролер окремого запиту, щоб зупинити всі читання при закритті сервера
   requestController(): AbortController {
     const controller = new AbortController();
     if (this.#closed) controller.abort(); else this.#controllers.add(controller);
     return controller;
   }
-  // Після завершення запиту прибираю його контролер зі списку активних
   releaseController(controller: AbortController): void { this.#controllers.delete(controller); }
-  // Скасовую всі активні адміністративні читання й закриваю джерело Kubernetes
   close(): void {
     this.#closed = true;
     for (const controller of this.#controllers) controller.abort();
     this.#controllers.clear(); this.provider.close();
   }
-  // читаю Kubernetes і спільну БД та збираю read-only огляд без зміни pod задач або HPA
-  // Читаю інфраструктуру й узгоджений стан бази в межах дедлайну, потім об’єдную їх для клієнта
   async overview(deadline: number, signal: AbortSignal): Promise<AdminOverview> {
     const infrastructure = await abortable(this.provider.read(), signal);
     const database = await this.repository.overview(deadline, signal, infrastructure.pods.map((pod) => pod.uid));

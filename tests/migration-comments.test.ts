@@ -6,11 +6,10 @@ import { MIGRATION_COMMENT_UPDATES, isDocumentedMigrationCommentUpdate } from '.
 
 const digest = (source: string): string => createHash('sha256').update(source).digest('hex');
 
-test('documented migration notes preserve the exact historical SQL and match approved full-file hashes', async () => {
+test('comment-free migrations match the exact historical SQL and accept known annotated checksums', async () => {
   for (const [version, update] of Object.entries(MIGRATION_COMMENT_UPDATES)) {
     const sql = await readFile(new URL(`../migrations/${version}.sql`, import.meta.url), 'utf8');
-    const original = sql.split('\n').filter((line) => !line.trimStart().startsWith('-- ')).join('\n');
-    assert.equal(digest(original), update.before, version);
+    assert.equal(sql.split('\n').some((line) => line.trimStart().startsWith('--')), false, version);
     assert.equal(digest(sql), update.after, version);
     assert.equal(isDocumentedMigrationCommentUpdate(version, update.before, digest(sql)), true);
   }

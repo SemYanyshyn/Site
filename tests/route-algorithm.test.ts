@@ -40,7 +40,6 @@ function assertRoute(input: NormalizedRouteInput, result: RouteResult): void {
   for (let index = 1; index < result.order.length; index += 1) {
     const previous = coordinates[result.order[index - 1]!]!;
     const next = coordinates[result.order[index]!]!;
-    // Independent direct Euclidean calculation, without the production matrix/summer.
     const dx = next.x - previous.x;
     const dy = next.y - previous.y;
     independentLength += Math.sqrt(dx * dx + dy * dy);
@@ -115,13 +114,13 @@ test('unknown fields, Unicode lookalikes, symbols and accessor properties are re
   const getterArray = Object.defineProperty([{}], '0', { get: () => ({ x: 0, y: 0 }) });
   for (const input of [
     { ...baseInput, timeoutMs: 100_000 }, { ...baseInput, maxPoints: 5 },
-    { ...baseInput, sеed: 0 }, // Cyrillic e does not name the optional seed field.
+    { ...baseInput, sеed: 0 },
     { ...baseInput, [Symbol('seed')]: 1 },
     { ...baseInput, warehouse: { x: 0, y: 0, z: 0 } },
     { ...baseInput, points: [{ x: 0, y: 0, id: 1 }] },
     { ...baseInput, points: extraArray },
     { ...baseInput, warehouse: getterCoordinate }, { ...baseInput, points: getterArray },
-    { ...baseInput, warehouse: { х: 0, y: 0 } }, // Cyrillic x is not the x field.
+    { ...baseInput, warehouse: { х: 0, y: 0 } },
   ]) invalid(input);
 });
 
@@ -325,8 +324,6 @@ test('the five-delivery example preserves the real nearest-neighbor order while 
     assertRoute(input, result);
     assert.deepEqual(result.initialOrder, [0, 1, 2, 5, 4, 3, 0]);
     assert.equal(result.initialLength, 29.41492209332022);
-    // This exact seed/budget result was recorded before adding the snapshot.
-    // It is an observed best route, not a claim of global optimality.
     assert.deepEqual(result.order, [0, 1, 3, 4, 5, 2, 0]);
     assert.equal(result.length, 28.941677986860125);
     assert.equal(result.iterationsCompleted, 25_000);

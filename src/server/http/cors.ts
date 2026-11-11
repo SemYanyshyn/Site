@@ -1,14 +1,9 @@
-// Тут керую CORS, тобто дозволом браузеру читати API з конкретного origin
-// Список дозволених адрес не замінює перевірку сесії та прав доступу
 
 import type { RequestHandler } from 'express';
 import type { AppConfig } from '../config.js';
 import { normalizeOrigin } from '../config.js';
 import { sendError } from '../auth/errors.js';
 
-// Порівнюю Origin з точним списком APP_ORIGINS і дозволяю credential-запити лише для збігу
-// Для OPTIONS відповідаю на попередню перевірку браузера без авторизації, SQL та зміни даних
-// Невідому адресу відхиляю, замість дозволяти всі сайти через зірочку
 export function apiCors(config: AppConfig): RequestHandler {
   return (request, response, next) => {
     response.vary('Origin');

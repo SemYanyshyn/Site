@@ -64,8 +64,6 @@ export async function stopChrome(browser) {
   }
 }
 
-/** Normal TLS validation is mandatory before granting an isolated leaf-SPKI
- * exception to Chrome. No user trust store or global certificate bypass changes. */
 export async function verifiedLeaf(origin, ca, { signal } = {}) {
   const url = new URL('/api/health', origin);
   return new Promise((resolve, reject) => {
@@ -111,8 +109,6 @@ function heavyCoordinates() {
   }).join('\n');
 }
 
-/** Uses only the parent's disposable deployment. The parent owns namespace/PVC
- * cleanup; this function always closes its fresh Chrome and removes its profile. */
 export async function runDeploymentBrowser({ deployment }) {
   assert.match(deployment.namespace, /^courier-route-test-[a-z0-9-]+$/u);
   assert.match(deployment.ownerId, /^[0-9a-f-]{36}$/u);

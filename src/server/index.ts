@@ -1,6 +1,3 @@
-// Це головна точка запуску backend, яка з’єднує HTTP, PostgreSQL і виконавця задач
-// Для кожного процесу створюю власний UUID, але черга й сесії спільні та зберігаються в базі
-// На завершення процесу звільняю ресурси, щоб не лишити обчислення без керування
 
 import { randomUUID } from "node:crypto";
 import type { Server } from "node:http";
@@ -30,7 +27,6 @@ import { readAdminConfig } from "./admin/config.js";
 import { AdminService } from "./admin/service.js";
 
 export interface ServerOptions {
-  // Залишаю ці параметри тільки для внутрішніх тестів, їх не можна передати через HTTP чи змінні середовища
   jobsInitiallyPaused?: boolean;
   executorConfig?: ExecutorConfig;
   onJobEvent?: (event: DispatcherEvent) => void;
@@ -50,9 +46,6 @@ export interface ServerRuntime {
   shutdown: (signal?: string) => Promise<void>;
 }
 
-// збираю HTTP сервер пул БД і один обчислювальний слот цього процесу
-// Спочатку перевіряю конфігурацію, створюю пул, executor, реєстр і dispatcher
-// Після цього відкриваю HTTP-порт, а під час помилки запуску прибираю вже створені ресурси
 export function startServer(
   config: AppConfig = readConfig(),
   routeLimits: RouteLimits = readRouteConfig(),
@@ -87,8 +80,6 @@ export function startServer(
     registry,
     dispatcherOptions,
   );
-  // Враховую, що прямий запуск executor у внутрішньому тесті теж займає спільний слот
-  // Оновлюю реєстр тут, щоб не додавати залежність від PostgreSQL у RouteExecutor і окрему CLI-команду
   const startRoute = executor.start.bind(executor);
   executor.start = (input, onProgress) => {
     const run = startRoute(input, onProgress);
@@ -107,7 +98,6 @@ export function startServer(
     jobsRepository,
     adminService,
   });
-  // callback зі стрілкою виконається коли сервер почне слухати порт
   const server = app.listen(config.port, config.host, () => {
     const address = server.address();
     const port =
@@ -118,15 +108,12 @@ export function startServer(
   });
   let shutdownPromise: Promise<void> | undefined;
 
-  // Зупиняю приймання запитів, диспетчер і worker, потім закриваю пул PostgreSQL
-  // Залишаю загальну межу часу завершення, щоб процес не чекав нескінченно
   async function closeRuntime(signal: string): Promise<void> {
     console.info(
       `${signal}: завершення HTTP-сервера, dispatcher, worker та пулу PostgreSQL.`,
     );
     process.removeListener("SIGINT", onSigint);
     process.removeListener("SIGTERM", onSigterm);
-    // Спочатку скасовую HTTP і SQL моніторингу, а потім закриваю спільний пул бази
     adminService.close();
     const timeout = setTimeout(() => {
       console.error(
@@ -138,7 +125,6 @@ export function startServer(
     }, 5_000);
     timeout.unref();
     try {
-      // паралельно закриваю HTTP і зупиняю обчислення щоб активний запит не затримав shutdown
       await Promise.all([
         new Promise<void>((done, reject) => {
           server.close((error) => {
@@ -159,7 +145,6 @@ export function startServer(
         "Помилка завершення HTTP-сервера, worker або пулу PostgreSQL.",
       );
       process.exitCode = 1;
-      // Навіть після помилки закриття одного ресурсу намагаюся зупинити решту
       server.closeAllConnections();
       await dispatcher.shutdown();
       await executor.shutdown();
@@ -192,7 +177,6 @@ export function startServer(
   return { server, executor, dispatcher, registry, pool, instanceId, shutdown };
 }
 
-// імпорт дає доступ до startServer а порт відкриваю лише при прямому запуску цього файлу
 if (
   process.argv[1] &&
   resolve(process.argv[1]) === fileURLToPath(import.meta.url)

@@ -1,4 +1,3 @@
-/** Extra public origins are explicit and opt-in; localhost is always retained. */
 export function deploymentAppOrigins(localOrigin, additional) {
   const origins = new Set([localOrigin]);
   if (additional === undefined || additional === '') return localOrigin;

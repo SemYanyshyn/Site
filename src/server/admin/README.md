@@ -20,4 +20,4 @@ ServiceAccount надає обмежений доступ до API Kubernetes, C
 - [`kubernetes.ts`](kubernetes.ts) — читаю справжні pod, HPA, Deployment і метрики через HTTPS API Kubernetes
 - [`service.ts`](service.ts) — об’єдную дані PostgreSQL і Kubernetes у модель адміністративного екрана
 
-Докладні пояснення основних блоків залишаю безпосередньо в коментарях відповідних файлів
+Код не містить коментарів; пояснення основних блоків наведено в README

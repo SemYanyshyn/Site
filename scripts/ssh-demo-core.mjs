@@ -7,7 +7,6 @@ export function pinggyOrigin(value) {
   return typeof value === 'string' && /^https:\/\/[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.run\.pinggy-free\.link$/u.test(value) ? value : null;
 }
 
-// Приймаю адресу тільки після банера створеного Pinggy Free сеансу, а не з помилки чи документації.
 export function parsePinggyAnnouncement(text) {
   if (typeof text !== 'string') return null;
   const lines = text.replace(/\u001b\[[0-9;]*m/gu, '').split(/\r?\n/u).map(line => line.trim());
@@ -49,7 +48,6 @@ function endToEndHeaders(headers) {
   return result;
 }
 
-// SSH передає HTTP тільки в loopback. Далі завжди звертаюся до наявного HTTPS із CA та SNI localhost.
 export async function startHttpsBridge({ port, ca, timeoutMs = 30_000 }) {
   if (!Number.isInteger(port) || port < 1024 || port > 65535 || !ca) throw new PublicDemoError('Потрібні локальний HTTPS-порт та CA.');
   const requests = new Set();

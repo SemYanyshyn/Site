@@ -13,8 +13,6 @@ import {
 const root = fileURLToPath(new URL("../", import.meta.url));
 const uuid = /^[0-9a-f-]{36}$/u;
 
-/** A fourth account observes the SAME load cycle without submitting any job.
- * The parent owns the disposable namespace and the absolute work deadline. */
 export async function startAdminBrowser({
   deployment,
   credentials,
@@ -564,8 +562,6 @@ export async function startAdminBrowser({
       },
       async lateLogout() {
         phase = "logout-with-paused-successful-overview";
-        // Pause one genuine 200 response after its server authorization/read,
-        // keeping its payload untouched. Logout must fence and abort this read.
         let paused,
           cancelled = false;
         const listener = (event) => {

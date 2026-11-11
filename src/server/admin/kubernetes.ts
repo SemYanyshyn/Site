@@ -1,6 +1,3 @@
-// Тут читаю справжні pod, HPA, Deployment і метрики через HTTPS API Kubernetes
-// ServiceAccount дає обмежений токен доступу, а cluster CA перевіряє справжність сервера
-// Отриманий JSON перевіряю під час виконання, бо зовнішня відповідь не стає безпечною лише через тип TypeScript
 
 import { readFile } from 'node:fs/promises';
 import https from 'node:https';
@@ -29,8 +26,6 @@ function array(value: unknown, max: number): unknown[] {
   return value;
 }
 
-/* Перетворюю числові одиниці Kubernetes на числа, не виконую рядки як JavaScript */
-// Переводжу одиниці CPU на частки ядра, наприклад 500m означає 0,5 ядра
 export function parseCpu(value: unknown): number {
   if (typeof value !== 'string' || !/^(?:\d+(?:\.\d*)?|\.\d+)(?:[num]|[eE][+-]?\d+)?$/.test(value) || value.length > 40) throw new Error('Некоректна CPU quantity.');
   const unit = value.match(/[num]$/)?.[0];
@@ -38,7 +33,6 @@ export function parseCpu(value: unknown): number {
   if (!Number.isFinite(result) || result < 0 || result > 1e6) throw new Error('CPU quantity поза межею.');
   return result;
 }
-// Переводжу двійкові та десяткові одиниці пам’яті в байти й перевіряю межі числа
 export function parseMemory(value: unknown): number {
   if (typeof value !== 'string' || value.length > 40) throw new Error('Некоректна memory quantity.');
   const match = /^(\d+(?:\.\d*)?|\.\d+)([EPTGMK]i|[EPTGMkK]|m|[eE][+-]?\d+)?$/.exec(value);
@@ -51,7 +45,6 @@ export function parseMemory(value: unknown): number {
   if (!Number.isFinite(result) || result < 0 || result > 1e15) throw new Error('Memory quantity поза межею.');
   return result;
 }
-// Переводжу часовий інтервал вибірки метрик у мілісекунди
 export function metricWindowMs(value: string): number {
   const match = /^(\d+(?:\.\d+)?)(ns|us|µs|ms|s|m|h)$/.exec(value);
   if (!match) throw new Error('Некоректне вікно метрик.');
@@ -64,7 +57,6 @@ function resources(value: unknown): { cpuCores: number | null; memoryBytes: numb
   const row = value === undefined ? {} : object(value);
   return { cpuCores: row.cpu === undefined ? null : parseCpu(row.cpu), memoryBytes: row.memory === undefined ? null : parseMemory(row.memory) };
 }
-// Перевіряю namespace, назву й мітку власника, щоб не включити чужий ресурс
 function metadata(value: unknown, config: AdminConfig, name?: string): ObjectValue {
   const row = object(value);
   if (row.namespace !== config.namespace || (name !== undefined && row.name !== name)
@@ -72,7 +64,6 @@ function metadata(value: unknown, config: AdminConfig, name?: string): ObjectVal
   return row;
 }
 
-// Вибираю лише pod застосунку, читаю стан app-контейнера, готовність і requests/limits
 export function parsePods(value: unknown, config: AdminConfig): AdminPod[] {
   return array(object(value).items, ADMIN_LIMITS.maxPods).map((item) => {
     const row = object(item), meta = metadata(row.metadata, config);
@@ -93,7 +84,6 @@ export function parsePods(value: unknown, config: AdminConfig): AdminPod[] {
       limits: resources(adminRecord(app.resources) ? app.resources.limits : undefined) };
   });
 }
-// Читаю поточну й бажану кількість реплік та умови стану HPA
 export function parseHpa(value: unknown, config: AdminConfig): AdminHpa {
   const row = object(value); metadata(row.metadata, config, 'app');
   const spec = object(row.spec), status = object(row.status ?? {});
@@ -105,7 +95,6 @@ export function parseHpa(value: unknown, config: AdminConfig): AdminHpa {
     }) };
 }
 export interface RawMetric { podName: string; namespace: string; podUid: string | null; sample: AdminMetric }
-// Читаю CPU і пам’ять app-контейнера разом із часом та вікном вимірювання
 export function parseMetrics(value: unknown, config: AdminConfig): RawMetric[] {
   return array(object(value).items, ADMIN_LIMITS.maxPods).map((item) => {
     const row = object(item), meta = object(row.metadata);
@@ -134,10 +123,6 @@ export interface KubernetesTransport {
 }
 interface Cached<T> { value: T; observedAt: string; monotonic: number }
 
-/* Звертаюся лише до фіксованої HTTPS-адреси Kubernetes з перевіркою CA
- * Підміну функції запиту залишаю тільки для внутрішніх тестів сокетів */
-// Виконую обмежений за часом і розміром HTTPS GET із токеном та перевіркою CA
-// Приймаю тільки успішну JSON-відповідь і прибираю запит зі списку активних
 export function readKubernetesResponse(path: string, token: string, ca: Buffer, requests: Set<ClientRequest>,
   requestFactory: typeof https.request = https.request, timeoutMs: number = ADMIN_LIMITS.providerMs,
 ): Promise<unknown> {
@@ -184,14 +169,11 @@ export class KubernetesProvider {
   constructor(private readonly config: AdminConfig, private readonly transport?: KubernetesTransport,
     private readonly monotonicNow: () => number = () => performance.now()) {}
 
-  // Скасовую читання локальних credentials і закриваю активні мережеві запити моніторингу
   close(): void {
     this.#closed = true; this.transport?.close();
     for (const controller of this.#credentialReads) controller.abort(); this.#credentialReads.clear();
     for (const request of this.#requests) request.destroy(); this.#requests.clear();
   }
-  // За короткий проміжок повторно використовую кеш і спільний поточний запит
-  // Якщо моніторинг вимкнений, повертаю явний disabled замість вигаданих показників
   async read(): Promise<InfrastructureSnapshot> {
     if (this.#closed) throw new Error('Джерело зупинено.');
     if (!this.config.enabled) {
@@ -205,19 +187,14 @@ export class KubernetesProvider {
     }
     return this.#operation;
   }
-  // Оновлюю вік кешу при повторному читанні, не називаючи старий знімок новим виміром
   #age(value: InfrastructureSnapshot): InfrastructureSnapshot {
     const age = Math.max(0, this.monotonicNow() - this.#cacheAt);
     return { ...value, kubernetes: { ...value.kubernetes, cacheAgeMs: value.kubernetes.cacheAgeMs === null ? null : value.kubernetes.cacheAgeMs + age },
       metrics: { ...value.metrics, cacheAgeMs: value.metrics.cacheAgeMs === null ? null : value.metrics.cacheAgeMs + age } };
   }
-  // Читаю оновлювані ServiceAccount token і CA з файлів pod, після чого виконую HTTPS-запит
-  // Секрети залишаю всередині транспорту й не повертаю їх браузеру
   async #request(path: string): Promise<unknown> {
     if (this.#closed) throw new Error('Джерело зупинено.');
     if (this.transport) return this.transport.request(path);
-    // щоразу читаю оновлюваний токен ServiceAccount і перевіряю cluster CA без передачі секретів у DTO
-    // адреса API фіксована щоб токен не потрапив на сторонній сервер
     const started = performance.now(), controller = new AbortController();
     this.#credentialReads.add(controller);
     const timer = setTimeout(() => controller.abort(), ADMIN_LIMITS.providerMs);
@@ -231,8 +208,6 @@ export class KubernetesProvider {
         Math.max(1, ADMIN_LIMITS.providerMs - (performance.now() - started)));
     } finally { clearTimeout(timer); this.#credentialReads.delete(controller); }
   }
-  // Паралельно читаю незалежні джерела Kubernetes через Promise.allSettled
-  // Успішні дані кешую, а при частковому збої повертаю явні stale, partial чи unavailable
   async #refresh(): Promise<InfrastructureSnapshot> {
     const namespace = encodeURIComponent(this.config.namespace!);
     const selector = encodeURIComponent(`app.kubernetes.io/name=courier-route-app,app.kubernetes.io/component=app,${OWNER}=${this.config.ownerId}`);

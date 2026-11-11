@@ -19,7 +19,6 @@ function startHarness(): Harness {
     '--import', import.meta.resolve('tsx'),
     fileURLToPath(new URL('./fixtures/route-http-harness.ts', import.meta.url)),
   ], {
-    // Also checks that server/worker locations do not depend on cwd.
     cwd: tmpdir(), env: {}, stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
   });
   child.stdout?.resume();
@@ -106,7 +105,6 @@ test('real health requests remain responsive while same-process worker search is
     assert.equal(after.pending, true, 'Every measured response must precede the terminal worker result.');
     assert.equal(after.busy, true);
     assert.ok(typeof after.completedIterations === 'number' && after.completedIterations >= before.completedIterations);
-    // Test pacing observes several real progress periods without slowing search.
     if (index < 4) await delay(80);
   }
   assert.equal(harness.messages.filter((message) => message.type === 'terminal').length, 0);

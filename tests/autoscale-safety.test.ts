@@ -5,13 +5,9 @@ import { join } from 'node:path';
 import { createServer } from 'node:http';
 import test from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
-// @ts-expect-error Native executable deliberately has no emitted declarations.
 import { assertScaleSnapshot, autoscaleBudget, parseCpuCores, parseMemoryBytes, proveExpandedWork, reconcileCancellation, summarizePods, validateCompletedRoute } from '../scripts/check-autoscale.mjs';
-// @ts-expect-error Native deployment helper deliberately has no emitted declarations.
 import { appApplyPlan, assertObjectOwner, replicaHandoffPatch } from '../scripts/deployment-autoscale.mjs';
-// @ts-expect-error Native command runner deliberately has no emitted declarations.
 import { DeploymentDeadlineError, runDeploymentCommand, withDeploymentDeadline, withoutDeploymentDeadline } from '../scripts/deployment-command.mjs';
-// @ts-expect-error Native HTTPS fixture deliberately has no emitted declarations.
 import { requestDeployment, verifiedCrossCancellation } from '../scripts/check-deployment.mjs';
 
 const ownerId = '00000000-0000-4000-8000-000000000001';

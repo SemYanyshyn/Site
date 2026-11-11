@@ -1,4 +1,3 @@
-// Тут відображаю особисті задачі: форму, активний список, історію, прогрес і збережений результат.
 import type { JobDetails, JobStatus, JobSummary } from "../shared/jobs.js";
 import type { JobsState } from "./jobs-controller.js";
 import type { RouteDraft } from "./route-input.js";
@@ -6,7 +5,6 @@ import { formatProgress, projectRoute } from "./route-geometry.js";
 import { queueDisplay } from "./queue-display.js";
 import { initialRouteSteps, routeSequence } from "./initial-route.js";
 
-// Описую дії користувача, які інтерфейс передає контролеру.
 export interface JobsViewActions {
   submit(draft: RouteDraft): void;
   selectJob(id: string): void;
@@ -22,7 +20,6 @@ export interface JobsView {
   showDraftError(message: string, field?: keyof RouteDraft): void;
 }
 
-// Перекладаю серверні стани, етапи пошуку та причини помилок для користувача.
 const statusLabels: Record<JobStatus, string> = {
   queued: "У черзі",
   running: "Обчислюється",
@@ -48,7 +45,6 @@ const failureLabels = {
     "Втрачено зв’язок з обчисленням. Задачу не запускали повторно автоматично.",
 };
 
-// Знаходжу елементи сторінки й готую форматування чисел, відстаней і дат.
 function requireElement<T extends HTMLElement>(selector: string): T {
   const element = document.querySelector<T>(selector);
   if (!element) throw new Error(`Не знайдено елемент інтерфейсу: ${selector}`);
@@ -91,7 +87,6 @@ interface JobListItem {
   progress: HTMLSpanElement;
 }
 
-// Збираю посилання на HTML-поля, кнопки й блоки результату та зберігаю їх для оновлень.
 export function createJobsView(actions: JobsViewActions): JobsView {
   const workspace = requireElement<HTMLElement>("#jobs-workspace");
   const form = requireElement<HTMLFormElement>("#route-form");
@@ -180,7 +175,6 @@ export function createJobsView(actions: JobsViewActions): JobsView {
     iterations: fields.iterations.value,
     seed: fields.seed.value,
   });
-  // Підключаю відправлення форми та кнопки: створення, повторне читання, скасування й історію.
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     if (submit.disabled) return;
@@ -231,7 +225,6 @@ export function createJobsView(actions: JobsViewActions): JobsView {
   detailStatus.setAttribute("role", "status");
   detailStatus.setAttribute("aria-live", "polite");
 
-  // Оновлюю рядки за ID задачі та повторно використовую кнопки, щоб зберегти фокус.
   function renderList(
     list: HTMLUListElement,
     jobs: JobSummary[],
@@ -292,7 +285,6 @@ export function createJobsView(actions: JobsViewActions): JobsView {
     }
   }
 
-  // Прибираю попередній маршрут і таблицю переходів перед показом іншого результату.
   function clearResult(): void {
     result.hidden = true;
     resultFingerprint = "";
@@ -316,7 +308,6 @@ export function createJobsView(actions: JobsViewActions): JobsView {
     requireElement<HTMLElement>("#job-initial-length").removeAttribute("title");
   }
 
-  // Показую збережений результат completed: довжини, початкові кроки та SVG за готовим порядком точок.
   function renderResult(job: JobDetails): void {
     if (job.status !== "completed" || !job.result) {
       clearResult();
@@ -451,7 +442,6 @@ export function createJobsView(actions: JobsViewActions): JobsView {
     }
   }
 
-  // Заповнюю деталі вибраної задачі: стан, прогрес, чергу, скасування та результат.
   function renderDetail(state: JobsState): void {
     const job = state.detail?.id === state.selectedId ? state.detail : null;
     detailPanel.setAttribute("aria-busy", String(state.detailLoading));
@@ -558,7 +548,6 @@ export function createJobsView(actions: JobsViewActions): JobsView {
     renderResult(job);
   }
 
-  // При виході очищую приватні списки, чернетку форми, деталі та схему.
   function clearPrivate(): void {
     workspace.hidden = true;
     currentState = null;
@@ -611,7 +600,6 @@ export function createJobsView(actions: JobsViewActions): JobsView {
 
   return {
     clearPrivate,
-    // Показую помилку введення й перевожу фокус на відповідне поле.
     showDraftError(message, field) {
       clearDraftError();
       draftError.textContent = message;
@@ -621,7 +609,6 @@ export function createJobsView(actions: JobsViewActions): JobsView {
         fields[field].focus();
       }
     },
-    // Перемальовую екран зі стану контролера та оновлюю доступність кнопок.
     render(state) {
       if (!state.authenticated) {
         clearPrivate();

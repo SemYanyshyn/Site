@@ -3,13 +3,9 @@ import { startServer } from '../../src/server/index.js';
 import type { RouteProgress } from '../../src/shared/route.js';
 import { routeInput } from './route-input.js';
 
-// This is a test process, with a real Express app and the shared executor in that
-// SAME process. No HTTP endpoint is added to initiate or control calculations.
 const runtime = startServer({
   host: '127.0.0.1',
   port: 0,
-  // A closed loopback port is sufficient: liveness does not require PostgreSQL.
-  // No fake Pool or successful authentication is supplied.
   databaseUrl: 'postgresql://courier_route_probe@127.0.0.1:1/courier_route_probe',
   appOrigins: new Set(['http://127.0.0.1']),
   sessionTtlSeconds: 3600,
@@ -59,8 +55,6 @@ process.on('message', (message: unknown) => {
   }
 });
 
-// startServer installs production signal handlers. The harness only releases its
-// test-only IPC channel once the real active calculation has settled.
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, () => {
     signalSeen = true;

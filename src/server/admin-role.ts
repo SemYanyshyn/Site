@@ -1,5 +1,3 @@
-// Це окрема команда для мене як оператора, щоб змінити роль уже зареєстрованого користувача
-// З браузера цей файл не викликається, а нового користувача він не створює
 
 import { pathToFileURL } from 'node:url';
 import pg from 'pg';
@@ -27,12 +25,7 @@ export function parseAdminRoleArguments(args: readonly string[]): AdminRoleArgum
   return { username, role };
 }
 
-/* Залишаю зміну ролі окремою командою оператора без створення користувачів і без URL бази в аргументах */
-// У транзакції блокую рядок користувача й змінюю лише його роль
-// Перед зміною перевіряю, що роль PostgreSQL не має надмірних адміністративних прав
-// При помилці відкочую транзакцію, а з’єднання звільняю за будь-якого результату
 export async function changeUserRole(pool: Pool, input: AdminRoleArguments): Promise<AdminRoleResult | null> {
-  // Перевіряю аргументи функції так само суворо, як аргументи команди, до першого SQL-запиту
   const { username, role } = parseAdminRoleArguments(['--username', input.username, '--role', input.role]);
   const client = await pool.connect();
   try {
@@ -51,7 +44,7 @@ export async function changeUserRole(pool: Pool, input: AdminRoleArguments): Pro
     await client.query('COMMIT');
     return { username: user.username, role, changed: user.role !== role };
   } catch (error) {
-    try { await client.query('ROLLBACK'); } catch { /* Зберігаю безпечну помилку для коду, який викликав цю операцію */ }
+    try { await client.query('ROLLBACK'); } catch {   }
     throw error;
   } finally { client.release(); }
 }

@@ -1,5 +1,3 @@
-// Тут задаю місткість черги, особистий ліміт задач і частоту її перевірки
-// Active означає queued або running, а outstanding охоплює всі ще незавершені задачі
 
 export interface JobsConfig {
   maxActivePerUser: number;
@@ -26,7 +24,6 @@ export class JobsConfigurationError extends Error {
   readonly code = 'invalid_jobs_config';
 }
 
-// Перевіряю цілі числа й дозволені межі, перш ніж ці значення потраплять до диспетчера
 export function validateJobsConfig(config: JobsConfig): JobsConfig {
   if (config === null || typeof config !== 'object' || Array.isArray(config)) {
     throw new JobsConfigurationError('Налаштування задач мають бути об’єктом.');
@@ -41,17 +38,11 @@ export function validateJobsConfig(config: JobsConfig): JobsConfig {
   return { ...config };
 }
 
-/* У резерв відновлення закладаю claim і commit до 6 с, два записи прогресу до 5 с кожен
- * Також враховую фінальний запис до 5 с і проміжки між перевірками черги
- * Узгоджую ці межі з createDatabasePool, якщо колись змінюватиму його таймаути */
-// Обчислюю реальний додатковий запас після таймауту worker перед worker_lost
-// Враховую очікування SQL і polling, щоб не оголосити живу задачу втраченою завчасно
 export function effectiveWorkerLostGraceMs(config: JobsConfig): number {
   const validated = validateJobsConfig(config);
   return Math.max(validated.workerLostGraceMs, 2 * validated.pollIntervalMs + 21_000);
 }
 
-// Читаю JOBS-параметри із середовища, для відсутніх беру погоджені початкові значення
 export function readJobsConfig(env: NodeJS.ProcessEnv = process.env): JobsConfig {
   const read = (key: string, fallback: number): number => {
     const value = env[key];

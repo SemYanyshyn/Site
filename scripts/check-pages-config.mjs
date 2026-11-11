@@ -26,7 +26,6 @@ try {
   cors(me); assert.equal(me.status, 401, 'Anonymous session check must deny access.');
   console.log('Public HTTPS backend readiness, credentialed CORS and anonymous auth verified.');
 } catch (error) {
-  // Neither fetch error details nor server bodies belong in CI output.
   console.error(error instanceof assert.AssertionError ? error.message.split('\n')[0]
     : 'Pages configuration/preflight failed. Check the public HTTPS API, TLS and exact allowed origin.');
   process.exitCode = 1;

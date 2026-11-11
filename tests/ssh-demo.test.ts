@@ -5,7 +5,6 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { createServer } from 'node:https';
-// @ts-expect-error Native helper has no TypeScript runtime dependency.
 import { pinggyOrigin, parsePinggyAnnouncement, ownedSshDemoProcess, sshArguments, startHttpsBridge, sshDemoStatus, configureSshDemo } from '../scripts/ssh-demo-core.mjs';
 
 const url = 'https://a1b2c3d4e5.run.pinggy-free.link';

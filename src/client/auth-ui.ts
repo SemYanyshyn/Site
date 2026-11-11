@@ -1,4 +1,3 @@
-// Тут керую формою входу й реєстрації, перевіркою сесії, показом пароля та виходом.
 import { apiFetch } from "./api-endpoint.js";
 import { validateCredentials } from "../shared/auth.js";
 import type { AuthResponse, PublicUser } from "../shared/auth.js";
@@ -29,7 +28,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-// Перевіряю, що сервер повернув коректні відкриті дані користувача.
 function isAuthResponse(value: unknown): value is AuthResponse {
   if (!isRecord(value) || !isRecord(value.user)) return false;
   const user = value.user;
@@ -50,14 +48,12 @@ function errorMessage(error: unknown): string {
   return "Не вдалося зв’язатися із сервером. Перевірте з’єднання та спробуйте знову.";
 }
 
-// Підключаю форму до сторінки; про вхід і вихід повідомляю решту застосунку через callbacks.
 export function mountAuth(callbacks: AuthCallbacks): AuthHandle {
   const element = <T extends Element>(selector: string): T => {
     const found = document.querySelector<T>(selector);
     if (!found) throw new Error(`Не знайдено елемент інтерфейсу: ${selector}`);
     return found;
   };
-  // Знаходжу потрібні елементи HTML і зберігаю стан форми та поточного запиту.
   const card = element<HTMLElement>(".auth-card");
   const title = element<HTMLElement>("#auth-title");
   const message = element<HTMLElement>("#auth-message");
@@ -90,7 +86,6 @@ export function mountAuth(callbacks: AuthCallbacks): AuthHandle {
     message.dataset.state = state;
   }
 
-  // Перемикаю лише видимість введеного пароля; його значення не змінюю.
   function setPasswordVisibility(visible: boolean): void {
     password.type = visible ? "text" : "password";
     passwordVisibility.textContent = visible ? "Приховати" : "Показати";
@@ -105,7 +100,6 @@ export function mountAuth(callbacks: AuthCallbacks): AuthHandle {
     setPasswordVisibility(false);
   }
 
-  // Оновлюю підписи, видимість і блокування кнопок відповідно до режиму та стану входу.
   function render(): void {
     card.setAttribute("aria-busy", String(busy));
     forms.hidden = !checked || user !== null;
@@ -136,14 +130,12 @@ export function mountAuth(callbacks: AuthCallbacks): AuthHandle {
     currentUsername.textContent = user?.username ?? "";
   }
 
-  // Скасовую попередній запит і змінюю номер операції, щоб його запізніла відповідь не змінила новий стан.
   function nextGeneration(): number {
     request.abort();
     request = new AbortController();
     return ++generation;
   }
 
-  // Надсилаю auth-запит із cookie, таймаутом і перевіркою серверної відповіді.
   async function send(
     path: string,
     method: "GET" | "POST",
@@ -182,7 +174,6 @@ export function mountAuth(callbacks: AuthCallbacks): AuthHandle {
     return data;
   }
 
-  // Повертаю користувача до входу та через callbacks очищую приватний стан інших частин сторінки.
   function expireSession(): void {
     if (destroyed) return;
     nextGeneration();
@@ -206,7 +197,6 @@ export function mountAuth(callbacks: AuthCallbacks): AuthHandle {
     { signal: listeners.signal },
   );
 
-  // Перемикаю режими «Вхід» і «Реєстрація», очищуючи попередньо введений пароль.
   for (const [button, nextMode] of [
     [loginMode, "login"],
     [registerMode, "register"],
@@ -229,7 +219,6 @@ export function mountAuth(callbacks: AuthCallbacks): AuthHandle {
     );
   }
 
-  // Перевіряю введення й запускаю register або login; реєстрація завершується пропозицією ввійти.
   form.addEventListener(
     "submit",
     (event) => {
@@ -286,7 +275,6 @@ export function mountAuth(callbacks: AuthCallbacks): AuthHandle {
     { signal: listeners.signal },
   );
 
-  // Завершую серверну сесію через logout, після підтвердження очищую користувача й форму.
   logout.addEventListener(
     "click",
     () => {
@@ -326,7 +314,6 @@ export function mountAuth(callbacks: AuthCallbacks): AuthHandle {
   );
 
   render();
-  // Під час відкриття сторінки запитую /me, щоб відновити вхід за чинною cookie.
   const version = generation;
   void (async () => {
     try {
@@ -359,7 +346,6 @@ export function mountAuth(callbacks: AuthCallbacks): AuthHandle {
       say("Доступ адміністратора знято. Ваші особисті маршрути доступні.");
       render();
     },
-    // При завершенні роботи форми зупиняю запити й обробники та очищую пароль.
     destroy: () => {
       destroyed = true;
       nextGeneration();

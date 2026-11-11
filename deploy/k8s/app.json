@@ -1,12 +1,10 @@
 {
-  "_comment": "Запускаю сервери застосунку й описую внутрішній доступ до них",
   "apiVersion": "v1",
   "kind": "List",
   "items": [
     {
       "apiVersion": "v1",
       "kind": "Service",
-      "_comment": "Service дає Traefik сталу адресу для звернення до копій застосунку",
       "metadata": {
         "name": "app",
         "namespace": "__NAMESPACE__",
@@ -33,16 +31,12 @@
             "port": 3000,
             "targetPort": "http"
           }
-        ],
-        "_comment_ports": "port є портом сервісу, targetPort веде до порту контейнера, а nodePort за наявності відкриває порт вузла",
-        "_comment_sessions": "Не прив’язую користувача до однієї копії, спільні сесії читаються з PostgreSQL"
-      },
-      "_comment_purpose": "Об’єдную вибрані через selector pod під сталою мережевою адресою сервісу"
+        ]
+      }
     },
     {
       "apiVersion": "apps/v1",
       "kind": "Deployment",
-      "_comment": "Описую образ, порти, змінні та ресурси серверів; кількістю копій керує HPA",
       "metadata": {
         "name": "app",
         "namespace": "__NAMESPACE__",
@@ -90,8 +84,7 @@
                 "type": "RuntimeDefault"
               },
               "fsGroup": 1000,
-              "fsGroupChangePolicy": "OnRootMismatch",
-              "_comment": "Задаю користувача й обмеження для всього pod, це права всередині контейнерного середовища"
+              "fsGroupChangePolicy": "OnRootMismatch"
             },
             "containers": [
               {
@@ -157,8 +150,7 @@
                   "limits": {
                     "cpu": "1000m",
                     "memory": "384Mi"
-                  },
-                  "_comment": "requests задають запит ресурсів для планування, limits обмежують споживання, 1000m CPU означає одне ядро"
+                  }
                 },
                 "securityContext": {
                   "allowPrivilegeEscalation": false,
@@ -174,8 +166,7 @@
                   },
                   "periodSeconds": 2,
                   "timeoutSeconds": 5,
-                  "failureThreshold": 30,
-                  "_comment": "Даю контейнеру час стартувати, доки startup не успішна, звичайні liveness і readiness ще не виконуються"
+                  "failureThreshold": 30
                 },
                 "livenessProbe": {
                   "httpGet": {
@@ -184,8 +175,7 @@
                   },
                   "periodSeconds": 5,
                   "timeoutSeconds": 5,
-                  "failureThreshold": 3,
-                  "_comment": "Перевіряю життєздатність, повторні невдачі можуть спричинити перезапуск контейнера"
+                  "failureThreshold": 3
                 },
                 "readinessProbe": {
                   "httpGet": {
@@ -194,8 +184,7 @@
                   },
                   "periodSeconds": 5,
                   "timeoutSeconds": 6,
-                  "failureThreshold": 2,
-                  "_comment": "Перевіряю готовність обслуговувати запити, неготовий pod вилучається з готових endpoint сервісу"
+                  "failureThreshold": 2
                 },
                 "volumeMounts": [
                   {
@@ -207,11 +196,7 @@
                     "mountPath": "/var/run/secrets/courier-route",
                     "readOnly": true
                   }
-                ],
-                "_comment_image": "Вибираю конкретний образ, його значення-шаблон скрипт замінює до застосування маніфесту",
-                "_comment_pull": "Не завантажую образ із registry, тому helper спочатку має імпортувати його у вузол kind",
-                "_comment_env": "Завантажую несекретні налаштування з ConfigMap, DATABASE_URL отримую окремо через Secret, якщо він указаний у env",
-                "_comment_mounts": "Приєдную до контейнера перелічені томи, readOnly забороняє запис через відповідне монтування"
+                ]
               }
             ],
             "volumes": [
@@ -247,13 +232,10 @@
                 }
               }
             ],
-            "serviceAccountName": "courier-route-monitor",
-            "_comment_runtime": "Описую контейнери одного pod, ресурси, перевірки готовності, доступ до файлів і права запуску",
-            "_comment_identity": "POD_UID, POD_NAME та POD_NAMESPACE читаю з Downward API, а credentials до бази — із Secret"
+            "serviceAccountName": "courier-route-monitor"
           }
         }
-      },
-      "_comment_purpose": "Описую бажаний шаблон серверних pod, Kubernetes підтримує їх і виконує оновлення"
+      }
     }
   ]
 }

@@ -9,7 +9,6 @@ export function quickTunnelOrigin(value) {
   return ['api', 'www', 'docs', 'developers'].includes(label) ? null : value;
 }
 
-// Беру адресу тільки з наступного рядка успішного банера cloudflared, а не з довільного URL у журналі.
 export function parseQuickTunnelUrl(text) {
   const lines = text.replace(/\u001b\[[0-9;]*m/gu, '').split(/\r?\n/u);
   const body = (line) => line?.match(/^(?:\S+\s+INF\s+)?\|\s*(.*?)\s*\|\s*$/u)?.[1];
@@ -43,7 +42,6 @@ export async function waitForQuickTunnelUrl({ readLog, isRunning, timeoutMs = 30
   throw new PublicDemoError('Cloudflare не підтвердив створення Quick Tunnel протягом 30 секунд; адресу демо не отримано.');
 }
 
-// Таймер діє до кінця тіла відповіді, зокрема при завислому DNS, TLS або незавершеному JSON.
 export function probeReadiness(origin, { timeoutMs = 5_000, ca, originHeader, request = httpsRequest, now = Date.now } = {}) {
   return new Promise((resolve) => {
     let req;
@@ -100,7 +98,6 @@ export async function publicDemoStatus(record, { isRunning, readLog, probe = pro
     return { ...base, phase: 'invalid_url', readiness: { ...base.readiness, reason: 'unverified_url' } };
   }
   const readiness = await probe(record.url, { originHeader: record.url });
-  // Повторно звіряю процес після HTTP: він міг завершитися під час запиту.
   const stillRunning = await isRunning();
   const ready = stillRunning && readiness.ready;
   return { ...base, running: stillRunning, ready, url: ready ? record.url : null, phase: ready ? 'ready' : 'unavailable',
@@ -122,7 +119,6 @@ async function awaitPublicReadiness(record, { isRunning, probe, timeoutMs, now, 
 export async function configurePublicDemo(record, {
   readLog, isRunning, deploy, save, probe = probeReadiness, timeoutMs = 30_000, now = Date.now, sleep = delay,
 }) {
-  // До будь-якого deploy перевіряю походження URL, живий процес та справжню публічну readiness.
   if (!quickTunnelOrigin(record.url) || parseQuickTunnelUrl(await readLog()) !== record.url) {
     throw new PublicDemoError('Немає підтвердженої адреси створеного Quick Tunnel; deployment і Origins не змінено.');
   }
@@ -134,7 +130,6 @@ export async function configurePublicDemo(record, {
   const originDependencies = { ...dependencies, probe: (url, options) => probe(url, { ...options, originHeader: url }) };
   if (record.configured) {
     const originCheck = await probe(record.url, { timeoutMs: 5_000, originHeader: record.url });
-    // Після окремого deploy:local старий allowlist міг бути скинутий; тоді відновлюю його штатно.
     if (originCheck.httpStatus === 403 || originCheck.reason === 'origin_not_allowed') record.configured = false;
     else record.readiness = originCheck.ready ? originCheck : await awaitPublicReadiness(record, originDependencies);
   }

@@ -1,6 +1,3 @@
-// Тут приблизно оцінюю час до початку задачі, не звертаючись до мережі чи PostgreSQL
-// Працюю з готовим знімком, а тривалість самої цільової задачі до очікування не додаю
-// ETA є оцінкою за поточними даними, а не обіцянкою точного часу старту
 
 import { QUEUE_LIMITS } from '../../shared/jobs.js';
 import type { JobQueueInfo } from '../../shared/jobs.js';
@@ -64,21 +61,14 @@ function validWork(job: QueueQueuedJob): boolean {
   return integer(job.pointCount, 1, 2_000) && integer(job.iterations, 1, 200_000_000);
 }
 
-// filter лишає тільки повністю завершені нетривіальні пошуки з коректним часом для оцінки швидкості
-// Для виміряної швидкості беру лише успішно виконаний повний нетривіальний пошук
-// Скасовані та аварійні запуски не вважаю зразками швидкості
 function measuredSamples(samples: QueueDurationSample[]): QueueDurationSample[] {
   return samples.filter((sample) => sample.status === 'completed' && sample.terminationReason === 'budget_exhausted'
     && validWork(sample) && sample.pointCount > 2 && sample.iterationsCompleted === sample.iterations
     && Number.isFinite(sample.durationMs) && sample.durationMs > 0 && sample.durationMs <= QUEUE_MODEL.maxSampleDurationMs);
 }
 
-// Оцінюю обсяг роботи через кількість ітерацій і квадрат кількості точок для таблиці відстаней
 function cost(job: QueueQueuedJob): number { return job.iterations + job.pointCount * job.pointCount; }
 
-// min heap тримає зверху слот який звільниться найраніше без сортування всіх слотів для кожної задачі
-// Тримаю час найраніше доступного слота на вершині min-heap
-// Так можу розподіляти задачі попереду без повного сортування слотів щоразу
 class SlotHeap {
   private readonly values: number[];
   constructor(values: number[]) {
@@ -101,10 +91,6 @@ class SlotHeap {
   }
 }
 
-// оцінюю час до старту цієї задачі без її власної тривалості і без обіцянки точного часу
-// беру зайнятість слота finished_at - started_at і медіанну швидкість задач близького розміру
-// Відкидаю прострочених виконавців, оцінюю звільнення зайнятих слотів і розподіляю чергу попереду
-// За браку історії використовую таймаут, а за суперечливих даних залишаю прогноз недоступним
 export function estimateQueue(snapshot: QueueSnapshot, options: QueueEstimateOptions): JobQueueInfo {
   const handoffMs = options.handoffMs ?? QUEUE_MODEL.handoffMs;
   const finalizationMs = options.finalizationMs ?? QUEUE_MODEL.finalizationMs;
@@ -115,7 +101,6 @@ export function estimateQueue(snapshot: QueueSnapshot, options: QueueEstimateOpt
   }
   const now = Date.parse(snapshot.calculatedAt);
   if (!Number.isFinite(now)) throw new RangeError('Некоректний час знімка черги.');
-  // враховую лише виконавців які приймають задачі й мають чинний TTL на час знімка БД
   const executors = snapshot.executors.filter((executor) => executor.acceptingClaims
     && Number.isFinite(Date.parse(executor.expiresAt)) && Date.parse(executor.expiresAt) > now);
   const result: JobQueueInfo = {
@@ -160,8 +145,6 @@ export function estimateQueue(snapshot: QueueSnapshot, options: QueueEstimateOpt
     if (jobs.length > 1) return result;
     const job = jobs[0];
     if (!job) {
-      // Під час claim, фіналізації або прямого запуску слот усе ще може бути зайнятим
-      // Тому відсутність відповідного running у знімку сама по собі не означає вільний слот
       if (executor.busy || executor.currentJobId !== null) return result;
       slots.push(handoffMs);
       continue;
@@ -184,11 +167,8 @@ export function estimateQueue(snapshot: QueueSnapshot, options: QueueEstimateOpt
       usedTimeout = true;
       remaining = timeoutRemaining;
     }
-    // Запит скасування і виконані ітерації ще не підтверджують вихід потоку та збережене завершення
-    // Для зайнятого слота залишаю додатний запас часу на фактичне завершення
     slots.push(Math.max(1, remaining + finalizationMs));
   }
-  // по черзі додаю задачі попереду до найраніше вільного слота і так отримую очікування цільової
   const heap = new SlotHeap(slots);
   for (const job of snapshot.queuedAhead) heap.replaceFirst(Math.min(QUEUE_LIMITS.maxWaitMs, heap.first + duration(job)));
   result.estimatedWaitMs = Math.min(QUEUE_LIMITS.maxWaitMs, Math.max(0, Math.ceil(heap.first)));

@@ -21,7 +21,6 @@ const activeStatuses = new Set(["queued", "running"]);
 const privateValues = new Set();
 let phase = "preflight and isolated HPA deployment";
 
-/** Kubernetes CPU quantities are cores, including n/u/m subunits. */
 export function parseCpuCores(value) {
   assert.equal(
     typeof value,
@@ -74,7 +73,6 @@ export function parseMemoryBytes(value) {
   return result;
 }
 
-/** Fixed upper limits are part of the executable, rather than unbounded env overrides. */
 export function autoscaleBudget(overrides = {}) {
   const config = {
     users: 3,
@@ -114,7 +112,6 @@ export function autoscaleBudget(overrides = {}) {
   return Object.freeze(config);
 }
 
-/** A desired replica is never counted as a ready worker. */
 export function summarizePods(pods, slices, image, instances = new Map()) {
   const imageIds = new Set();
   const result = pods.map((pod) => {
@@ -235,7 +232,6 @@ export function assertScaleSnapshot(snapshot, expected) {
   );
 }
 
-/** Both additional pods need their own observed positive work and completed result. */
 export function proveExpandedWork(initialUids, pods, observations, completed) {
   const additions = pods.filter((pod) => !initialUids.has(pod.uid));
   assert.equal(additions.length, 2);
@@ -302,7 +298,6 @@ export function validateCompletedRoute(detail) {
   assert.equal(detail.progress.percent, 100);
 }
 
-/** Read-only reconciliation never repeats the uncertain mutation. */
 export async function reconcileCancellation(id, read, pause, maxReads = 18) {
   assert.ok(
     UUID.test(id) &&
@@ -862,8 +857,6 @@ async function runAutoscaleWithinBudget(
       credentials: { username: users[0].username, password: users[0].password },
       deadlineEpochMs,
     });
-    // A distinct fourth account only reads monitoring. The three ordinary
-    // owners, admission quotas and accepted-job/work budgets stay unchanged.
     const adminCredentials = {
       username: `hpa_admin_${randomBytes(6).toString("hex")}`,
       password: randomBytes(24).toString("base64url"),
@@ -917,7 +910,6 @@ async function runAutoscaleWithinBudget(
         accepted.size < budget.maxAccepted,
         "No submission may exceed the accepted budget.",
       );
-      // This POST has no retry path. A transport-uncertain mutation fails the run.
       const response = await invoke("submit one real route job", "/api/jobs", {
         method: "POST",
         body: input,
@@ -988,7 +980,6 @@ async function runAutoscaleWithinBudget(
     const feedStarted = performance.now();
     summary.phaseTimes.feedStartedMs = Math.round(feedStarted - started);
     phase = "bounded real route load: automatic 2→4";
-    // Admission locking sees four concurrent normal requests for the same owner.
     const first = await allRequests(
       Array.from({ length: 4 }, (_, index) =>
         invoke("parallel personal quota proof", "/api/jobs", {
@@ -1238,9 +1229,6 @@ async function runAutoscaleWithinBudget(
         }
       }
       if (expandedObserved && !cancelProof && cancellationAttempts.length < 6) {
-        // Observe fresh early running work after slow browser/deploy operations.
-        // Different candidates are separate deliberate cancellations, never a
-        // retry of a mutation with an unknown result.
         const state = await jobsAndRegistry();
         const candidate = state.jobs.find(
           (job) =>
@@ -1296,7 +1284,7 @@ async function runAutoscaleWithinBudget(
                 },
                 pause,
               );
-              await snapshot(); // Restarts/OOM/failed jobs remain fatal.
+              await snapshot();
               const processes = await deployment.kubectl(
                 [
                   "get",
@@ -1389,7 +1377,6 @@ async function runAutoscaleWithinBudget(
           }
         }
       }
-      // Refresh the active rows after browser/redeploy observations, then bounded backfill.
       if (performance.now() - feedStarted < budget.feedMs) {
         value = await jobsAndRegistry();
         await fill(value);
@@ -1466,8 +1453,6 @@ async function runAutoscaleWithinBudget(
       (job) => !accepted.get(job.id).intentionalCancel,
     );
     assert.ok(normal.every((job) => job.status === "completed"));
-    // Reuse this same bounded run to prove both initial servers did concurrent
-    // real work which later completed. Health-handler rotation alone is weaker.
     const initialPair = summary.timeline.find((item) =>
       initial.pods.every((pod) =>
         item.jobs.some(
@@ -1843,8 +1828,6 @@ async function runAutoscaleWithinBudget(
     summary.failure = { phase, ...safeFailure(error) };
     if (latest) summary.lastObservation = latest;
     if (deployment && Date.now() < deadlineEpochMs) {
-      // Capture only public process fields and owned job state before cleanup
-      // removes the evidence. No logs, inputs, results or claim tokens.
       const diagnostics = await Promise.allSettled([
         deployment.kubectl(
           [

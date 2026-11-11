@@ -106,8 +106,6 @@ describe('Real PostgreSQL admin reads and fresh roles across independent HTTP ha
     await control.query(`CREATE SCHEMA "${schema}"`); schemaCreated = true;
     url.searchParams.set('options', `-c search_path=${schema}`); databaseUrl = url.href;
     const actualPool = new pg.Pool({ connectionString: databaseUrl, max: 5, connectionTimeoutMillis: 2000, query_timeout: 3000, statement_timeout: 2500 });
-    // PostgreSQL constraint details can include a complete row. Test failures
-    // must not print stored session hashes or arbitrary auth data.
     pool = new Proxy(actualPool, { get(target, key, receiver) {
       if (key === 'query') return async (...args: unknown[]) => {
         try { return await Reflect.apply(target.query, target, args); }

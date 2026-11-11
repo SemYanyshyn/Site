@@ -1,6 +1,3 @@
-// Тут зосереджую SQL для створення, читання, виконання та скасування задач
-// Repository для мене є шаром роботи з базою, а не HTTP-маршрутом і не алгоритмом
-// Транзакція об’єднує кілька змін у все або нічого, а параметри $1, $2 передаю окремо від SQL
 
 import { randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
@@ -59,8 +56,6 @@ const FAILURE_MESSAGES: Readonly<Record<JobFailureReason, string>> = Object.free
   worker_lost: 'Виконавця втрачено після граничного часу задачі. Подайте нову задачу.',
 });
 
-// Перетворюю рядок PostgreSQL на публічний короткий опис задачі
-// Дати віддаю як ISO-рядки, а внутрішній claim token у відповідь не додаю
 function summary(row: SummaryRow): JobSummary {
   const value: JobSummary = {
     id: row.id,
@@ -84,16 +79,12 @@ function summary(row: SummaryRow): JobSummary {
   return value;
 }
 
-// Додаю збережений вхід, а результат включаю тільки для completed
 function details(row: DetailsRow): JobDetails {
   const value: JobDetails = { ...summary(row), input: row.input };
   if (row.status === 'completed' && row.result) value.result = row.result;
   return value;
 }
 
-// operation виконує кілька запитів на одному з'єднанні і вони або всі підтверджуються або відкочуються
-// Виконую коротку операцію в транзакції з обмеженнями часу
-// На успіх роблю COMMIT, на помилку ROLLBACK і завжди повертаю з’єднання пулу
 async function transaction<T>(pool: Pool, operation: (client: PoolClient) => Promise<T>): Promise<T> {
   let client: PoolClient | undefined;
   try {
@@ -114,16 +105,11 @@ async function transaction<T>(pool: Pool, operation: (client: PoolClient) => Pro
   }
 }
 
-// тут читаю й змінюю спільний стан задач у PostgreSQL без окремої черги в пам'яті
 export class JobsRepository {
   constructor(private readonly pool: Pool) {}
 
-  // Беру спільне транзакційне блокування для перевірки лімітів і вставки queued
-  // Так два HTTP-процеси не приймуть одночасно більше задач, ніж дозволено
   async create(userId: string, input: NormalizedRouteInput, config: JobsConfig): Promise<JobDetails> {
     return transaction(this.pool, async (client) => {
-      // advisory lock серіалізує створення задач щоб два сервери не обійшли ліміти одночасно
-      // завершення лише зменшує лічильники тому цього блокування не потребує
       await client.query('SELECT pg_advisory_xact_lock($1, $2)', [18024, 4]);
       const counts = await client.query<{ personal: string; outstanding: string }>(`
         SELECT COUNT(*) FILTER (WHERE user_id = $1)::text AS personal, COUNT(*)::text AS outstanding
@@ -136,7 +122,6 @@ export class JobsRepository {
       if (Number(current.outstanding) >= config.maxOutstanding) {
         throw new HttpError(503, 'SYSTEM_OUTSTANDING_LIMIT', 'Спільна черга заповнена. Спробуйте пізніше.');
       }
-      // нова задача отримує queued за замовчуванням у БД а її запуск відбудеться після commit
       const inserted = await client.query<DetailsRow>(`
         INSERT INTO jobs(id, user_id, input, total_iterations) VALUES ($1, $2, $3::jsonb, $4)
         RETURNING ${DETAIL_COLUMNS}
@@ -145,7 +130,6 @@ export class JobsRepository {
     });
   }
 
-  // Повертаю сторінку історії лише цього userId з обмеженими limit та offset
   async list(userId: string, options: JobListOptions): Promise<JobListResponse> {
     const statuses = options.status === undefined ? null
       : options.status === 'active' ? ['queued', 'running'] : [options.status];
@@ -161,7 +145,6 @@ export class JobsRepository {
     }
   }
 
-  // Шукаю задачу одночасно за id і власником, щоб чужий UUID не відкрив чужі дані
   async get(userId: string, id: string): Promise<JobDetails | null> {
     try {
       const result = await this.pool.query<DetailsRow>(`
@@ -173,10 +156,6 @@ export class JobsRepository {
     }
   }
 
-  /* Читаю власника, деталі, місткість і прогноз черги в одному узгодженому MVCC-знімку
- * Так база показує стан однієї транзакції без блокувань приймання та захоплення задач */
-  // Разом читаю деталі й оцінку черги в read-only REPEATABLE READ транзакції
-  // Застосовую один дедлайн до очікування з’єднання, SQL і COMMIT
   async getWithQueue(userId: string, id: string, timeoutMs: number,
     deadline = performance.now() + 8_000): Promise<JobDetails | null> {
     let client: PoolClient | undefined;
@@ -184,9 +163,6 @@ export class JobsRepository {
     try {
       if (!Number.isFinite(deadline) || deadline <= performance.now()) throw databaseUnavailable();
       client = await this.pool.connect();
-      // Використовую загальний таймаут транзакції PostgreSQL 18
-      // Він доповнює спільний дедлайн 8 с, до якого входять до 2 с очікування з’єднання
-      // Налаштування і commit також входять у ці 8 с, що менше за 10 с очікування браузера
       await queryQueueSnapshot(client, deadline, `BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;
         SET LOCAL statement_timeout = '1000ms';
         SET LOCAL lock_timeout = '500ms';
@@ -205,20 +181,14 @@ export class JobsRepository {
       await queryQueueSnapshot(client, deadline, 'COMMIT');
       return value;
     } catch (error) {
-      // Закриваю невдале read-only з’єднання, і PostgreSQL сам відкочує його транзакцію
-      // Не запускаю ще один SQL-запит після вичерпання часу відповіді
       discard = true;
       if (error instanceof HttpError) throw error;
       throw databaseUnavailable();
     } finally { client?.release(discard); }
   }
 
-  // Для queued одразу зберігаю cancelled, а для running лише позначаю запит на скасування
-  // Уже кінцевий стан не переписую новим скасуванням
   async cancel(userId: string, id: string): Promise<JobDetails | null> {
     try {
-      // queued скасовую одразу а running лише отримує прапорець для фізичної зупинки worker
-      // UPDATE блокує рядок і узгоджує cancel з claim або завершенням не змінюючи вже кінцеві дані
       const result = await this.pool.query<DetailsRow>(`
         UPDATE jobs SET
           status = CASE WHEN status = 'queued' THEN 'cancelled' ELSE status END,
@@ -233,9 +203,6 @@ export class JobsRepository {
     }
   }
 
-  // SKIP LOCKED пропускає вже захоплені рядки а новий claim token позначає право саме цього запуску
-  // Беру найстарішу queued через FOR UPDATE SKIP LOCKED, щоб різні сервери не забрали ту саму задачу
-  // Прив’язую її до instanceId, створюю приватний claim token і повертаю тільки після commit
   async claim(instanceId: string, timeoutMs: number, graceMs: number): Promise<JobClaim | null> {
     return transaction(this.pool, async (client) => {
       const token = randomUUID();
@@ -255,9 +222,6 @@ export class JobsRepository {
     });
   }
 
-  // id і claim token не дають старому виконавцю перезаписати прогрес чужого або вже завершеного запуску
-  // Зберігаю фактичний прогрес лише якщо збігаються id, running і claim token
-  // Не дозволяю лічильникам рухатися назад і не ставлю 100 до успішного завершення
   async saveProgress(claim: JobClaim, progress: RouteProgress): Promise<boolean> {
     const stage = { preparing: 0, searching: 1, finishing: 2 } as const;
     if (!Object.hasOwn(stage, progress.stage)
@@ -280,7 +244,6 @@ export class JobsRepository {
     }
   }
 
-  // Перевіряю, чи ще належить нам running-задача і чи користувач не попросив скасування
   async control(claim: JobClaim): Promise<'running' | 'cancel_requested' | 'lost'> {
     try {
       const result = await this.pool.query<{ cancel_requested_at: Date | null }>(`
@@ -293,16 +256,12 @@ export class JobsRepository {
     }
   }
 
-  // зберігаю кінцевий стан і результат а вже прийнятий cancel у БД має пріоритет
-  // Атомарно записую кінцевий стан лише для чинної резервації
-  // Уже збережене користувацьке скасування має пріоритет при звичайному завершенні
   async finish(claim: JobClaim, terminal: JobTerminal, queryTimeoutMs?: number): Promise<boolean> {
     if (queryTimeoutMs !== undefined && (!Number.isSafeInteger(queryTimeoutMs) || queryTimeoutMs < 1 || queryTimeoutMs > 1_000)) {
       throw new RangeError('Некоректний бюджет фінального запису задачі.');
     }
     const completed = terminal.status === 'completed' ? terminal.result : null;
     const reason = terminal.status === 'failed' ? terminal.reason : null;
-    // Зберігаю тільки погоджені безпечні повідомлення без сирих помилок і тексту винятків
     const message = reason ? FAILURE_MESSAGES[reason] : null;
     try {
       const query = { text: `
@@ -319,9 +278,6 @@ export class JobsRepository {
       `, values: [claim.id, claim.claimToken, terminal.status, completed ? JSON.stringify(completed) : null,
         reason, message, completed?.iterationsCompleted ?? null] };
       const result = queryTimeoutMs === undefined ? await this.pool.query(query) : await (async () => {
-        // При зупинці сервера враховую менший залишок часу
-        // Обмежую і виконання в PostgreSQL, і очікування відповіді в node-postgres
-        // Після цього закриваю окреме з’єднання, щоб змінені налаштування та прострочений запит не повернулися в пул
         const client = await this.pool.connect();
         try {
           const setting = { text: "SELECT set_config('statement_timeout', $1, false)",
@@ -337,9 +293,6 @@ export class JobsRepository {
     }
   }
 
-  // після збереженого lost_after позначаю втрачений running як failed без автоматичного повтору
-  // Позначаю прострочені running як failed з причиною worker_lost
-  // Автоматично не запускаю їх повторно, щоб не видати нове виконання за старе
   async recoverLost(): Promise<number> {
     try {
       const result = await this.pool.query(`

@@ -1,14 +1,8 @@
-// Тут обмежую час читання адміністративних даних і реагую на скасування запиту
-// Deadline є кінцевим моментом усієї операції, а AbortSignal повідомляє про її припинення
 
 import { performance } from 'node:perf_hooks';
 import type { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg';
 import { databaseUnavailable } from '../auth/errors.js';
 
-/* При скасуванні закриваю з’єднання pg навіть під час SQL-запиту
- * Якщо з’єднання отримав уже після дедлайну, одразу звільняю його без виконання SQL */
-// Отримую одне з’єднання й дозволяю SQL лише поки є час і запит не скасований
-// При таймауті закриваю сокет, щоб запізнілий запит не продовжив працювати після відповіді
 export async function adminRead<T>(pool: Pool, deadline: number, signal: AbortSignal,
   operation: (query: <R extends QueryResultRow>(text: string, values?: unknown[]) => Promise<QueryResult<R>>) => Promise<T>,
 ): Promise<T> {
@@ -45,8 +39,6 @@ export async function adminRead<T>(pool: Pool, deadline: number, signal: AbortSi
   finally { signal.removeEventListener('abort', abort); release(false); }
 }
 
-// Дозволяю припинити очікування Promise за сигналом
-// Саму мережеву або SQL-операцію її власник також має зупинити окремим механізмом
 export function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
   if (signal.aborted) return Promise.reject(databaseUnavailable());
   return new Promise<T>((resolve, reject) => {

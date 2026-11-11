@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-// @ts-expect-error Native executable helper is intentionally independent of TypeScript/runtime dependencies.
 import { deploymentAppOrigins, ownedTunnelProcess } from '../scripts/public-origins.mjs';
 
 test('public demo adds exact HTTPS origins while always retaining the original local deployment', () => {
@@ -23,7 +22,6 @@ test('stop guard refuses reused PIDs, other executables and different process st
   assert.equal(ownedTunnelProcess({ ...record, pid: 1 }, identity), false);
 });
 
-// @ts-expect-error Native executable helper is intentionally independent of TypeScript/runtime dependencies.
 import { parseQuickTunnelUrl, quickTunnelOrigin, quickTunnelFailure, waitForQuickTunnelUrl, probeReadiness, publicDemoStatus, configurePublicDemo } from '../scripts/public-demo-core.mjs';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';

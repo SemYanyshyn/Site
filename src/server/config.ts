@@ -1,6 +1,3 @@
-// Тут збираю налаштування HTTP-сервера зі змінних середовища й одразу перевіряю їх
-// Не задаю пароль бази в коді, а читаю DATABASE_URL з локального середовища
-// Origin для мене означає точне поєднання протоколу, хоста й порту сайту
 
 export interface AppConfig {
   host: '127.0.0.1' | '0.0.0.0';
@@ -12,8 +9,6 @@ export interface AppConfig {
   sessionCookieSameSite?: 'lax' | 'none';
 }
 
-// Перевіряю адресу PostgreSQL до підключення, включно з назвою бази й коректністю порту
-// У помилку не вставляю сам URL, бо він може містити пароль
 export function readDatabaseUrl(value: string | undefined, label = 'DATABASE_URL'): string {
   if (!value) throw new Error(`${label} необхідно налаштувати.`);
   try {
@@ -32,8 +27,6 @@ export function readDatabaseUrl(value: string | undefined, label = 'DATABASE_URL
   }
 }
 
-// Приймаю лише адресу origin без шляху, логіна, query чи wildcard
-// Так дозволений сайт не можна непомітно підмінити схожою адресою
 export function normalizeOrigin(value: string): string | null {
   try {
     const url = new URL(value);
@@ -47,8 +40,6 @@ export function normalizeOrigin(value: string): string | null {
   }
 }
 
-// Збираю єдиний перевірений об’єкт налаштувань для запуску сервера
-// Окремо узгоджую Secure і SameSite cookie, бо від них залежить передавання сесії браузером
 export function readConfig(): AppConfig {
   const host = process.env.HOST ?? '127.0.0.1';
   if (host !== '127.0.0.1' && host !== '0.0.0.0') {

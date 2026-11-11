@@ -226,7 +226,6 @@ describe('Shared real executor capacity and queued ETA across independent proces
       await readFile(new URL('../migrations/004_executor_metadata.sql', import.meta.url), 'utf8'));
     const retainedRegistry = (await pool.query('SELECT * FROM executor_registry WHERE instance_id=$1', [oldInstance])).rows[0];
     assert.deepEqual(retainedRegistry, { ...oldRegistry, pod_uid: null, pod_name: null, pod_namespace: null });
-    // A rolling-upgrade process using the old heartbeat shape can still write.
     await pool.query(`UPDATE executor_registry SET last_seen_at=clock_timestamp(),expires_at=clock_timestamp()+interval '15 seconds'
       WHERE instance_id=$1`, [oldInstance]);
     await pool.query('DELETE FROM executor_registry WHERE instance_id=$1', [oldInstance]);
@@ -355,7 +354,6 @@ describe('Shared real executor capacity and queued ETA across independent proces
     for (let index = 0; index < 3; index++) {
       const value = queueOf(await details(index % 2 ? appA : appB, target.id, users[1]));
       estimates.push({ ...value });
-      // Test observation interval only; production algorithm has no delay.
       await delay(100);
     }
     const completed = await terminal(appB, target.id, users[1], 18_000);

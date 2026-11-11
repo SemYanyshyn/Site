@@ -1,5 +1,4 @@
 {
-  "_comment": "Додаю збір показників CPU та пам’яті для автоматичного масштабування й моніторингу",
   "apiVersion": "v1",
   "kind": "List",
   "items": [
@@ -21,8 +20,7 @@
           "courier-route.local/manifest-source": "https://github.com/kubernetes-sigs/metrics-server/releases/download/v0.9.0/components.yaml",
           "courier-route.local/manifest-sha256": "1cec29a5267809306a2c6ec74a3e449abbb705b4a8beed0c8a1963910f72c79b"
         }
-      },
-      "_comment_purpose": "Виділяю простір імен для ресурсів, це логічне групування всередині кластера, а не окрема VM"
+      }
     },
     {
       "apiVersion": "v1",
@@ -43,8 +41,7 @@
           "courier-route.local/manifest-sha256": "1cec29a5267809306a2c6ec74a3e449abbb705b4a8beed0c8a1963910f72c79b"
         },
         "namespace": "courier-route-metrics"
-      },
-      "_comment_purpose": "Задаю обліковий запис pod для доступу до API Kubernetes, це не користувач вебзастосунку"
+      }
     },
     {
       "apiVersion": "rbac.authorization.k8s.io/v1",
@@ -83,8 +80,7 @@
             "watch"
           ]
         }
-      ],
-      "_comment_purpose": "Перелічую права кластерного рівня, прив’язка нижче визначає, кому і де їх надати"
+      ]
     },
     {
       "apiVersion": "rbac.authorization.k8s.io/v1",
@@ -131,8 +127,7 @@
             "watch"
           ]
         }
-      ],
-      "_comment_purpose": "Перелічую права кластерного рівня, прив’язка нижче визначає, кому і де їх надати"
+      ]
     },
     {
       "apiVersion": "rbac.authorization.k8s.io/v1",
@@ -165,8 +160,7 @@
           "name": "metrics-server",
           "namespace": "courier-route-metrics"
         }
-      ],
-      "_comment_purpose": "Пов’язую роль із ServiceAccount у вказаному namespace"
+      ]
     },
     {
       "apiVersion": "rbac.authorization.k8s.io/v1",
@@ -198,8 +192,7 @@
           "name": "metrics-server",
           "namespace": "courier-route-metrics"
         }
-      ],
-      "_comment_purpose": "Надаю ServiceAccount указані права на рівні кластера"
+      ]
     },
     {
       "apiVersion": "rbac.authorization.k8s.io/v1",
@@ -231,8 +224,7 @@
           "name": "metrics-server",
           "namespace": "courier-route-metrics"
         }
-      ],
-      "_comment_purpose": "Надаю ServiceAccount указані права на рівні кластера"
+      ]
     },
     {
       "apiVersion": "v1",
@@ -267,15 +259,12 @@
         ],
         "selector": {
           "k8s-app": "metrics-server"
-        },
-        "_comment_ports": "port є портом сервісу, targetPort веде до порту контейнера, а nodePort за наявності відкриває порт вузла"
-      },
-      "_comment_purpose": "Об’єдную вибрані через selector pod під сталою мережевою адресою сервісу"
+        }
+      }
     },
     {
       "apiVersion": "apps/v1",
       "kind": "Deployment",
-      "_comment": "Запускаю сам Metrics Server, який збирає показники ресурсів вузла та pod",
       "metadata": {
         "name": "metrics-server",
         "labels": {
@@ -350,8 +339,7 @@
                     "scheme": "HTTPS"
                   },
                   "periodSeconds": 10,
-                  "timeoutSeconds": 5,
-                  "_comment": "Перевіряю життєздатність, повторні невдачі можуть спричинити перезапуск контейнера"
+                  "timeoutSeconds": 5
                 },
                 "readinessProbe": {
                   "failureThreshold": 3,
@@ -362,8 +350,7 @@
                   },
                   "initialDelaySeconds": 20,
                   "periodSeconds": 10,
-                  "timeoutSeconds": 5,
-                  "_comment": "Перевіряю готовність обслуговувати запити, неготовий pod вилучається з готових endpoint сервісу"
+                  "timeoutSeconds": 5
                 },
                 "resources": {
                   "requests": {
@@ -373,8 +360,7 @@
                   "limits": {
                     "cpu": "500m",
                     "memory": "300Mi"
-                  },
-                  "_comment": "requests задають запит ресурсів для планування, limits обмежують споживання, 1000m CPU означає одне ядро"
+                  }
                 },
                 "securityContext": {
                   "allowPrivilegeEscalation": false,
@@ -395,9 +381,7 @@
                     "mountPath": "/tmp",
                     "name": "tmp-dir"
                   }
-                ],
-                "_comment_image": "Вибираю конкретний образ, його значення-шаблон скрипт замінює до застосування маніфесту",
-                "_comment_mounts": "Приєдную до контейнера перелічені томи, readOnly забороняє запис через відповідне монтування"
+                ]
               }
             ],
             "nodeSelector": {
@@ -412,17 +396,14 @@
                 },
                 "name": "tmp-dir"
               }
-            ],
-            "_comment_runtime": "Описую контейнери одного pod, ресурси, перевірки готовності, доступ до файлів і права запуску"
+            ]
           }
         }
-      },
-      "_comment_purpose": "Описую бажаний шаблон серверних pod, Kubernetes підтримує їх і виконує оновлення"
+      }
     },
     {
       "apiVersion": "apiregistration.k8s.io/v1",
       "kind": "APIService",
-      "_comment": "Підключаю зібрані показники до API Kubernetes, щоб їх могли читати HPA й адмінпанель",
       "metadata": {
         "name": "v1beta1.metrics.k8s.io",
         "labels": {
@@ -449,8 +430,7 @@
         },
         "version": "v1beta1",
         "versionPriority": 100
-      },
-      "_comment_purpose": "Реєструю додатковий API метрик у Kubernetes, щоб його читали HPA та моніторинг"
+      }
     }
   ]
 }

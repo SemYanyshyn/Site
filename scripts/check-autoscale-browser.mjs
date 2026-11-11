@@ -21,8 +21,6 @@ import {
 const root = fileURLToPath(new URL("../", import.meta.url));
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 
-/** Observes the parent's real load run. It never scales workloads or submits
- * load; finish creates exactly one small UI job after the real downscale. */
 export async function startAutoscaleBrowser({
   deployment,
   credentials,
@@ -82,8 +80,6 @@ export async function startAutoscaleBrowser({
     workController.abort(
       new Error("Autoscaling browser work deadline expired."),
     );
-    // Stop the isolated process itself; closing CDP alone would leave page
-    // polling and an in-flight browser fetch alive beyond the work budget.
     browser?.child.kill("SIGKILL");
     void cleanup().catch(() => {});
   }

@@ -1,5 +1,4 @@
 {
-  "_comment": "Виділяю окремий простір імен, щоб ресурси Courier Route були згруповані разом",
   "apiVersion": "v1",
   "kind": "Namespace",
   "metadata": {
@@ -9,6 +8,5 @@
       "app.kubernetes.io/managed-by": "courier-route-local",
       "courier-route.local/owner-id": "__OWNER_ID__"
     }
-  },
-  "_comment_purpose": "Виділяю простір імен для ресурсів, це логічне групування всередині кластера, а не окрема VM"
+  }
 }

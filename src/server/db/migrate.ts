@@ -1,5 +1,3 @@
-// Тут застосовую SQL-міграції, тобто послідовні зміни структури таблиць
-// Працюю тільки з явно переліченими версіями, а факт застосування та SHA-256 зберігаю в schema_migrations
 
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
@@ -13,9 +11,6 @@ const migrationDirectory = new URL(
   import.meta.url,
 );
 
-// Беру advisory lock, щоб два процеси не застосували міграції одночасно
-// Перевіряю хеш уже застосованих файлів, а нові запускаю кожну у власній транзакції
-// Запис про версію додаю разом зі зміною схеми, тому помилка відкочує обидві дії
 export async function migrate(pool: Pool): Promise<string[]> {
   const client = await pool.connect();
   const applied: string[] = [];
@@ -35,7 +30,6 @@ export async function migrate(pool: Pool): Promise<string[]> {
         'SELECT checksum FROM schema_migrations WHERE version = $1', [version],
       );
       if (previous.rows[0]) {
-        // Приймаю лише відому пару контрольних сум для доданих пояснень; запис у БД не переписую
         if (previous.rows[0].checksum !== checksum
           && !isDocumentedMigrationCommentUpdate(version, previous.rows[0].checksum, checksum)) {
           throw new Error('Застосовану міграцію змінено. Додайте нову версію.');

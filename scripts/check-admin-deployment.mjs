@@ -30,7 +30,6 @@ const square = {
   seed: 0,
 };
 
-/** No load/scale is added here. The shared HPA driver owns the one full cycle. */
 export async function runAdminDeployment() {
   const started = performance.now(),
     deadlineEpochMs = Date.now() + 600_000,
@@ -203,7 +202,6 @@ export async function runAdminDeployment() {
             status: 0,
             code: error?.code ?? null,
           });
-          // A transport failure is diagnosed before cleanup; POST is never retried.
           await diagnostics(error).catch(() => {});
           throw error;
         }
@@ -482,8 +480,6 @@ export async function runAdminDeployment() {
       assert.equal(listed?.executedBy, process.executor.instanceId);
       assert.ok(listed.progress.completedIterations > 0);
       assert.equal((await api("/api/health")).status, 200);
-      // A real search may finish before the next five-second UI poll. Observe
-      // it with the actual manual refresh control while positive progress exists.
       await adminBrowser.click("#admin-refresh");
       await adminBrowser.waitFor(
         `document.querySelector('#admin-jobs [data-job-id="${job.id}"]')?.dataset.status==='running' && document.querySelector('#admin-servers').textContent.includes(${JSON.stringify(job.id)})`,
@@ -552,8 +548,6 @@ export async function runAdminDeployment() {
       );
       mark("actual least-privilege ServiceAccount authorization");
       const identity = `system:serviceaccount:${deployment.namespace}:${ROLE}`;
-      // can-i intentionally exits 1 for a genuine "no". Preserve its tiny
-      // public answer and exit code, rather than mistaking any child error for denial.
       async function canI(verb, resource, namespace = deployment.namespace) {
         ensure();
         await deployment.assertOwned();

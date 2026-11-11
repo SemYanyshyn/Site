@@ -18,8 +18,6 @@ function parseTarget(value: string | undefined, label: string): DatabaseTarget {
   if (!['postgres:', 'postgresql:'].includes(url.protocol) || !url.hostname) {
     throw new Error(`${label} має явно задавати PostgreSQL host і database.`);
   }
-  // pg accepts query parameters that can replace the visible URL destination.
-  // Reject those instead of comparing a destination different from pg's target.
   const destinationOverrides = ['host', 'hostaddr', 'port', 'database', 'dbname', 'service'];
   if (destinationOverrides.some((key) => url.searchParams.has(key))) {
     throw new Error(`${label} не повинен перевизначати адресу БД через query parameters.`);
@@ -42,7 +40,6 @@ function parseTarget(value: string | undefined, label: string): DatabaseTarget {
 
 function canonicalAddress(address: string): string {
   const normalized = address.toLowerCase().replace(/^::ffff:/, '');
-  // localhost can resolve to IPv4 or IPv6 for the same local cluster.
   if (normalized === '::1' || /^127\./.test(normalized)) return 'loopback';
   return normalized;
 }
@@ -54,7 +51,6 @@ async function addresses(hostname: string): Promise<Set<string>> {
     if (!found.length) throw new Error('empty lookup');
     return new Set(found.map(({ address }) => canonicalAddress(address)));
   } catch {
-    // An unresolved alias is not evidence that a destination is different.
     throw new Error('Не вдалося перевірити DNS-адресу БД; очищення заборонено.');
   }
 }

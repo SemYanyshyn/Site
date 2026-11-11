@@ -16,9 +16,6 @@ const limits: RouteLimits = {
   maxPoints: 500, maxIterations: 50_000_000, timeoutMs: 30_000, maxCoordinate: 1_000_000,
 };
 
-// The observer creates the actual production worker with unchanged URL/options.
-// Retaining its reference lets assertions check real thread termination, rather
-// than trusting only an executor flag or a resolved promise.
 function observedExecutor(configuration = limits, fixture?: string) {
   const workers: Worker[] = [];
   const options = {
@@ -164,7 +161,6 @@ test('a rejected asynchronous progress callback is observed without stranding it
       throw new Error('Intentional asynchronous subscriber failure.');
     });
     assert.equal((await run.result).status, 'completed');
-    // Node's test runner reports any unhandled rejection as a test failure.
     await delay(0);
     assert.ok(callbacks > 0);
     assert.equal(workers[0]?.threadId, -1);

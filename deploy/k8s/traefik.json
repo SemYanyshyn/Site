@@ -1,5 +1,4 @@
 {
-  "_comment": "Використовую Traefik для приймання HTTPS-запитів і розподілу їх між серверами застосунку",
   "apiVersion": "v1",
   "kind": "List",
   "items": [
@@ -17,8 +16,7 @@
           "app.kubernetes.io/component": "ingress"
         }
       },
-      "automountServiceAccountToken": true,
-      "_comment_purpose": "Задаю обліковий запис pod для доступу до API Kubernetes, це не користувач вебзастосунку"
+      "automountServiceAccountToken": true
     },
     {
       "apiVersion": "rbac.authorization.k8s.io/v1",
@@ -55,8 +53,7 @@
           "resources": ["ingresses/status"],
           "verbs": ["update"]
         }
-      ],
-      "_comment_purpose": "Перелічую дозволені дії над ресурсами лише в цьому namespace"
+      ]
     },
     {
       "apiVersion": "rbac.authorization.k8s.io/v1",
@@ -83,13 +80,11 @@
           "name": "traefik",
           "namespace": "__NAMESPACE__"
         }
-      ],
-      "_comment_purpose": "Пов’язую роль із ServiceAccount у вказаному namespace"
+      ]
     },
     {
       "apiVersion": "v1",
       "kind": "Service",
-      "_comment": "Публікую порти HTTP/HTTPS через порти вузла 30080 і 30443",
       "metadata": {
         "name": "traefik",
         "namespace": "__NAMESPACE__",
@@ -120,16 +115,12 @@
             "targetPort": "websecure",
             "nodePort": 30443
           }
-        ],
-        "_comment_ports": "port є портом сервісу, targetPort веде до порту контейнера, а nodePort за наявності відкриває порт вузла",
-        "_comment_sessions": "Не прив’язую користувача до однієї копії, спільні сесії читаються з PostgreSQL"
-      },
-      "_comment_purpose": "Об’єдную вибрані через selector pod під сталою мережевою адресою сервісу"
+        ]
+      }
     },
     {
       "apiVersion": "apps/v1",
       "kind": "Deployment",
-      "_comment": "Запускаю Traefik, який читає правила Ingress і передає запити потрібному сервісу",
       "metadata": {
         "name": "traefik",
         "namespace": "__NAMESPACE__",
@@ -170,8 +161,7 @@
               "runAsGroup": 65532,
               "seccompProfile": {
                 "type": "RuntimeDefault"
-              },
-              "_comment": "Задаю користувача й обмеження для всього pod, це права всередині контейнерного середовища"
+              }
             },
             "containers": [
               {
@@ -228,8 +218,7 @@
                   "limits": {
                     "cpu": "500m",
                     "memory": "192Mi"
-                  },
-                  "_comment": "requests задають запит ресурсів для планування, limits обмежують споживання, 1000m CPU означає одне ядро"
+                  }
                 },
                 "securityContext": {
                   "allowPrivilegeEscalation": false,
@@ -245,8 +234,7 @@
                   },
                   "periodSeconds": 2,
                   "timeoutSeconds": 3,
-                  "failureThreshold": 30,
-                  "_comment": "Даю контейнеру час стартувати, доки startup не успішна, звичайні liveness і readiness ще не виконуються"
+                  "failureThreshold": 30
                 },
                 "livenessProbe": {
                   "httpGet": {
@@ -255,8 +243,7 @@
                   },
                   "periodSeconds": 5,
                   "timeoutSeconds": 3,
-                  "failureThreshold": 3,
-                  "_comment": "Перевіряю життєздатність, повторні невдачі можуть спричинити перезапуск контейнера"
+                  "failureThreshold": 3
                 },
                 "readinessProbe": {
                   "httpGet": {
@@ -265,17 +252,14 @@
                   },
                   "periodSeconds": 3,
                   "timeoutSeconds": 3,
-                  "failureThreshold": 2,
-                  "_comment": "Перевіряю готовність обслуговувати запити, неготовий pod вилучається з готових endpoint сервісу"
+                  "failureThreshold": 2
                 },
                 "volumeMounts": [
                   {
                     "name": "tmp",
                     "mountPath": "/tmp"
                   }
-                ],
-                "_comment_image": "Вибираю конкретний образ, його значення-шаблон скрипт замінює до застосування маніфесту",
-                "_comment_mounts": "Приєдную до контейнера перелічені томи, readOnly забороняє запис через відповідне монтування"
+                ]
               }
             ],
             "volumes": [
@@ -285,12 +269,10 @@
                   "sizeLimit": "16Mi"
                 }
               }
-            ],
-            "_comment_runtime": "Описую контейнери одного pod, ресурси, перевірки готовності, доступ до файлів і права запуску"
+            ]
           }
         }
-      },
-      "_comment_purpose": "Описую бажаний шаблон серверних pod, Kubernetes підтримує їх і виконує оновлення"
+      }
     }
   ]
 }

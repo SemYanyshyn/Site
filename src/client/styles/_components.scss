@@ -1,7 +1,5 @@
-// Тут зібрав спільні елементи оформлення: кнопки, поля, картки, повідомлення, статуси та прогрес.
 @use "tokens" as t;
 
-// Задаю базовий розмір, відступи та плавну зміну кольору всіх кнопок.
 button {
   min-height: 44px;
   padding: 11px 16px;
@@ -15,13 +13,11 @@ button {
     background-color 0.15s,
     border-color 0.15s;
 }
-// Візуально приглушую недоступні кнопки; можливість натискання контролює HTML або TypeScript.
 button:disabled,
 button[aria-disabled="true"] {
   opacity: 0.58;
   cursor: default;
 }
-// Основну дію виділяю зеленим, а допоміжні кнопки роблю світлішими.
 .primary-button {
   color: #fff;
   background: var(--green);
@@ -39,7 +35,6 @@ button[aria-disabled="true"] {
   background: var(--green-soft);
   border-color: #bfcfbd;
 }
-// Для перемикачів режимів виділяю вибрану кнопку за aria-pressed.
 .mode-button {
   color: var(--muted);
   background: transparent;
@@ -48,7 +43,6 @@ button[aria-disabled="true"] {
   color: var(--green);
   background: var(--green-soft);
 }
-// Для скасування та інших небезпечних дій використовую червоний акцент.
 .danger-button {
   color: var(--danger);
   border-color: #dfbfb4;
@@ -69,7 +63,6 @@ button[aria-disabled="true"] {
 .text-button:hover:not(:disabled) {
   text-decoration-color: currentColor;
 }
-// Оформлюю групи полів, їхні назви, підписи й самі елементи введення.
 fieldset {
   min-width: 0;
   margin: 0;
@@ -129,7 +122,6 @@ input[aria-invalid="true"],
 textarea[aria-invalid="true"] {
   border-color: var(--danger);
 }
-// Задаю вигляд підказок під полями та позначення необов’язкових значень.
 .field-help {
   margin: 9px 0 24px;
   color: var(--muted);
@@ -142,7 +134,6 @@ textarea[aria-invalid="true"] {
   font-size: 13px;
   font-weight: 400;
 }
-// Створюю спільну білу картку з рамкою, тінню, заголовком і номером секції.
 .panel {
   min-width: 0;
   padding: 28px;
@@ -176,7 +167,6 @@ textarea[aria-invalid="true"] {
   font-size: 14px;
   line-height: 1.75;
 }
-// Оформлюю інформаційні повідомлення, помилки та стан порожнього списку.
 .notice {
   padding: 14px 16px;
   border: 1px solid #cbdcc3;
@@ -218,7 +208,6 @@ textarea[aria-invalid="true"] {
   line-height: 1.8;
   overflow-wrap: anywhere;
 }
-// Задаю кольорові мітки станів; потрібні data-status або data-state виставляє клієнтський код.
 .status-badge {
   display: inline-flex;
   align-items: center;
@@ -257,7 +246,6 @@ textarea[aria-invalid="true"] {
   border-color: #dddcd1;
   background: #f0efe8;
 }
-// Оформлюю смугу прогресу; окремі псевдоелементи підтримують її вигляд у різних браузерах.
 progress {
   display: block;
   appearance: none;
@@ -289,7 +277,6 @@ progress::-moz-progress-bar {
   overflow-wrap: anywhere;
   font-variant-numeric: tabular-nums;
 }
-// Оформлюю заголовок розгортаного блоку details та покажчик його відкриття.
 summary {
   width: fit-content;
   max-width: 100%;
@@ -302,7 +289,6 @@ summary {
 summary::marker {
   color: var(--green);
 }
-// Розставляю кнопки сторінок і текст поточної сторінки.
 .pagination {
   display: flex;
   align-items: center;
@@ -324,13 +310,11 @@ summary::marker {
   overflow-wrap: anywhere;
 }
 
-// На планшеті зменшую внутрішні відступи спільних карток.
 @media (max-width: t.$tablet) {
   .panel {
     padding: 24px;
   }
 }
-// На телефоні ущільнюю картки й переношу номер сторінки на окремий рядок.
 @media (max-width: t.$phone) {
   .panel {
     padding: 20px 18px;

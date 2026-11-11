@@ -1,5 +1,4 @@
 {
-  "_comment": "Даю серверу застосунку обмежений доступ для читання даних адмінпанелі",
   "apiVersion": "v1",
   "kind": "List",
   "items": [
@@ -15,13 +14,11 @@
           "courier-route.local/owner-id": "__OWNER_ID__"
         }
       },
-      "automountServiceAccountToken": false,
-      "_comment_purpose": "Задаю обліковий запис pod для доступу до API Kubernetes, це не користувач вебзастосунку"
+      "automountServiceAccountToken": false
     },
     {
       "apiVersion": "rbac.authorization.k8s.io/v1",
       "kind": "Role",
-      "_comment": "Дозволяю читати потрібні pod, метрики, Deployment і HPA у своєму просторі імен; не даю права змінювати ресурси або читати Secret",
       "metadata": {
         "name": "courier-route-monitor",
         "namespace": "__NAMESPACE__",
@@ -84,8 +81,7 @@
             "get"
           ]
         }
-      ],
-      "_comment_purpose": "Перелічую дозволені дії над ресурсами лише в цьому namespace"
+      ]
     },
     {
       "apiVersion": "rbac.authorization.k8s.io/v1",
@@ -110,8 +106,7 @@
           "name": "courier-route-monitor",
           "namespace": "__NAMESPACE__"
         }
-      ],
-      "_comment_purpose": "Пов’язую роль із ServiceAccount у вказаному namespace"
+      ]
     }
   ]
 }

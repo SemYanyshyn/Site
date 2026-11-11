@@ -90,7 +90,6 @@ export async function main(command = 'status') {
       return;
     }
     if (await isRunning(previous)) {
-      // Старий ready сам по собі нічого не доводить: configurePublicDemo робить новий HTTPS-запит.
       active = { ...previous, configured: previous.configured === true || previous.phase === 'ready' };
     } else {
       assert.equal(process.versions.node.split('.')[0], '24', 'Потрібен Node.js 24 і npm 11.');

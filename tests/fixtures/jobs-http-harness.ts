@@ -3,8 +3,6 @@ import { Worker } from 'node:worker_threads';
 import type { WorkerOptions } from 'node:worker_threads';
 import type { DispatcherEvent } from '../../src/server/jobs/dispatcher.js';
 
-// Only test IPC controls dispatcher admission. The HTTP application and its
-// coordinator/executor are the actual built production modules, in this process.
 const { startServer } = await import(new URL('../../dist/server/index.js', import.meta.url).href) as
   typeof import('../../src/server/index.js');
 const { readConfig } = await import(new URL('../../dist/server/config.js', import.meta.url).href) as
@@ -68,8 +66,6 @@ process.on('message', (value: unknown) => {
   });
 });
 
-// Production signal handlers perform shutdown. The test listener only releases
-// IPC after that same production shutdown Promise has completed.
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, () => {
     void runtime.shutdown(signal).then(() => {

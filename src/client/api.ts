@@ -1,10 +1,8 @@
-// Тут зібрав HTTP-запити до особистих задач: ліміти, список, деталі, створення та скасування.
 import { apiFetch } from './api-endpoint.js';
 import type { JobDetails, JobLimitsResponse, JobListResponse, JobStatus } from '../shared/jobs.js';
 import type { RouteInput } from '../shared/route.js';
 import { InvalidResponseError, isRecord, parseJobDetails, parseJobLimits, parseJobList } from './response.js';
 
-// Описую, які параметри та запити можуть використовувати контролери задач.
 export interface JobListQuery { limit: number; offset: number; status?: JobStatus | 'active' }
 export interface JobsApi {
   limits(signal?: AbortSignal): Promise<JobLimitsResponse>;
@@ -15,7 +13,6 @@ export interface JobsApi {
 }
 export type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
 
-// Зберігаю HTTP-код і тип помилки; uncertain позначає невідомий результат створення задачі.
 export class ApiRequestError extends Error {
   constructor(readonly status: number, readonly code: string, message: string, readonly uncertain = false) {
     super(message);
@@ -23,7 +20,6 @@ export class ApiRequestError extends Error {
   }
 }
 
-// Перетворюю помилки запитів на зрозумілі повідомлення для екрана.
 export function requestErrorMessage(error: unknown): string {
   if (error instanceof ApiRequestError || error instanceof InvalidResponseError) return error.message;
   return 'Не вдалося зв’язатися із сервером. Перевірте з’єднання та оновіть дані.';
@@ -41,7 +37,6 @@ function fallback(status: number): string {
 export class ApiClient implements JobsApi {
   constructor(private readonly fetcher: FetchLike = apiFetch, private readonly timeoutMs = 10_000) {}
 
-  // Тут виконую спільні кроки запиту: таймаут, JSON, перевірку відповіді та обробку помилок.
   private async request<T>(path: string, method: 'GET' | 'POST', parse: (value: unknown) => T,
     body?: unknown, signal?: AbortSignal, creating = false): Promise<T> {
     try {
@@ -58,11 +53,9 @@ export class ApiClient implements JobsApi {
         throw new ApiRequestError(response.status, validError ? payload.code as string : 'HTTP_ERROR',
           validError ? payload.message as string : fallback(response.status));
       }
-      // Перевіряю поля отриманого JSON через parse, перш ніж передавати дані інтерфейсу.
       return parse(payload);
     } catch (error) {
       if (error instanceof ApiRequestError) throw error;
-      // Враховую, що сервер міг прийняти задачу ще до втрати відповіді.
       if (creating) throw new ApiRequestError(0, 'ACCEPTANCE_UNKNOWN',
         'Запит міг бути прийнятий. Оновіть історію перед повторним запуском.', true);
       if (error instanceof InvalidResponseError) throw error;
@@ -70,11 +63,9 @@ export class ApiClient implements JobsApi {
     }
   }
 
-  // Завантажую допустиму кількість точок, ітерацій та інші серверні ліміти.
   limits(signal?: AbortSignal): Promise<JobLimitsResponse> {
     return this.request('/api/jobs/limits', 'GET', parseJobLimits, undefined, signal);
   }
-  // Читаю сторінку задач і звіряю, що відповідь відповідає заданим фільтру та сторінці.
   list(query: JobListQuery, signal?: AbortSignal): Promise<JobListResponse> {
     const parameters = new URLSearchParams({ limit: String(query.limit), offset: String(query.offset) });
     if (query.status) parameters.set('status', query.status);
@@ -86,7 +77,6 @@ export class ApiClient implements JobsApi {
       return value;
     }, undefined, signal);
   }
-  // Читаю збережені дані однієї задачі та перевіряю її ідентифікатор.
   detail(id: string, signal?: AbortSignal): Promise<JobDetails> {
     return this.request(`/api/jobs/${encodeURIComponent(id)}`, 'GET', (payload) => {
       const value = parseJobDetails(payload, true);
@@ -94,11 +84,9 @@ export class ApiClient implements JobsApi {
       return value;
     }, undefined, signal);
   }
-  // Надсилаю нову задачу; при втраті відповіді показую невизначений результат замість автоматичного повтору.
   create(input: RouteInput, signal?: AbortSignal): Promise<JobDetails> {
     return this.request('/api/jobs', 'POST', parseJobDetails, input, signal, true);
   }
-  // Надсилаю серверу запит на скасування й отримую фактичний поточний стан задачі.
   cancel(id: string, signal?: AbortSignal): Promise<JobDetails> {
     return this.request(`/api/jobs/${encodeURIComponent(id)}/cancel`, 'POST', (payload) => {
       const value = parseJobDetails(payload);

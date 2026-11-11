@@ -48,7 +48,6 @@ async function stop(record) {
 async function acquireLock() {
   const previous = await readJson(lockPath);
   if (previous && !await identity(previous.pid)) {
-    // Прибираю лише власний покинутий lock, якщо вміст не змінився під час перевірки.
     if (JSON.stringify(await readJson(lockPath)) === JSON.stringify(previous)) await rm(lockPath, { force: true });
   }
   await writeFile(lockPath, JSON.stringify({ pid: process.pid }), { flag: 'wx', mode: 0o600 });
@@ -95,7 +94,6 @@ export async function main(command = 'status') {
       assert.ok(Number.isInteger(cluster.httpsPort) && cluster.httpsPort >= 1024 && cluster.httpsPort <= 65535);
       const ca = await readFile(join(root, '.local/deploy/tls/ca.crt'));
       if (!(await probeReadiness(`https://localhost:${cluster.httpsPort}`, { ca })).ready) throw new PublicDemoError('Локальна HTTPS readiness не готова; перевірте npm run deploy:status.');
-      // Окремий ключ лише для безкоштовного Pinggy; особисті ключі та SSH agent не використовуються.
       const keyPath = join(directory, 'id_ed25519');
       try { await access(keyPath); } catch {
         await execute('/usr/bin/ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-f', keyPath], { timeout: 10_000, maxBuffer: 16_384 });

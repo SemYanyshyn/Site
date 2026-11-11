@@ -5,8 +5,6 @@ import { normalizeApiBase } from './src/shared/public-api.js';
 
 const projectRoot = fileURLToPath(new URL('.', import.meta.url));
 
-// Keep the existing development stylesheet URL available while all authored
-// styles use SCSS. Both URLs reach Vite's normal Sass/HMR pipeline.
 const developmentStyleUrl: Plugin = {
   name: 'development-style-url',
   apply: 'serve',
@@ -41,7 +39,6 @@ export default defineConfig(({ mode }) => {
   }
 
   return {
-    // Pages is opt-in: normal Docker/Traefik and local builds keep their root URLs.
     base: mode === 'pages' ? `${pagesBase.replace(/\/$/u, '')}/` : '/',
     plugins: [developmentStyleUrl],
     root: fileURLToPath(new URL('./src/client', import.meta.url)),

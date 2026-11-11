@@ -1,6 +1,3 @@
-// Тут керую життєвим циклом одного worker-потоку цього серверного процесу
-// У головному потоці перевіряю вхід, контролюю таймаут і перевіряю повідомлення, а сам пошук виконує worker
-// При busy одразу відмовляю новому запуску, бо спільна черга вже реалізована в PostgreSQL
 
 import { randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
@@ -13,7 +10,6 @@ import { readRouteConfig, validateRouteLimits } from './config.js';
 import { validateRouteInput } from './validation.js';
 
 interface ExecutorOptions {
-  // Дозволяю підміну worker тільки для внутрішніх тестів, HTTP-запит не обирає код потоку
   workerFactory?: (url: URL, options: WorkerOptions) => Worker;
   workerUrl?: URL;
 }
@@ -58,8 +54,6 @@ function finiteNonnegative(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0;
 }
 
-// Незалежно від алгоритму перевіряю, що маршрут відвідує кожну доставку один раз і повертається на склад
-// Одночасно повторно рахую його фактичну евклідову довжину
 function closedRouteLength(order: unknown, locations: readonly Coordinate[]): number | null {
   const count = locations.length - 1;
   if (!Array.isArray(order) || order.length !== count + 2 || order[0] !== 0 || order.at(-1) !== 0) return null;
@@ -82,8 +76,6 @@ function closedRouteLength(order: unknown, locations: readonly Coordinate[]): nu
   return length;
 }
 
-/* Незалежно від алгоритму перевіряю повернений порядок точок і довжину маршруту */
-// Не довіряю лише типу повідомлення, перевіряю структуру результату, seed, ітерації та довжину
 function validResult(value: unknown, input: NormalizedRouteInput, elapsedMs: number): value is RouteResult {
   if (!isRecord(value)) return false;
   const count = input.points.length;
@@ -108,7 +100,6 @@ function validResult(value: unknown, input: NormalizedRouteInput, elapsedMs: num
       + Number.MIN_VALUE * count;
     if (Math.abs(initialLength - value.initialLength) > initialTolerance) return false;
   }
-  // Додатково перевіряю консервативну геометричну верхню межу довжини початкового маршруту
   const maxAbsoluteCoordinate = Math.max(...locations.flatMap((point) => [Math.abs(point.x), Math.abs(point.y)]));
   const maximumLength = (count + 1) * 2 * Math.SQRT2 * maxAbsoluteCoordinate;
   if (value.initialLength > maximumLength + tolerance) return false;
@@ -123,7 +114,6 @@ function validResult(value: unknown, input: NormalizedRouteInput, elapsedMs: num
     value.iterationsCompleted === input.iterations;
 }
 
-// керую одним worker цього HTTP процесу а спільна черга живе окремо в PostgreSQL
 export class RouteExecutor {
   readonly #limits: RouteLimits;
   readonly #options: ExecutorOptions;
@@ -138,8 +128,6 @@ export class RouteExecutor {
 
   get busy(): boolean { return this.#active !== undefined; }
 
-  // Синхронно займаю слот, створюю worker із мінімальними даними та підключаю його події
-  // Promise результату завершую після виходу потоку, а отриманий result поки зберігаю як кандидата
   start(input: unknown, onProgress?: (progress: RouteProgress) => void): RouteRun {
     if (this.#closed) throw new RouteExecutorError('executor_shutdown', 'Виконавець маршруту вже завершує роботу.');
     if (this.#active) throw new RouteExecutorError('executor_busy', 'Виконавець маршруту зайнятий. Повторіть запуск після завершення.');
@@ -150,7 +138,6 @@ export class RouteExecutor {
       runId: randomUUID(), input: normalized, startedAt: performance.now(), result, resolve, onProgress,
       lastCompleted: 0, lastPercent: 0, lastStage: 0, settled: false, terminating: false, threadId: 0,
     };
-    // займаю слот до створення worker і до асинхронних продовжень щоб не запустити другий одночасно
     this.#active = active;
     const run: RouteRun = { runId: active.runId, threadId: 0, result };
     try {
@@ -158,7 +145,6 @@ export class RouteExecutor {
         ? new URL('./dev-worker.mjs', import.meta.url)
         : new URL('./worker.js', import.meta.url));
       const factory = this.#options.workerFactory ?? ((url, options) => new Worker(url, options));
-      // worker отримує лише вхід і runId без паролів БД та аргументів запуску основного процесу
       const worker = factory(workerUrl, {
         workerData: { runId: active.runId, input: normalized },
         env: {}, execArgv: [],
@@ -192,8 +178,6 @@ export class RouteExecutor {
     return run;
   }
 
-  // чекаю фактичної зупинки потоку а не лише записую бажання скасувати
-  // Фізично зупиняю потік і чекаю завершення, а не просто міняю прапорець у пам’яті
   async cancel(runId?: string): Promise<void> {
     const active = this.#active;
     if (!active || (runId !== undefined && runId !== active.runId)) return;
@@ -201,19 +185,15 @@ export class RouteExecutor {
     await active.result;
   }
 
-  // Забороняю наступні запуски й чекаю скасування активного пошуку
   async shutdown(): Promise<void> {
     this.#closed = true;
     await this.cancel();
   }
 
-  // після дедлайну ставлю failed з причиною timeout і через stop фізично зупиняю worker
-  // Перевіряю реальний монотонний дедлайн і при перевищенні завершую пошук як failed/timeout
   #expire(active: ActiveRun): boolean {
     if (active.settled || active.outcome) return false;
     const remaining = this.#limits.timeoutMs - (performance.now() - active.startedAt);
     if (remaining > 0) {
-      // Враховую, що таймер може спрацювати трохи раніше за потрібний монотонний дедлайн
       if (active.timer) clearTimeout(active.timer);
       active.timer = setTimeout(() => this.#expire(active), remaining);
       return false;
@@ -224,8 +204,6 @@ export class RouteExecutor {
     return true;
   }
 
-  // Перевіряю runId та формат кожного повідомлення, відкидаю некоректний чи зворотний прогрес
-  // Повідомлення result ще не звільняє слот до події виходу worker
   #message(active: ActiveRun, message: unknown): void {
     if (active.settled || active.outcome || this.#expireIfDue(active)) return;
     if (!isRecord(message) || message.runId !== active.runId) {
@@ -249,7 +227,6 @@ export class RouteExecutor {
       }
       active.lastStage = stages[stage];
       active.lastCompleted = progress.completedIterations;
-      // відсоток беру з реальних ітерацій а 100 дозволяю тільки після перевірки результату й виходу worker
       const percent = Math.min(99.999, 100 * progress.completedIterations / active.input.iterations);
       this.#progress(active, { stage, completedIterations: progress.completedIterations,
         totalIterations: active.input.iterations, percent });
@@ -270,10 +247,8 @@ export class RouteExecutor {
     });
   }
 
-  // Зберігаю першу кінцеву причину й запускаю terminate лише один раз
   #stop(active: ActiveRun, outcome: RouteOutcome): void {
     if (active.settled || active.outcome) return;
-    // перша кінцева причина лишається чинною включно зі скасуванням яке надійшло раніше за результат
     active.outcome = outcome;
     if (active.timer) clearTimeout(active.timer);
     const worker = active.worker;
@@ -281,29 +256,22 @@ export class RouteExecutor {
     if (active.terminating) return;
     active.terminating = true;
     void worker.terminate().then(() => {
-      // Promise від terminate завершується після фізичної зупинки потоку як і подія exit
       this.#finish(active, active.outcome ?? outcome);
     }).catch(() => {
       if (worker.threadId === -1) this.#finish(active, active.outcome ?? outcome);
     });
   }
 
-  // Повідомляю підписника про реальний прогрес, а його помилки не дозволяю поширити на worker
   #progress(active: ActiveRun, progress: RouteProgress): void {
     if (progress.percent < active.lastPercent) return;
     active.lastPercent = progress.percent;
     try {
-      // Пам’ятаю, що TypeScript дозволяє async-функцію навіть для callback з результатом void
-      // Тому перехоплюю і синхронний виняток, і відхилення повернутого Promise
       const returned: unknown = active.onProgress?.(progress);
       void Promise.resolve(returned).catch(() => {});
     } catch {
-      // Не дозволяю помилці callback вийти з обробника події або залишити worker без завершення
     }
   }
 
-  // Очищую таймери й слухачів, звільняю слот та завершую Promise рівно один раз
-  // 100 відсотків передаю лише для перевіреного completed після завершення потоку
   #finish(active: ActiveRun, outcome: RouteOutcome): void {
     if (active.settled) return;
     active.settled = true;

@@ -34,7 +34,6 @@ function child(args: string[]): Promise<{ code: number | null; output: string }>
     processChild.once('close', (code) => {
       clearTimeout(timer);
       if (expired || failed) { reject(new Error('Own bounded role/migration process failed; private output was suppressed.')); return; }
-      // Even assertion failures below must never print credentials or a DB URL.
       for (const value of [databaseUrl, new URL(databaseUrl).password]) if (value && output.includes(value)) {
         reject(new Error('CLI output contained a forbidden private value.')); return;
       }

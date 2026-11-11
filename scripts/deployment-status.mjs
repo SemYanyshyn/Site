@@ -1,17 +1,13 @@
-// Тут формую зрозумілий read-only звіт про локальне розгортання
-// Розділяю живий pod, його готовність, свіжі метрики та фактичну HTTPS-відповідь застосунку
 
 import { readFile } from "node:fs/promises";
 import https from "node:https";
 
-// Дозволяю звичайний короткий status або явний --verbose для докладного звіту
 export function parseStatusArguments(args) {
   if (args.length === 0) return { verbose: false };
   if (args.length === 1 && args[0] === "--verbose") return { verbose: true };
   throw new Error("Використання: npm run deploy:status [-- --verbose]");
 }
 
-// Перетворюю технічні помилки читання на безпечні короткі пояснення без сирої конфігурації
 function readError(error) {
   const message = String(error?.message ?? "");
   if (/forbidden|\b403\b/iu.test(message)) return "немає дозволу на читання";
@@ -41,8 +37,6 @@ function items(source) {
   return Array.isArray(source.value?.items) ? source.value.items : [];
 }
 
-// Перевіряю видалення, очікування, завершення контейнера та Ready-умову pod
-// Одного напису Running недостатньо, щоб оголосити застосунок готовим
 function podState(pod, containerName) {
   if (pod.metadata?.deletionTimestamp)
     return { ready: false, text: "завершується" };
@@ -77,7 +71,6 @@ function podState(pod, containerName) {
   };
 }
 
-// Перетворюю числові одиниці CPU й пам’яті з Kubernetes на порівнювані числа
 function quantity(input, memory = false) {
   if (typeof input !== "string") return null;
   const match = /^(\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)([A-Za-z]*)$/u.exec(input);
@@ -105,7 +98,6 @@ function quantity(input, memory = false) {
     : null;
 }
 
-// Переводжу тривалість вибірки метрик у мілісекунди для перевірки свіжості
 function windowMs(input) {
   if (typeof input !== "string" || input.length > 40) return null;
   const parts = [...input.matchAll(/(\d+(?:\.\d+)?)(ms|s|m|h)/gu)];
@@ -119,9 +111,6 @@ function windowMs(input) {
   return Number.isFinite(value) && value > 0 && value <= 3600000 ? value : null;
 }
 
-// Тут лише обмежена перевірка HTTPS без створення forwarding, ресурсів чи автоматичного перезапуску
-// Роблю обмежений HTTPS GET /api/ready з перевіркою локальної CA та hostname
-// Перевіряю status ready і UUID реального HTTP-процесу, а не лише відкритий TCP-порт
 export async function probeDemoReady(origin, caPath, timeoutMs = 3000) {
   let ca;
   try {
@@ -192,9 +181,6 @@ export async function probeDemoReady(origin, caPath, timeoutMs = 3000) {
   });
 }
 
-// Читаю джерела незалежно, щоб помилка API метрик не приховала стан pod
-// Паралельно читаю ресурси, Metrics API й HTTPS, щоб збій одного джерела не приховав решту
-// При невідомому або застарілому стані явно показую проблему й повертаю ok=false
 export async function collectDeploymentStatus({
   kubectl,
   metricsKubectl,
@@ -238,7 +224,6 @@ export async function collectDeploymentStatus({
     ]);
   const lines = ["Courier Route"];
   let ok = true;
-  // Ураховую мітки власника, щоб не видати сторонні ресурси за своє успішне розгортання
   const owned = (object) =>
     !ownerId ||
     (object.metadata?.labels?.["courier-route.local/owner-id"] === ownerId &&
@@ -320,7 +305,6 @@ export async function collectDeploymentStatus({
     "postgres",
   );
 
-  // Показую поточні й граничні репліки, ціль CPU та стан HPA, не змінюючи його налаштувань
   const hpa = all.find(
     (item) =>
       item.kind === "HorizontalPodAutoscaler" && item.metadata?.name === "app",
@@ -364,7 +348,6 @@ export async function collectDeploymentStatus({
     );
   }
 
-  // Окремо перевіряю готовність самого Metrics Server та доступність його API
   const apiAvailable = metricsService.value?.status?.conditions?.some(
     (condition) =>
       condition.type === "Available" && condition.status === "True",
@@ -415,8 +398,6 @@ export async function collectDeploymentStatus({
   lines.push("Копії застосунку (CPU / RAM контейнера app):");
   if (!appPods.length)
     lines.push(resources.error ? "  стан невідомий" : "  pod відсутні");
-  // Для кожної копії беру метрики саме app-контейнера й перевіряю час вибірки
-  // Не використовую дані, вікно яких почалося до запуску поточного контейнера
   for (const pod of appPods.sort((a, b) =>
     a.metadata.name.localeCompare(b.metadata.name),
   )) {

@@ -48,7 +48,6 @@ function manage(command: string, args: string[], env: NodeJS.ProcessEnv, group =
   const child = spawn(command, args, {
     cwd, env, detached: group, stdio: ['ignore', 'pipe', 'pipe'],
   });
-  // Drain logs without printing request bodies, credentials or token values on failures.
   child.stdout?.resume();
   child.stderr?.resume();
   const closed = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) => {
@@ -115,7 +114,6 @@ async function waitForHttp(origin: string, managed: ManagedProcess): Promise<Res
       const response = await fetch(`${origin}/api/health`, { signal: AbortSignal.timeout(500) });
       if (response.ok) return response;
     } catch {
-      // Startup polling does not introduce an application delay or fake progress.
     }
     await delay(50);
   }
@@ -241,7 +239,6 @@ describe('PostgreSQL authentication across independent HTTP processes', { concur
       try { await pool.end(); } catch { cleanupFailures += 1; }
     }
     if (controlPool) {
-      // Only the generated schema in the validated, explicitly named test database is removed.
       try {
         if (schemaCreated) await controlPool.query(`DROP SCHEMA "${schema}" CASCADE`);
       } catch {
@@ -250,7 +247,6 @@ describe('PostgreSQL authentication across independent HTTP processes', { concur
         try { await controlPool.end(); } catch { cleanupFailures += 1; }
       }
     }
-    // Finish all cleanup before failing, and keep raw pg/child errors out of TAP output.
     assert.equal(cleanupFailures, 0, 'Temporary servers must exit cleanly and all test resources must be released.');
   });
 
@@ -569,7 +565,7 @@ describe('PostgreSQL authentication across independent HTTP processes', { concur
     } finally { await Promise.all([stop(first, true), stop(second, true)]); }
   });
 
-  test('documented comments preserve legacy migration records and data while unknown checksums still fail', async () => {
+  test('comment removal preserves annotated migration records and data while unknown checksums still fail', async () => {
     const recorded = await pool.query<{ version: string; checksum: string; applied_at: Date }>(
       'SELECT version,checksum,applied_at FROM schema_migrations ORDER BY version');
     const data = async (): Promise<string> => JSON.stringify(await Promise.all(
